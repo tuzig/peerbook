@@ -7,7 +7,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"time"
@@ -66,14 +65,18 @@ type StatusMessage struct {
 	description string
 }
 
-func newPeer(hub *Hub, ws *websocket.Conn, q url.Values) (*Peer, error) {
+func newPeer(hub *Hub, q url.Values) (*Peer, error) {
 	var pd PeerDoc
-	key := fmt.Sprintf("peer:%s", q.Get("fingerprint"))
+	fp := q.Get("fingerprint")
+	if fp == "" {
+		return nil, fmt.Errorf("Missing `fingerprint` query parameters")
+	}
+	key := fmt.Sprintf("peer:%s", fp)
 	exists, err := redis.Bool(hub.redis.Do("EXISTS", key))
 	if err != nil {
 		return nil, err
 	}
-	peer := Peer{hub: hub, ws: ws, send: make(chan interface{}, 8), authenticated: false}
+	peer := Peer{hub: hub, send: make(chan interface{}, 8), authenticated: false}
 	if !exists {
 		return &peer, &PeerNotFound{}
 	}
@@ -110,7 +113,7 @@ func (p *Peer) readPump() {
 		err := p.ws.ReadJSON(&message)
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("error: %v", err)
+				Logger.Errorf("error: %v", err)
 			}
 			break
 		}
@@ -141,7 +144,7 @@ func (p *Peer) writePump() {
 				return
 			}
 			if err := p.ws.WriteJSON(message); err != nil {
-				// TODO: add log.Warn
+				Logger.Warnf("failed to send message: %w", err)
 				continue
 			}
 		case <-ticker.C:
@@ -160,18 +163,22 @@ func (p *Peer) sendAuthEmail() error {
 	// TODO: send an email in the background, the email should havssss
 	return nil
 }
+func (p *Peer) Upgrade(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		Logger.Errorf("Failed to upgrade socket: %w", err)
+	}
+	p.ws = conn
+}
 
 // serveWs handles websocket requests from the peer.
 func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Println(err)
-		return
-	}
 	q := r.URL.Query()
-	peer, err := newPeer(hub, conn, q)
+	peer, err := newPeer(hub, q)
 	if peer == nil {
-		log.Println(err)
+		msg := fmt.Sprintf("Failed to create a new peer: %s", err)
+		Logger.Warn(msg)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	if err != nil {
@@ -181,11 +188,14 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 			peer.sendStatus(401, err)
 			err = peer.sendAuthEmail()
 			if err != nil {
-				log.Println("failed to send email")
+				Logger.Errorf("Failed to send an auth email: %w", err)
 			}
+		} else {
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 	}
+	peer.Upgrade(w, r)
 	// Allow collection of memory referenced by the caller by doing all work in
 	// new goroutines.
 	go peer.writePump()
