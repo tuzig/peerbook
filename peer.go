@@ -6,10 +6,13 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"time"
 
+	"github.com/gomodule/redigo/redis"
 	"github.com/gorilla/websocket"
 )
 
@@ -37,6 +40,14 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
+// PeerDoc is the info we store at redis
+type PeerDoc struct {
+	user        string
+	fingerprint string
+	name        string
+	kind        string
+}
+
 // Peer is a middleman between the websocket connection and the hub.
 type Peer struct {
 	hub *Hub
@@ -45,14 +56,39 @@ type Peer struct {
 	// Buffered channel of outbound messages.
 	send          chan interface{}
 	authenticated bool
+	pd            *PeerDoc
 }
 
-// PeerDoc is the info we store at redis
-type PeerDoc struct {
-	user        string
-	fingerprint string
-	name        string
-	kind        string
+// StatusMessage is used to update the peer to a change of state,
+// like 200 after the peer has been authorized
+type StatusMessage struct {
+	status_code int
+	description string
+}
+
+func newPeer(hub *Hub, ws *websocket.Conn, q url.Values) (*Peer, error) {
+	var pd PeerDoc
+	key := fmt.Sprintf("peer:%s", q.Get("fingerprint"))
+	exists, err := redis.Bool(hub.redis.Do("EXISTS", key))
+	if err != nil {
+		return nil, err
+	}
+	peer := Peer{hub: hub, ws: ws, send: make(chan interface{}, 8), authenticated: false}
+	if !exists {
+		return &peer, &PeerNotFound{}
+	}
+	values, err := redis.Values(hub.redis.Do("HGETALL", key))
+	if err = redis.ScanStruct(values, &pd); err != nil {
+		return nil, fmt.Errorf("Failed to scan peer %q: %w", key, err)
+	}
+	peer.pd = &pd
+	if pd.name != q.Get("name") ||
+		pd.user != q.Get("user") ||
+		pd.kind != q.Get("kind") {
+		return &peer, &PeerChanged{}
+	}
+	peer.authenticated = true
+	return &peer, nil
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -78,6 +114,8 @@ func (p *Peer) readPump() {
 			}
 			break
 		}
+		message["source_fp"] = p.pd.fingerprint
+		message["source_name"] = p.pd.name
 		p.hub.requests <- message
 	}
 }
@@ -102,8 +140,8 @@ func (p *Peer) writePump() {
 				p.ws.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
-			// TODO: add log.Warn before each `continue`
 			if err := p.ws.WriteJSON(message); err != nil {
+				// TODO: add log.Warn
 				continue
 			}
 		case <-ticker.C:
@@ -115,9 +153,12 @@ func (p *Peer) writePump() {
 	}
 }
 func (p *Peer) sendStatus(code int, err error) {
+	msg := StatusMessage{code, err.Error()}
+	p.send <- msg
 }
-func (p *Peer) sendAuthEmail(c *chan bool) {
-	*c <- true
+func (p *Peer) sendAuthEmail() error {
+	// TODO: send an email in the background, the email should havssss
+	return nil
 }
 
 // serveWs handles websocket requests from the peer.
@@ -128,7 +169,7 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q := r.URL.Query()
-	peer, err := hub.getPeer(hub, conn, q)
+	peer, err := newPeer(hub, conn, q)
 	if peer == nil {
 		log.Println(err)
 		return
@@ -138,9 +179,11 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		_, changed := err.(*PeerChanged)
 		if notFound || changed {
 			peer.sendStatus(401, err)
-			var authChan chan bool
-			peer.sendAuthEmail(&authChan)
-			<-authChan
+			err = peer.sendAuthEmail()
+			if err != nil {
+				log.Println("failed to send email")
+			}
+			return
 		}
 	}
 	// Allow collection of memory referenced by the caller by doing all work in

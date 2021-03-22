@@ -78,7 +78,7 @@ trickle ICE the peer sends the request as he gets new candidates:
 
 ```json
 {
-    "target": "<peer name>",
+    "target": "<peer's fingerprint>",
     "offer": "<encoded offer>"
 }
 ```
@@ -87,8 +87,8 @@ peerbook will look for the target peer. If found, peerbook does two things:
 - send the target a connection request:
     ```json
     {
-        "source": "<initiator's name>",
-        "fingerprint": "<initiator's fingerprint>",
+        "source_fp": "<initiator's fingerprint>",
+        "source_name": "<initiator's name>",
         "offer": "<encoded offer>"
     }
     ```
@@ -109,8 +109,8 @@ forward the answer to the initiator:
 
 ```json
 {
-    "source": "<target's name>",
-    "fingerprint": "<target's fingerprint>",
+    "source_fp": "<sender's fingerprint>",
+    "source_name": "<initiator's name>",
     "answer": "<encoded answer>"
 }
 ```

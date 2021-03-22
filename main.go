@@ -39,7 +39,7 @@ func serveHome(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	flag.Parse()
-	hub := newHub()
+	hub := newHub("localhost:6379")
 	defer hub.Close()
 	go hub.run()
 	http.HandleFunc("/", serveHome)
