@@ -98,13 +98,12 @@ start collencting answers and stream the candidates as it gets them.
 
 ```json
 {
-    "target": "<initiaotr's name>",
-    "fingerprint": "<initiator's fingerprint>",
+    "target": "<initiaotr's fingerprint>",
     "answer": "<encoded answer>"
 }
 ```
 
-peerbook uses the `fingerprint` field to identify the connection request and
+peerbook uses the `target` field to identify the connection request and
 forward the answer to the initiator:
 
 ```json

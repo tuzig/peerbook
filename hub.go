@@ -6,6 +6,7 @@ package main
 
 import (
 	"net/http"
+	"time"
 )
 
 // Hub maintains the set of active peers and broadcasts messages to the
@@ -36,6 +37,12 @@ func newHub() *Hub {
 // forwardSignal Forwards offers and answers after it ensures the peer is known
 // and is authenticated
 func (h *Hub) forwardSignal(s *Peer, m map[string]string) {
+	if !s.authenticated {
+		e := &UnauthorizedPeer{s}
+		Logger.Warn(e)
+		s.sendStatus(http.StatusUnauthorized, e)
+		return
+	}
 	target := m["target"]
 	p, found := h.peers[target]
 	if !found {
@@ -44,17 +51,15 @@ func (h *Hub) forwardSignal(s *Peer, m map[string]string) {
 		s.sendStatus(http.StatusBadRequest, e)
 		return
 	}
-	if !p.authenticated {
-		e := &UnauthorizedPeer{p}
-		Logger.Warn(e)
-		s.sendStatus(http.StatusUnauthorized, e)
-		return
-	}
 	m["source_fp"] = s.FP
 	m["source_name"] = s.Name
 
 	delete(m, "target")
-	p.send <- m
+	p.ws.SetWriteDeadline(time.Now().Add(writeWait))
+	Logger.Infof("Sending message: %v", m)
+	if err := p.ws.WriteJSON(m); err != nil {
+		Logger.Warnf("failed to forward signal: %w", err)
+	}
 }
 func (h *Hub) run() {
 	for {
@@ -70,7 +75,7 @@ func (h *Hub) run() {
 			sFP := message["source"]
 			source, found := h.peers[sFP]
 			if !found {
-				Logger.Errorf("Hub ugnores a bad request because of wrong source: %s", sFP)
+				Logger.Errorf("Hub ignores a bad request because of wrong source: %s", sFP)
 				continue
 			}
 			_, offer := message["offer"]

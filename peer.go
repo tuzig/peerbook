@@ -57,6 +57,18 @@ type StatusMessage struct {
 	Text string `json:"text"`
 }
 
+type OfferMessage struct {
+	SourceName string `json:"source_name"`
+	SourceFP   string `json:"source_fp"`
+	Offer      string `json:"offer"`
+}
+
+type AnswerMessage struct {
+	SourceName string `json:"source_name"`
+	SourceFP   string `json:"source_fp"`
+	Answer     string `json:"answer"`
+}
+
 func newPeer(hub *Hub, q url.Values) (*Peer, error) {
 	var pd DBPeer
 	fp := q.Get("fp")
@@ -155,6 +167,7 @@ func (p *Peer) writePump() {
 }
 func (p *Peer) sendStatus(code int, e error) {
 	msg := StatusMessage{code, e.Error()}
+	p.ws.SetWriteDeadline(time.Now().Add(writeWait))
 	if err := p.ws.WriteJSON(msg); err != nil {
 		Logger.Warnf("failed to send status message: %w", err)
 	}

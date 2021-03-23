@@ -55,37 +55,59 @@ func TestUnknownFingerprint(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, 401, s.Code)
 	// try and communicate with another peer
-	url2 := "ws://127.0.0.1:17777/ws?fp=good"
+	redisDouble.HSet("peer:foo", "name", "bar", "kind", "lay", "user", "UUID")
+	// create client, connect to the hu
+	url2 := "ws://127.0.0.1:17777/ws?fp=foo&name=bar&kind=lay&user=UUID"
 	ws2, _, err := cstDialer.Dial(url2, nil)
 	require.Nil(t, err)
 	defer ws2.Close()
 	if err := ws.SetWriteDeadline(time.Now().Add(time.Second)); err != nil {
 		t.Fatalf("SetReadDeadline: %v", err)
 	}
-	ws.WriteJSON(map[string]string{"offer": "an offer", "target": "good"})
-	if err := ws.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
-		t.Fatalf("SetReadDeadline: %v", err)
-	}
+	err = ws.WriteJSON(map[string]string{"offer": "an offer", "target": "foo"})
+	require.Nil(t, err)
+	err = ws.SetReadDeadline(time.Now().Add(time.Second))
+	require.Nil(t, err)
 	err = ws.ReadJSON(&s)
 	require.Nil(t, err)
 	require.Equal(t, 401, s.Code)
 	// TODO: get ws2 to try and connect to ensure the server is not forwarding
 	// requests
 }
-func TestKnownFingerprint(t *testing.T) {
+func TestSignaling(t *testing.T) {
 	startTest(t)
-	redisDouble.HSet("peer:foobar", "name", "foo", "kind", "lay", "user", "UUID")
+	redisDouble.HSet("peer:A", "name", "foo", "kind", "lay", "user", "UUID1")
+	redisDouble.HSet("peer:B", "name", "bar", "kind", "lay", "user", "UUID2")
 	// create client, connect to the hu
-	url := "ws://127.0.0.1:17777/ws?fp=foobar&name=foo&kind=lay&user=UUID"
-	ws, _, err := cstDialer.Dial(url, nil)
+	urlA := "ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&user=UUID1"
+	wsA, _, err := cstDialer.Dial(urlA, nil)
 	require.Nil(t, err)
-	defer ws.Close()
-	if err := ws.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+	defer wsA.Close()
+	urlB := "ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&user=UUID2"
+	wsB, _, err := cstDialer.Dial(urlB, nil)
+	require.Nil(t, err)
+	defer wsB.Close()
+	err = wsA.SetWriteDeadline(time.Now().Add(time.Second))
+	require.Nil(t, err)
+	err = wsA.WriteJSON(map[string]string{"offer": "an offer", "target": "B"})
+	require.Nil(t, err)
+	if err := wsB.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 		t.Fatalf("SetReadDeadline: %v", err)
 	}
-	var s StatusMessage
-	err = ws.ReadJSON(&s)
-	// If all is well no message should be coming and we get a timeout
-	// TODO: test for timeout, it's on the error
-	require.NotNil(t, err)
+	var o OfferMessage
+	err = wsB.ReadJSON(&o)
+	require.Nil(t, err)
+	require.Equal(t, "an offer", o.Offer)
+	require.Equal(t, "foo", o.SourceName)
+	err = wsB.SetWriteDeadline(time.Now().Add(time.Second))
+	require.Nil(t, err)
+	err = wsB.WriteJSON(map[string]string{"answer": "B's answer", "target": "A"})
+	require.Nil(t, err)
+	if err := wsA.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
+	var a AnswerMessage
+	err = wsA.ReadJSON(&a)
+	require.Equal(t, "B's answer", a.Answer)
+	require.Equal(t, "bar", a.SourceName)
 }
