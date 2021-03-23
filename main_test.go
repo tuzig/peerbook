@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/alicebob/miniredis/v2"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
@@ -17,15 +18,18 @@ var cstDialer = websocket.Dialer{
 
 var mainRunning bool
 
-func startMain() {
+func startMain(t *testing.T) {
 	if !mainRunning {
 		go main()
 		mainRunning = true
+		s, err := miniredis.Run()
+		require.Nil(t, err)
+		redisConnect(s.Addr())
 	}
 }
 func TestBadConnectionRequest(t *testing.T) {
 	Logger = zaptest.NewLogger(t).Sugar()
-	startMain()
+	startMain(t)
 
 	// let the server open
 	time.Sleep(time.Second / 100)
@@ -37,7 +41,7 @@ func TestBadConnectionRequest(t *testing.T) {
 }
 func TestUnknownFingerprint(t *testing.T) {
 	Logger = zaptest.NewLogger(t).Sugar()
-	startMain()
+	startMain(t)
 	// let the server open
 	time.Sleep(time.Second / 100)
 	// create client, connect to the hu
