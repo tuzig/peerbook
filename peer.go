@@ -41,21 +41,21 @@ var upgrader = websocket.Upgrader{
 
 // PeerDoc is the info we store at redis
 type PeerDoc struct {
-	user        string
-	fingerprint string
-	name        string
-	kind        string
+	User string `redis:"user"`
+	FP   string `redis:"fp"`
+	Name string `redis:"name"`
+	Kind string `redis:"kind"`
 }
 
 // Peer is a middleman between the websocket connection and the hub.
 type Peer struct {
+	PeerDoc
 	hub *Hub
 	// The websocket connection.
 	ws *websocket.Conn
 	// Buffered channel of outbound messages.
 	send          chan interface{}
 	authenticated bool
-	pd            *PeerDoc
 }
 
 // StatusMessage is used to update the peer to a change of state,
@@ -67,29 +67,39 @@ type StatusMessage struct {
 
 func newPeer(hub *Hub, q url.Values) (*Peer, error) {
 	var pd PeerDoc
-	fp := q.Get("fingerprint")
+	fp := q.Get("fp")
 	if fp == "" {
-		return nil, fmt.Errorf("Missing `fingerprint` query parameters")
+		return nil, fmt.Errorf("Missing `fp` query parameter")
 	}
 	key := fmt.Sprintf("peer:%s", fp)
 	exists, err := redis.Bool(hub.redis.Do("EXISTS", key))
 	if err != nil {
 		return nil, err
 	}
-	peer := Peer{hub: hub, send: make(chan interface{}, 8), authenticated: false}
+	peer := Peer{hub: hub,
+		send:          make(chan interface{}, 8),
+		authenticated: false,
+	}
+	peer.FP = fp
 	if !exists {
 		return &peer, &PeerNotFound{}
 	}
+	// next 4 lines are about the peer doc AKA `pd` from redis
 	values, err := redis.Values(hub.redis.Do("HGETALL", key))
 	if err = redis.ScanStruct(values, &pd); err != nil {
 		return nil, fmt.Errorf("Failed to scan peer %q: %w", key, err)
 	}
-	peer.pd = &pd
-	if pd.name != q.Get("name") ||
-		pd.user != q.Get("user") ||
-		pd.kind != q.Get("kind") {
+	// same fingerprint changed details. could be the hostname changed,
+	// return un authenticated peer and a the `PeerChanged` error
+	if pd.Name != q.Get("name") ||
+		pd.User != q.Get("user") ||
+		pd.Kind != q.Get("kind") {
 		return &peer, &PeerChanged{}
 	}
+	// copy all the data from redis
+	peer.User = pd.User
+	peer.Name = pd.Name
+	peer.Kind = pd.Kind
 	peer.authenticated = true
 	return &peer, nil
 }
@@ -117,8 +127,7 @@ func (p *Peer) readPump() {
 			}
 			break
 		}
-		message["source_fp"] = p.pd.fingerprint
-		message["source_name"] = p.pd.name
+		message["source"] = p.FP
 		p.hub.requests <- message
 	}
 }
@@ -183,6 +192,7 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	hub.register <- peer
 	if err != nil {
 		_, notFound := err.(*PeerNotFound)
 		_, changed := err.(*PeerChanged)

@@ -7,6 +7,7 @@ package main
 import (
 	"github.com/gomodule/redigo/redis"
 	"log"
+	"net/http"
 )
 
 // Hub maintains the set of active peers and broadcasts messages to the
@@ -36,17 +37,30 @@ func newHub(redisHost string) *Hub {
 		unregister: make(chan *Peer),
 		peers:      make(map[string]*Peer),
 		redis:      conn,
-		requests:   make(chan map[string]string),
+		requests:   make(chan map[string]string, 16),
 	}
 }
 
-// forwardSignal Forwards offersa nd answers
-func (h *Hub) forwardSignal(m map[string]string) {
+// forwardSignal Forwards offers and answers after it ensures the peer is known
+// and is authenticated
+func (h *Hub) forwardSignal(s *Peer, m map[string]string) {
 	target := m["target"]
 	p, found := h.peers[target]
 	if !found {
-		log.Println("Couldn't find target peer")
+		e := &TargetNotFound{target}
+		Logger.Warn(e)
+		s.sendStatus(http.StatusBadRequest, e)
+		return
 	}
+	if !p.authenticated {
+		e := &UnauthorizedPeer{p}
+		Logger.Warn(e)
+		s.sendStatus(http.StatusUnauthorized, e)
+		return
+	}
+	m["source_fp"] = s.FP
+	m["source_name"] = s.Name
+
 	delete(m, "target")
 	p.send <- m
 }
@@ -54,17 +68,23 @@ func (h *Hub) run() {
 	for {
 		select {
 		case peer := <-h.register:
-			h.peers[peer.pd.fingerprint] = peer
+			h.peers[peer.FP] = peer
 		case peer := <-h.unregister:
-			if _, ok := h.peers[peer.pd.fingerprint]; ok {
-				delete(h.peers, peer.pd.fingerprint)
+			if _, ok := h.peers[peer.FP]; ok {
+				delete(h.peers, peer.FP)
 				close(peer.send)
 			}
 		case message := <-h.requests:
+			sFP := message["source"]
+			source, found := h.peers[sFP]
+			if !found {
+				Logger.Errorf("Hub ugnores a bad request because of wrong source: %s", sFP)
+				continue
+			}
 			_, offer := message["offer"]
 			_, answer := message["answer"]
 			if offer || answer {
-				h.forwardSignal(message)
+				h.forwardSignal(source, message)
 			}
 		}
 	}

@@ -7,6 +7,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -23,10 +24,28 @@ var (
 	stop   chan os.Signal
 )
 
-type PeerNotFound struct{}
+type UnauthorizedPeer struct {
+	peer *Peer
+}
+
+func (e *UnauthorizedPeer) Error() string {
+	return fmt.Sprintf("An unathenticated peer tried to connect - %v", e.peer)
+}
+
+type TargetNotFound struct {
+	fp string
+}
+
+func (p *TargetNotFound) Error() string {
+	return fmt.Sprintf("Target peer not found: %s", p.fp)
+}
+
+type PeerNotFound struct {
+	fp string
+}
 
 func (p *PeerNotFound) Error() string {
-	return "Peer not found"
+	return fmt.Sprintf("Peer not found: %s", p.fp)
 }
 
 type PeerChanged struct{}

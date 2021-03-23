@@ -41,7 +41,7 @@ func TestUnknownFingerprint(t *testing.T) {
 	// let the server open
 	time.Sleep(time.Second / 100)
 	// create client, connect to the hu
-	url := "ws://127.0.0.1:17777/ws?fingerprint=BADWOLF"
+	url := "ws://127.0.0.1:17777/ws?fp=BADWOLF"
 	ws, _, err := cstDialer.Dial(url, nil)
 	require.Nil(t, err)
 	defer ws.Close()
@@ -52,4 +52,21 @@ func TestUnknownFingerprint(t *testing.T) {
 	err = ws.ReadJSON(&s)
 	require.Nil(t, err)
 	require.Equal(t, 401, s.Code)
+	// try and communicate with another peer
+	url2 := "ws://127.0.0.1:17777/ws?fp=good"
+	ws2, _, err := cstDialer.Dial(url2, nil)
+	require.Nil(t, err)
+	defer ws2.Close()
+	if err := ws.SetWriteDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
+	ws.WriteJSON(map[string]string{"offer": "an offer", "target": "good"})
+	if err := ws.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
+	err = ws.ReadJSON(&s)
+	require.Nil(t, err)
+	require.Equal(t, 401, s.Code)
+	// TODO: get ws2 to try and connect to ensure the server is not forwarding
+	// requests
 }

@@ -74,7 +74,7 @@ to which peerbook will reply with:
 ## The Connection Flow
 
 To request a connection, a peer sends a request to peerbook. If it supports
-trickle ICE the peer sends the request as he gets new candidates:
+trickle ICE the peer sends the request as often as he gets new candidates:
 
 ```json
 {
