@@ -46,7 +46,6 @@ type Peer struct {
 	// The websocket connection.
 	ws *websocket.Conn
 	// Buffered channel of outbound messages.
-	send          chan interface{}
 	authenticated bool
 }
 
@@ -80,10 +79,7 @@ func newPeer(hub *Hub, q url.Values) (*Peer, error) {
 	if err != nil {
 		return nil, err
 	}
-	peer := Peer{hub: hub,
-		send:          make(chan interface{}, 8),
-		authenticated: false,
-	}
+	peer := Peer{hub: hub}
 	peer.FP = fp
 	if !exists {
 		return &peer, &PeerNotFound{}
@@ -133,12 +129,8 @@ func (p *Peer) readPump() {
 	}
 }
 
-// writePump pumps messages from the hub to the websocket connection.
-//
-// A goroutine running writePump is started for each connection. The
-// application ensures that there is at most one writer to a connection by
-// executing all writes from this goroutine.
-func (p *Peer) writePump() {
+// pinger sends pings
+func (p *Peer) pinger() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
@@ -146,17 +138,6 @@ func (p *Peer) writePump() {
 	}()
 	for {
 		select {
-		case message, ok := <-p.send:
-			p.ws.SetWriteDeadline(time.Now().Add(writeWait))
-			if !ok {
-				// The hub closed the channel.
-				p.ws.WriteMessage(websocket.CloseMessage, []byte{})
-				return
-			}
-			if err := p.ws.WriteJSON(message); err != nil {
-				Logger.Warnf("failed to send message: %w", err)
-				continue
-			}
 		case <-ticker.C:
 			p.ws.SetWriteDeadline(time.Now().Add(writeWait))
 			if err := p.ws.WriteMessage(websocket.PingMessage, nil); err != nil {
@@ -214,6 +195,6 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	}
 	// Allow collection of memory referenced by the caller by doing all work in
 	// new goroutines.
-	go peer.writePump()
+	go peer.pinger()
 	go peer.readPump()
 }

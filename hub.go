@@ -69,7 +69,6 @@ func (h *Hub) run() {
 		case peer := <-h.unregister:
 			if _, ok := h.peers[peer.FP]; ok {
 				delete(h.peers, peer.FP)
-				close(peer.send)
 			}
 		case message := <-h.requests:
 			sFP := message["source"]
