@@ -17,22 +17,23 @@ var cstDialer = websocket.Dialer{
 }
 
 var mainRunning bool
+var redisDouble *miniredis.Miniredis
 
-func startMain(t *testing.T) {
+func startTest(t *testing.T) {
 	if !mainRunning {
+		Logger = zaptest.NewLogger(t).Sugar()
 		go main()
 		mainRunning = true
 		s, err := miniredis.Run()
 		require.Nil(t, err)
+		redisDouble = s
 		redisConnect(s.Addr())
+		// let the server open
+		time.Sleep(time.Second / 100)
 	}
 }
 func TestBadConnectionRequest(t *testing.T) {
-	Logger = zaptest.NewLogger(t).Sugar()
-	startMain(t)
-
-	// let the server open
-	time.Sleep(time.Second / 100)
+	startTest(t)
 	// create client, connect to the hu
 	url := "ws://127.0.0.1:17777/ws"
 	_, resp, err := cstDialer.Dial(url, nil)
@@ -40,10 +41,7 @@ func TestBadConnectionRequest(t *testing.T) {
 	require.Equal(t, resp.StatusCode, 400)
 }
 func TestUnknownFingerprint(t *testing.T) {
-	Logger = zaptest.NewLogger(t).Sugar()
-	startMain(t)
-	// let the server open
-	time.Sleep(time.Second / 100)
+	startTest(t)
 	// create client, connect to the hu
 	url := "ws://127.0.0.1:17777/ws?fp=BADWOLF"
 	ws, _, err := cstDialer.Dial(url, nil)
@@ -73,4 +71,21 @@ func TestUnknownFingerprint(t *testing.T) {
 	require.Equal(t, 401, s.Code)
 	// TODO: get ws2 to try and connect to ensure the server is not forwarding
 	// requests
+}
+func TestKnownFingerprint(t *testing.T) {
+	startTest(t)
+	redisDouble.HSet("peer:foobar", "name", "foo", "kind", "lay", "user", "UUID")
+	// create client, connect to the hu
+	url := "ws://127.0.0.1:17777/ws?fp=foobar&name=foo&kind=lay&user=UUID"
+	ws, _, err := cstDialer.Dial(url, nil)
+	require.Nil(t, err)
+	defer ws.Close()
+	if err := ws.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
+	var s StatusMessage
+	err = ws.ReadJSON(&s)
+	// If all is well no message should be coming and we get a timeout
+	// TODO: test for timeout, it's on the error
+	require.NotNil(t, err)
 }

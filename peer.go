@@ -76,11 +76,8 @@ func newPeer(hub *Hub, q url.Values) (*Peer, error) {
 	if !exists {
 		return &peer, &PeerNotFound{}
 	}
-	// next 4 lines are about the peer doc AKA `pd` from redis
-	values, err := redis.Values(redisConn.Do("HGETALL", key))
-	if err = redis.ScanStruct(values, &pd); err != nil {
-		return nil, fmt.Errorf("Failed to scan peer %q: %w", key, err)
-	}
+	err = readDoc(key, &pd)
+
 	// same fingerprint changed details. could be the hostname changed,
 	// return un authenticated peer and a the `PeerChanged` error
 	if pd.Name != q.Get("name") ||
