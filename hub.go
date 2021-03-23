@@ -5,8 +5,6 @@
 package main
 
 import (
-	"github.com/gomodule/redigo/redis"
-	"log"
 	"net/http"
 )
 
@@ -24,19 +22,13 @@ type Hub struct {
 
 	// Unregister requests from peers.
 	unregister chan *Peer
-	redis      redis.Conn
 }
 
-func newHub(redisHost string) *Hub {
-	conn, err := redis.Dial("tcp", redisHost)
-	if err != nil {
-		log.Fatal(err)
-	}
+func newHub() *Hub {
 	return &Hub{
 		register:   make(chan *Peer),
 		unregister: make(chan *Peer),
 		peers:      make(map[string]*Peer),
-		redis:      conn,
 		requests:   make(chan map[string]string, 16),
 	}
 }
@@ -88,8 +80,4 @@ func (h *Hub) run() {
 			}
 		}
 	}
-}
-
-func (h *Hub) Close() {
-	h.redis.Close()
 }

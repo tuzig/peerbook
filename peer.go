@@ -39,17 +39,9 @@ var upgrader = websocket.Upgrader{
 	WriteBufferSize: 1024,
 }
 
-// PeerDoc is the info we store at redis
-type PeerDoc struct {
-	User string `redis:"user"`
-	FP   string `redis:"fp"`
-	Name string `redis:"name"`
-	Kind string `redis:"kind"`
-}
-
 // Peer is a middleman between the websocket connection and the hub.
 type Peer struct {
-	PeerDoc
+	DBPeer
 	hub *Hub
 	// The websocket connection.
 	ws *websocket.Conn
@@ -66,13 +58,13 @@ type StatusMessage struct {
 }
 
 func newPeer(hub *Hub, q url.Values) (*Peer, error) {
-	var pd PeerDoc
+	var pd DBPeer
 	fp := q.Get("fp")
 	if fp == "" {
 		return nil, fmt.Errorf("Missing `fp` query parameter")
 	}
 	key := fmt.Sprintf("peer:%s", fp)
-	exists, err := redis.Bool(hub.redis.Do("EXISTS", key))
+	exists, err := redis.Bool(redisConn.Do("EXISTS", key))
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +77,7 @@ func newPeer(hub *Hub, q url.Values) (*Peer, error) {
 		return &peer, &PeerNotFound{}
 	}
 	// next 4 lines are about the peer doc AKA `pd` from redis
-	values, err := redis.Values(hub.redis.Do("HGETALL", key))
+	values, err := redis.Values(redisConn.Do("HGETALL", key))
 	if err = redis.ScanStruct(values, &pd); err != nil {
 		return nil, fmt.Errorf("Failed to scan peer %q: %w", key, err)
 	}

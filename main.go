@@ -126,15 +126,15 @@ func main() {
 	if Logger == nil {
 		initLogger()
 	}
-	hub := newHub("localhost:6379")
-	defer hub.Close()
+	redisConnect("localhost:6379")
+	defer redisConn.Close()
+
+	hub := newHub()
 	go hub.run()
 
 	httpServerExitDone := &sync.WaitGroup{}
-
-	httpServerExitDone.Add(1)
+	httpServerExitDone.Add(3)
 	srv := startHttpServer(hub, httpServerExitDone)
-
 	// Setting up signal capturing
 	stop = make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
@@ -144,5 +144,4 @@ func main() {
 	}
 	// wait for goroutine started in startHttpServer() to stop
 	httpServerExitDone.Wait()
-
 }
