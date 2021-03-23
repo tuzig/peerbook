@@ -5,6 +5,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -12,11 +13,14 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"sync"
 )
 
 // Logger is our global logger
 var (
 	Logger *zap.SugaredLogger
+	stop   chan os.Signal
 )
 
 type PeerNotFound struct{}
@@ -76,6 +80,28 @@ func initLogger() {
 		"peerbook.err", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	Dup2(int(e.Fd()), 2)
 }
+func startHttpServer(hub *Hub, wg *sync.WaitGroup) *http.Server {
+	srv := &http.Server{Addr: *addr}
+
+	http.HandleFunc("/", serveHome)
+	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		serveWs(hub, w, r)
+	})
+
+	go func() {
+		defer wg.Done() // let main know we are done cleaning up
+
+		// always returns error. ErrServerClosed on graceful close
+		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+			// unexpected error. port in use?
+			log.Fatalf("ListenAndServe(): %v", err)
+		}
+	}()
+
+	// returning reference so caller can call Shutdown()
+	return srv
+}
+
 func main() {
 	flag.Parse()
 	if Logger == nil {
@@ -84,12 +110,20 @@ func main() {
 	hub := newHub("localhost:6379")
 	defer hub.Close()
 	go hub.run()
-	http.HandleFunc("/", serveHome)
-	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		serveWs(hub, w, r)
-	})
-	err := http.ListenAndServe(*addr, nil)
-	if err != nil {
-		Logger.Errorf("ListenAndServe failed: ", err)
+
+	httpServerExitDone := &sync.WaitGroup{}
+
+	httpServerExitDone.Add(1)
+	srv := startHttpServer(hub, httpServerExitDone)
+
+	// Setting up signal capturing
+	stop = make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt)
+	<-stop
+	if err := srv.Shutdown(context.Background()); err != nil {
+		Logger.Error("failure/timeout shutting down the http server gracefully")
 	}
+	// wait for goroutine started in startHttpServer() to stop
+	httpServerExitDone.Wait()
+
 }
