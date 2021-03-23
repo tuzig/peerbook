@@ -15,9 +15,18 @@ var cstDialer = websocket.Dialer{
 	HandshakeTimeout: 30 * time.Second,
 }
 
+var mainRunning bool
+
+func startMain() {
+	if !mainRunning {
+		go main()
+		mainRunning = true
+	}
+}
 func TestBadConnectionRequest(t *testing.T) {
 	Logger = zaptest.NewLogger(t).Sugar()
-	go main()
+	startMain()
+
 	// let the server open
 	time.Sleep(time.Second / 100)
 	// create client, connect to the hu
@@ -25,24 +34,22 @@ func TestBadConnectionRequest(t *testing.T) {
 	_, resp, err := cstDialer.Dial(url, nil)
 	require.NotNil(t, err)
 	require.Equal(t, resp.StatusCode, 400)
-	// defer ws.Close()
-	/*
-		const message = "Hello World!"
-		if err := ws.SetWriteDeadline(time.Now().Add(time.Second)); err != nil {
-			t.Fatalf("SetWriteDeadline: %v", err)
-		}
-		if err := ws.WriteMessage(TextMessage, []byte(message)); err != nil {
-			t.Fatalf("WriteMessage: %v", err)
-		}
-		if err := ws.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
-			t.Fatalf("SetReadDeadline: %v", err)
-		}
-		_, p, err := ws.ReadMessage()
-		if err != nil {
-			t.Fatalf("ReadMessage: %v", err)
-		}
-		if string(p) != message {
-			t.Fatalf("message=%s, want %s", p, message)
-		}
-	*/
+}
+func TestUnknownFingerprint(t *testing.T) {
+	Logger = zaptest.NewLogger(t).Sugar()
+	startMain()
+	// let the server open
+	time.Sleep(time.Second / 100)
+	// create client, connect to the hu
+	url := "ws://127.0.0.1:17777/ws?fingerprint=BADWOLF"
+	ws, _, err := cstDialer.Dial(url, nil)
+	require.Nil(t, err)
+	defer ws.Close()
+	if err := ws.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
+	var s StatusMessage
+	err = ws.ReadJSON(&s)
+	require.Nil(t, err)
+	require.Equal(t, 401, s.Code)
 }

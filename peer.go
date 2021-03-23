@@ -61,8 +61,8 @@ type Peer struct {
 // StatusMessage is used to update the peer to a change of state,
 // like 200 after the peer has been authorized
 type StatusMessage struct {
-	status_code int
-	description string
+	Code int    `json:"code"`
+	Text string `json:"text"`
 }
 
 func newPeer(hub *Hub, q url.Values) (*Peer, error) {
@@ -155,9 +155,11 @@ func (p *Peer) writePump() {
 		}
 	}
 }
-func (p *Peer) sendStatus(code int, err error) {
-	msg := StatusMessage{code, err.Error()}
-	p.send <- msg
+func (p *Peer) sendStatus(code int, e error) {
+	msg := StatusMessage{code, e.Error()}
+	if err := p.ws.WriteJSON(msg); err != nil {
+		Logger.Warnf("failed to send status message: %w", err)
+	}
 }
 func (p *Peer) sendAuthEmail() error {
 	// TODO: send an email in the background, the email should havssss
@@ -185,6 +187,7 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 		_, notFound := err.(*PeerNotFound)
 		_, changed := err.(*PeerChanged)
 		if notFound || changed {
+			peer.Upgrade(w, r)
 			peer.sendStatus(401, err)
 			err = peer.sendAuthEmail()
 			if err != nil {
@@ -194,8 +197,9 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+	} else {
+		peer.Upgrade(w, r)
 	}
-	peer.Upgrade(w, r)
 	// Allow collection of memory referenced by the caller by doing all work in
 	// new goroutines.
 	go peer.writePump()
