@@ -6,7 +6,6 @@ package main
 
 import (
 	"net/http"
-	"time"
 )
 
 // Hub maintains the set of active peers and broadcasts messages to the
@@ -55,11 +54,7 @@ func (h *Hub) forwardSignal(s *Peer, m map[string]string) {
 	m["source_name"] = s.Name
 
 	delete(m, "target")
-	p.ws.SetWriteDeadline(time.Now().Add(writeWait))
-	Logger.Infof("Sending message: %v", m)
-	if err := p.ws.WriteJSON(m); err != nil {
-		Logger.Warnf("failed to forward signal: %w", err)
-	}
+	p.Send(m)
 }
 func (h *Hub) run() {
 	for {

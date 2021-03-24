@@ -139,15 +139,15 @@ func (p *Peer) pinger() {
 	for {
 		select {
 		case <-ticker.C:
-			p.ws.SetWriteDeadline(time.Now().Add(writeWait))
-			if err := p.ws.WriteMessage(websocket.PingMessage, nil); err != nil {
-				return
-			}
+			p.Send(websocket.PingMessage)
 		}
 	}
 }
 func (p *Peer) sendStatus(code int, e error) {
 	msg := StatusMessage{code, e.Error()}
+	p.Send(msg)
+}
+func (p *Peer) Send(msg interface{}) {
 	p.ws.SetWriteDeadline(time.Now().Add(writeWait))
 	if err := p.ws.WriteJSON(msg); err != nil {
 		Logger.Warnf("failed to send status message: %w", err)
