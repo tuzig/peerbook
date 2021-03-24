@@ -24,6 +24,7 @@ var (
 	stop   chan os.Signal
 )
 
+// UnauthorizedPeer is an error
 type UnauthorizedPeer struct {
 	peer *Peer
 }
@@ -32,6 +33,7 @@ func (e *UnauthorizedPeer) Error() string {
 	return fmt.Sprintf("An unathenticated peer tried to connect - %v", e.peer)
 }
 
+// TargetNotFound is an error
 type TargetNotFound struct {
 	fp string
 }
@@ -40,6 +42,7 @@ func (p *TargetNotFound) Error() string {
 	return fmt.Sprintf("Target peer not found: %s", p.fp)
 }
 
+// PeerNotFound is an error containing the requested fingerprint
 type PeerNotFound struct {
 	fp string
 }
@@ -48,6 +51,7 @@ func (p *PeerNotFound) Error() string {
 	return fmt.Sprintf("Peer not found: %s", p.fp)
 }
 
+// PeerChanged is an error
 type PeerChanged struct{}
 
 func (p *PeerChanged) Error() string {
@@ -99,7 +103,7 @@ func initLogger() {
 		"peerbook.err", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	Dup2(int(e.Fd()), 2)
 }
-func startHttpServer(hub *Hub, wg *sync.WaitGroup) *http.Server {
+func startHTTPServer(hub *Hub, wg *sync.WaitGroup) *http.Server {
 	srv := &http.Server{Addr: *addr}
 
 	http.HandleFunc("/", serveHome)
@@ -134,7 +138,7 @@ func main() {
 
 	httpServerExitDone := &sync.WaitGroup{}
 	httpServerExitDone.Add(3)
-	srv := startHttpServer(hub, httpServerExitDone)
+	srv := startHTTPServer(hub, httpServerExitDone)
 	// Setting up signal capturing
 	stop = make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
@@ -142,6 +146,6 @@ func main() {
 	if err := srv.Shutdown(context.Background()); err != nil {
 		Logger.Error("failure/timeout shutting down the http server gracefully")
 	}
-	// wait for goroutine started in startHttpServer() to stop
+	// wait for goroutine started in startHTTPServer() to stop
 	httpServerExitDone.Wait()
 }

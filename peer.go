@@ -56,12 +56,16 @@ type StatusMessage struct {
 	Text string `json:"text"`
 }
 
+// OfferMessage is the format of the offer message after processing -
+// including the source_name & source_fp read from the db
 type OfferMessage struct {
 	SourceName string `json:"source_name"`
 	SourceFP   string `json:"source_fp"`
 	Offer      string `json:"offer"`
 }
 
+// AnswerMessage is the format of the answer message after processing -
+// including the source_name & source_fp read from the db
 type AnswerMessage struct {
 	SourceName string `json:"source_name"`
 	SourceFP   string `json:"source_fp"`
@@ -147,6 +151,8 @@ func (p *Peer) sendStatus(code int, e error) {
 	msg := StatusMessage{code, e.Error()}
 	p.Send(msg)
 }
+
+// Send send a message as json
 func (p *Peer) Send(msg interface{}) {
 	p.ws.SetWriteDeadline(time.Now().Add(writeWait))
 	if err := p.ws.WriteJSON(msg); err != nil {
@@ -157,6 +163,8 @@ func (p *Peer) sendAuthEmail() error {
 	// TODO: send an email in the background, the email should havssss
 	return nil
 }
+
+// Upgrade upgrade an http request to a websocket and stores it
 func (p *Peer) Upgrade(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
