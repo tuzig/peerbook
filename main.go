@@ -26,6 +26,16 @@ var (
 	hub    Hub
 )
 
+// PeerIsForeign is an error for the time when a peer asks to connect to a peer
+// belonging to another user
+type PeerIsForeign struct {
+	peer *Peer
+}
+
+func (e *PeerIsForeign) Error() string {
+	return fmt.Sprintf("The target peer belong to a different user: %q", e.peer.User)
+}
+
 // UnauthorizedPeer is an error
 type UnauthorizedPeer struct {
 	peer *Peer

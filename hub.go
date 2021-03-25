@@ -41,6 +41,12 @@ func (h *Hub) forwardSignal(s *Peer, m map[string]string) {
 		s.sendStatus(http.StatusBadRequest, e)
 		return
 	}
+	if p.User != s.User {
+		e := &PeerIsForeign{p}
+		Logger.Warn(e)
+		s.sendStatus(http.StatusBadRequest, e)
+		return
+	}
 	m["source_fp"] = s.FP
 	m["source_name"] = s.Name
 

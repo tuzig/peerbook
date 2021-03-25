@@ -74,16 +74,47 @@ func TestUnknownFingerprint(t *testing.T) {
 	// TODO: get ws2 to try and connect to ensure the server is not forwarding
 	// requests
 }
-func TestSignaling(t *testing.T) {
+func TestSignalingAcrossUsers(t *testing.T) {
 	startTest(t)
-	redisDouble.HSet("peer:A", "name", "foo", "kind", "lay", "user", "UUID1")
-	redisDouble.HSet("peer:B", "name", "bar", "kind", "lay", "user", "UUID2")
+	redisDouble.HSet("peer:A", "name", "foo", "kind", "lay", "user", "j")
+	redisDouble.HSet("peer:B", "name", "bar", "kind", "lay", "user", "h")
 	// create client, connect to the hu
-	urlA := "ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&user=UUID1"
+	urlA := "ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&user=j"
 	wsA, _, err := cstDialer.Dial(urlA, nil)
 	require.Nil(t, err)
 	defer wsA.Close()
-	urlB := "ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&user=UUID2"
+	urlB := "ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&user=h"
+	wsB, _, err := cstDialer.Dial(urlB, nil)
+	require.Nil(t, err)
+	defer wsB.Close()
+	err = wsA.SetWriteDeadline(time.Now().Add(time.Second))
+	require.Nil(t, err)
+	err = wsA.WriteJSON(map[string]string{"offer": "an offer", "target": "B"})
+	require.Nil(t, err)
+	if err := wsB.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
+	var o OfferMessage
+	err = wsB.ReadJSON(&o)
+	require.NotNil(t, err)
+	if err := wsA.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
+	var s StatusMessage
+	err = wsA.ReadJSON(&s)
+	require.Nil(t, err)
+	require.Equal(t, 400, s.Code)
+}
+func TestSignaling(t *testing.T) {
+	startTest(t)
+	redisDouble.HSet("peer:A", "name", "foo", "kind", "lay", "user", "j")
+	redisDouble.HSet("peer:B", "name", "bar", "kind", "lay", "user", "j")
+	// create client, connect to the hu
+	urlA := "ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&user=j"
+	wsA, _, err := cstDialer.Dial(urlA, nil)
+	require.Nil(t, err)
+	defer wsA.Close()
+	urlB := "ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&user=j"
 	wsB, _, err := cstDialer.Dial(urlB, nil)
 	require.Nil(t, err)
 	defer wsB.Close()
