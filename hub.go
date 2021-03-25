@@ -24,15 +24,6 @@ type Hub struct {
 	unregister chan *Peer
 }
 
-func newHub() *Hub {
-	return &Hub{
-		register:   make(chan *Peer),
-		unregister: make(chan *Peer),
-		peers:      make(map[string]*Peer),
-		requests:   make(chan map[string]string, 16),
-	}
-}
-
 // forwardSignal Forwards offers and answers after it ensures the peer is known
 // and is authenticated
 func (h *Hub) forwardSignal(s *Peer, m map[string]string) {
@@ -74,8 +65,16 @@ func (h *Hub) run() {
 			}
 			_, offer := message["offer"]
 			_, answer := message["answer"]
+			cmd, command := message["command"]
 			if offer || answer {
 				h.forwardSignal(source, message)
+				continue
+			}
+			if command && (cmd == "get_list") {
+				err := source.sendList()
+				if err != nil {
+					Logger.Errorf("Failed to send a list of peers: %w", err)
+				}
 			}
 		}
 	}

@@ -22,6 +22,8 @@ import (
 var (
 	Logger *zap.SugaredLogger
 	stop   chan os.Signal
+	db     DBType
+	hub    Hub
 )
 
 // UnauthorizedPeer is an error
@@ -103,12 +105,12 @@ func initLogger() {
 		"peerbook.err", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	Dup2(int(e.Fd()), 2)
 }
-func startHTTPServer(hub *Hub, wg *sync.WaitGroup) *http.Server {
+func startHTTPServer(wg *sync.WaitGroup) *http.Server {
 	srv := &http.Server{Addr: *addr}
 
 	http.HandleFunc("/", serveHome)
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		serveWs(hub, w, r)
+		serveWs(w, r)
 	})
 
 	go func() {
@@ -130,15 +132,20 @@ func main() {
 	if Logger == nil {
 		initLogger()
 	}
-	redisConnect("localhost:6379")
-	defer redisConn.Close()
+	db.Connect("localhost:6379")
+	defer db.Close()
 
-	hub := newHub()
+	hub = Hub{
+		register:   make(chan *Peer),
+		unregister: make(chan *Peer),
+		peers:      make(map[string]*Peer),
+		requests:   make(chan map[string]string, 16),
+	}
 	go hub.run()
 
 	httpServerExitDone := &sync.WaitGroup{}
 	httpServerExitDone.Add(3)
-	srv := startHTTPServer(hub, httpServerExitDone)
+	srv := startHTTPServer(httpServerExitDone)
 	// Setting up signal capturing
 	stop = make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)

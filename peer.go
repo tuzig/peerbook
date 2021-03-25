@@ -7,12 +7,10 @@ package main
 
 import (
 	"fmt"
+	"github.com/gorilla/websocket"
 	"net/http"
 	"net/url"
 	"time"
-
-	"github.com/gomodule/redigo/redis"
-	"github.com/gorilla/websocket"
 )
 
 const (
@@ -42,7 +40,6 @@ var upgrader = websocket.Upgrader{
 // Peer is a middleman between the websocket connection and the hub.
 type Peer struct {
 	DBPeer
-	hub *Hub
 	// The websocket connection.
 	ws *websocket.Conn
 	// Buffered channel of outbound messages.
@@ -72,23 +69,21 @@ type AnswerMessage struct {
 	Answer     string `json:"answer"`
 }
 
-func newPeer(hub *Hub, q url.Values) (*Peer, error) {
-	var pd DBPeer
+func newPeer(q url.Values) (*Peer, error) {
 	fp := q.Get("fp")
 	if fp == "" {
 		return nil, fmt.Errorf("Missing `fp` query parameter")
 	}
-	key := fmt.Sprintf("peer:%s", fp)
-	exists, err := redis.Bool(redisConn.Do("EXISTS", key))
+	exists, err := db.PeerExists(fp)
 	if err != nil {
 		return nil, err
 	}
-	peer := Peer{hub: hub}
+	peer := Peer{}
 	peer.FP = fp
 	if !exists {
 		return &peer, &PeerNotFound{}
 	}
-	err = readDoc(key, &pd)
+	pd, err := db.GetPeer(fp)
 
 	// same fingerprint changed details. could be the hostname changed,
 	// return un authenticated peer and a the `PeerChanged` error
@@ -114,7 +109,7 @@ func (p *Peer) readPump() {
 	var message map[string]string
 
 	defer func() {
-		p.hub.unregister <- p
+		hub.unregister <- p
 		p.ws.Close()
 	}()
 	p.ws.SetReadLimit(maxMessageSize)
@@ -129,7 +124,7 @@ func (p *Peer) readPump() {
 			break
 		}
 		message["source"] = p.FP
-		p.hub.requests <- message
+		hub.requests <- message
 	}
 }
 
@@ -147,17 +142,18 @@ func (p *Peer) pinger() {
 		}
 	}
 }
-func (p *Peer) sendStatus(code int, e error) {
+func (p *Peer) sendStatus(code int, e error) error {
 	msg := StatusMessage{code, e.Error()}
-	p.Send(msg)
+	return p.Send(msg)
 }
 
 // Send send a message as json
-func (p *Peer) Send(msg interface{}) {
+func (p *Peer) Send(msg interface{}) error {
 	p.ws.SetWriteDeadline(time.Now().Add(writeWait))
 	if err := p.ws.WriteJSON(msg); err != nil {
-		Logger.Warnf("failed to send status message: %w", err)
+		return fmt.Errorf("failed to send status message: %w", err)
 	}
+	return nil
 }
 func (p *Peer) sendAuthEmail() error {
 	// TODO: send an email in the background, the email should havssss
@@ -173,10 +169,18 @@ func (p *Peer) Upgrade(w http.ResponseWriter, r *http.Request) {
 	p.ws = conn
 }
 
+func (p *Peer) sendList() error {
+	l, err := db.GetUserPeers(p.User)
+	if err != nil {
+		return err
+	}
+	return p.Send(l)
+}
+
 // serveWs handles websocket requests from the peer.
-func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
+func serveWs(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	peer, err := newPeer(hub, q)
+	peer, err := newPeer(q)
 	if peer == nil {
 		msg := fmt.Sprintf("Failed to create a new peer: %s", err)
 		Logger.Warn(msg)

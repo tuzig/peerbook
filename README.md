@@ -50,7 +50,7 @@ lists.
 
 ## Getting the peer list
 
-When a peer needs the user's list of peer it sends a `get_list` command:
+When a peer needs the user's list of peers it sends a `get_list` command:
 
 ```json
 {

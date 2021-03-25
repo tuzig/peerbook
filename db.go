@@ -5,7 +5,16 @@ import (
 	"github.com/gomodule/redigo/redis"
 )
 
-// DBPeer is the info we store at redis
+// DBType is the type that holds our db
+type DBType struct {
+	conn redis.Conn
+}
+
+// DBUser is the info we store about a user - a list of peers' fingerprint
+type DBUser []string
+type DBPeerList []map[string]string
+
+// DBPeer is the info we store about a peer in redis
 type DBPeer struct {
 	User string `redis:"user"`
 	FP   string `redis:"fp"`
@@ -13,23 +22,74 @@ type DBPeer struct {
 	Kind string `redis:"kind"`
 }
 
-var redisConn redis.Conn
-
-func redisConnect(host string) error {
+func (d *DBType) Connect(host string) error {
 	rc, err := redis.Dial("tcp", host)
 	if err == nil {
-		redisConn = rc
+		d.conn = rc
 	}
 	return err
 }
 
-// readDoc reads a doc based on key into target
-func readDoc(key string, target interface{}) error {
-	// next 4 lines are about the peer doc AKA `pd` from redis
-	values, err := redis.Values(redisConn.Do("HGETALL", key))
+// GetPeer gets a peer, using the hub as cache for connected peers
+func (d *DBType) GetPeer(fp string) (*DBPeer, error) {
+	peer, found := hub.peers[fp]
+	if found {
+		return &DBPeer{Name: peer.Name,
+			FP:   peer.FP,
+			Kind: peer.Kind,
+			User: peer.User,
+		}, nil
+	}
+	key := fmt.Sprintf("peer:%s", fp)
+	var pd DBPeer
+	db.getDoc(key, &pd)
+	return &pd, nil
+}
 
+// GetUser gets a user from redis
+func (d *DBType) GetUser(email string) (*DBUser, error) {
+	var r DBUser
+	key := fmt.Sprintf("user:%s", email)
+	values, err := redis.Values(d.conn.Do("LRANGE", key, 0, -1))
+	if err != nil {
+		return nil, fmt.Errorf("Failed to read user %q list: %w", email, err)
+	}
+	for _, fp := range values {
+		r = append(r, string(fp.([]byte)))
+	}
+	Logger.Infof("returning: %v", r)
+	return &r, nil
+}
+func (d *DBType) getDoc(key string, target interface{}) error {
+	values, err := redis.Values(d.conn.Do("HGETALL", key))
 	if err = redis.ScanStruct(values, target); err != nil {
 		return fmt.Errorf("Failed to scan peer %q: %w", key, err)
 	}
 	return nil
+}
+func (d *DBType) PeerExists(fp string) (bool, error) {
+	key := fmt.Sprintf("peer:%s", fp)
+	return redis.Bool(db.conn.Do("EXISTS", key))
+}
+func (d *DBType) GetUserPeers(email string) (*DBPeerList, error) {
+	var l DBPeerList
+	u, err := d.GetUser(email)
+	Logger.Infof("got back user: %v", u)
+	if err != nil {
+		return nil, err
+	}
+	for _, fp := range *u {
+		i, err := d.GetPeer(fp)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to read peer: %w", err)
+		}
+		l = append(l, map[string]string{
+			"name": i.Name,
+			"kind": i.Kind,
+			"fp":   i.FP})
+	}
+	return &l, nil
+}
+func (d *DBType) Close() error {
+	return d.conn.Close()
 }

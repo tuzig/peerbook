@@ -27,7 +27,7 @@ func startTest(t *testing.T) {
 		s, err := miniredis.Run()
 		require.Nil(t, err)
 		redisDouble = s
-		redisConnect(s.Addr())
+		db.Connect(s.Addr())
 		// let the server open
 		time.Sleep(time.Second / 100)
 	}
