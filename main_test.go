@@ -21,13 +21,12 @@ var redisDouble *miniredis.Miniredis
 
 func startTest(t *testing.T) {
 	if !mainRunning {
+		var err error
 		Logger = zaptest.NewLogger(t).Sugar()
+		redisDouble, err = miniredis.Run()
+		require.Nil(t, err)
 		go main()
 		mainRunning = true
-		s, err := miniredis.Run()
-		require.Nil(t, err)
-		redisDouble = s
-		db.Connect(s.Addr())
 		// let the server open
 		time.Sleep(time.Second / 100)
 	}

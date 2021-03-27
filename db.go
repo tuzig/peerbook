@@ -23,6 +23,10 @@ type DBPeer struct {
 }
 
 func (d *DBType) Connect(host string) error {
+	// should we use mock redis?
+	if redisDouble != nil {
+		host = redisDouble.Addr()
+	}
 	rc, err := redis.Dial("tcp", host)
 	if err == nil {
 		d.conn = rc
