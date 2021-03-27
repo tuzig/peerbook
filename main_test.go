@@ -10,7 +10,6 @@ import (
 )
 
 var cstDialer = websocket.Dialer{
-	Subprotocols:     []string{"p1", "p2"},
 	ReadBufferSize:   1024,
 	WriteBufferSize:  1024,
 	HandshakeTimeout: 30 * time.Second,
