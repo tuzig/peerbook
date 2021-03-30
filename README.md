@@ -31,9 +31,9 @@ for pion/webrtc.
 Upon launch, peers should start a websocket connection at:
 `/ws` with the following query parameters:
 
+- `fp` - the peer's fingerprint
 - `email` - the user's email
 - `name` - peer's name
-- `fingerprint` - the peer's fingerprint
 - `kind` - the peer's type
 
 Upon receiving the request peerbook compares the peer's fingerprint & name

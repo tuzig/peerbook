@@ -88,7 +88,7 @@ func serveHome(w http.ResponseWriter, r *http.Request) {
 func initLogger() {
 	// rotate the log file
 	logWriter := &lumberjack.Logger{
-		Filename:   "peerbppk.log",
+		Filename:   "peerbook.log",
 		MaxSize:    10, // megabytes
 		MaxBackups: 3,
 		MaxAge:     28, // days
@@ -132,6 +132,7 @@ func startHTTPServer(wg *sync.WaitGroup) *http.Server {
 			log.Fatalf("ListenAndServe(): %v", err)
 		}
 	}()
+	Logger.Infof("Listening for HTTP connection at ", *addr)
 
 	// returning reference so caller can call Shutdown()
 	return srv

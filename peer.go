@@ -180,6 +180,7 @@ func (p *Peer) sendList() error {
 // serveWs handles websocket requests from the peer.
 func serveWs(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
+	Logger.Info("Got a new peer request")
 	peer, err := newPeer(q)
 	if peer == nil {
 		msg := fmt.Sprintf("Failed to create a new peer: %s", err)
