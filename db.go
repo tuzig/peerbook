@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gomodule/redigo/redis"
 )

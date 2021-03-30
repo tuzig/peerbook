@@ -7,10 +7,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/gorilla/websocket"
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 const (
@@ -18,7 +19,7 @@ const (
 	writeWait = 10 * time.Second
 
 	// Time allowed to read the next pong message from the peer.
-	pongWait = 60 * time.Second
+	pongWait = 5 * time.Second
 
 	// Send pings to peer with this period. Must be less than pongWait.
 	pingPeriod = (pongWait * 9) / 10
@@ -74,12 +75,13 @@ func newPeer(q url.Values) (*Peer, error) {
 	if fp == "" {
 		return nil, fmt.Errorf("Missing `fp` query parameter")
 	}
+	peer := Peer{DBPeer{FP: fp,
+		Name: q.Get("name"), Kind: q.Get("kind"), User: q.Get("email")},
+		nil, false}
 	exists, err := db.PeerExists(fp)
 	if err != nil {
 		return nil, err
 	}
-	peer := Peer{}
-	peer.FP = fp
 	if !exists {
 		return &peer, &PeerNotFound{}
 	}
@@ -138,7 +140,10 @@ func (p *Peer) pinger() {
 	for {
 		select {
 		case <-ticker.C:
-			p.Send(websocket.PingMessage)
+			err := p.ws.WriteMessage(websocket.PingMessage, nil)
+			if err != nil {
+				Logger.Errorf("failed to send ping message: %w", err)
+			}
 		}
 	}
 }
@@ -189,7 +194,8 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hub.register <- peer
-	if err != nil {
+	// if err != nil {
+	if false {
 		_, notFound := err.(*PeerNotFound)
 		_, changed := err.(*PeerChanged)
 		if notFound || changed {
