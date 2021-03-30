@@ -132,7 +132,7 @@ func startHTTPServer(wg *sync.WaitGroup) *http.Server {
 			log.Fatalf("ListenAndServe(): %v", err)
 		}
 	}()
-	Logger.Infof("Listening for HTTP connection at ", *addr)
+	Logger.Infof("Listening for HTTP connection at %s", *addr)
 
 	// returning reference so caller can call Shutdown()
 	return srv
