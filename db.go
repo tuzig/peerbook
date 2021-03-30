@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/alicebob/miniredis/v2"
 	"github.com/gomodule/redigo/redis"
 )
 
@@ -21,6 +22,9 @@ type DBPeer struct {
 	Name string `redis:"name"`
 	Kind string `redis:"kind"`
 }
+
+// for testing we use a redis "double"
+var redisDouble *miniredis.Miniredis
 
 func (d *DBType) Connect(host string) error {
 	// should we use mock redis?

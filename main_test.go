@@ -16,7 +16,6 @@ var cstDialer = websocket.Dialer{
 }
 
 var mainRunning bool
-var redisDouble *miniredis.Miniredis
 
 func startTest(t *testing.T) {
 	if !mainRunning {
