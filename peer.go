@@ -22,7 +22,7 @@ const (
 	pongWait = 5 * time.Second
 
 	// Send pings to peer with this period. Must be less than pongWait.
-	pingPeriod = 30 * time.Second
+	pingPeriod = 4 * time.Second
 
 	// Maximum message size allowed from peer.
 	maxMessageSize = 512
@@ -133,6 +133,7 @@ func (p *Peer) readPump() {
 
 // pinger sends pings
 func (p *Peer) pinger() {
+	errRun := 0
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
@@ -144,6 +145,13 @@ func (p *Peer) pinger() {
 			err := p.ws.WriteMessage(websocket.PingMessage, nil)
 			if err != nil {
 				Logger.Errorf("failed to send ping message: %w", err)
+				errRun++
+				if errRun == 3 {
+					return
+				}
+
+			} else {
+				errRun = 0
 			}
 		}
 	}
