@@ -58,6 +58,7 @@ func (h *Hub) run() {
 		select {
 		case peer := <-h.register:
 			h.peers[peer.FP] = peer
+			db.AddPeer(peer)
 		case peer := <-h.unregister:
 			if _, ok := h.peers[peer.FP]; ok {
 				delete(h.peers, peer.FP)

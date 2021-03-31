@@ -71,12 +71,12 @@ type AnswerMessage struct {
 	Answer     string `json:"answer"`
 }
 
-func newPeer(q url.Values) (*Peer, error) {
+func getPeer(q url.Values) (*Peer, error) {
 	fp := q.Get("fp")
 	if fp == "" {
 		return nil, fmt.Errorf("Missing `fp` query parameter")
 	}
-	peer := Peer{DBPeer{FP: fp,
+	peer := &Peer{DBPeer{FP: fp,
 		Name: q.Get("name"), Kind: q.Get("kind"), User: q.Get("email")},
 		nil, false}
 	exists, err := db.PeerExists(fp)
@@ -84,7 +84,7 @@ func newPeer(q url.Values) (*Peer, error) {
 		return nil, err
 	}
 	if !exists {
-		return &peer, &PeerNotFound{}
+		return peer, &PeerNotFound{}
 	}
 	pd, err := db.GetPeer(fp)
 
@@ -93,14 +93,14 @@ func newPeer(q url.Values) (*Peer, error) {
 	if pd.Name != q.Get("name") ||
 		pd.User != q.Get("user") ||
 		pd.Kind != q.Get("kind") {
-		return &peer, &PeerChanged{}
+		return peer, &PeerChanged{}
 	}
 	// copy all the data from redis
 	peer.User = pd.User
 	peer.Name = pd.Name
 	peer.Kind = pd.Kind
 	peer.authenticated = true
-	return &peer, nil
+	return peer, nil
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -188,14 +188,14 @@ func (p *Peer) sendList() error {
 	if err != nil {
 		return err
 	}
-	return p.Send(l)
+	return p.Send(map[string]*DBPeerList{"peers": l})
 }
 
 // serveWs handles websocket requests from the peer.
 func serveWs(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
-	Logger.Info("Got a new peer request")
-	peer, err := newPeer(q)
+	Logger.Infof("Got a new peer request: %v", q)
+	peer, err := getPeer(q)
 	if peer == nil {
 		msg := fmt.Sprintf("Failed to create a new peer: %s", err)
 		Logger.Warn(msg)

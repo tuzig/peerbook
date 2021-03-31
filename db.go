@@ -59,7 +59,7 @@ func (d *DBType) GetPeer(fp string) (*DBPeer, error) {
 func (d *DBType) GetUser(email string) (*DBUser, error) {
 	var r DBUser
 	key := fmt.Sprintf("user:%s", email)
-	values, err := redis.Values(d.conn.Do("LRANGE", key, 0, -1))
+	values, err := redis.Values(d.conn.Do("SMEMBERS", key))
 	if err != nil {
 		return nil, fmt.Errorf("Failed to read user %q list: %w", email, err)
 	}
@@ -101,4 +101,20 @@ func (d *DBType) GetUserPeers(email string) (*DBPeerList, error) {
 }
 func (d *DBType) Close() error {
 	return d.conn.Close()
+}
+func (d *DBType) AddPeer(peer *Peer) error {
+	key := fmt.Sprintf("peer:%s", peer.FP)
+	exists, err := db.PeerExists(peer.FP)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		_, err := d.conn.Do("HSET", redis.Args{}.Add(key).AddFlat(peer.DBPeer)...)
+		if err != nil {
+			return err
+		}
+	}
+	key = fmt.Sprintf("user:%s", peer.User)
+	db.conn.Do("SADD", key, peer.FP)
+	return nil
 }
