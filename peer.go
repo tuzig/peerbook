@@ -19,13 +19,13 @@ const (
 	writeWait = 10 * time.Second
 
 	// Time allowed to read the next pong message from the peer.
-	pongWait = 5 * time.Second
+	pongWait = 60 * time.Second
 
 	// Send pings to peer with this period. Must be less than pongWait.
-	pingPeriod = 4 * time.Second
+	pingPeriod = 50 * time.Second
 
 	// Maximum message size allowed from peer.
-	maxMessageSize = 512
+	maxMessageSize = 4096
 )
 
 var (
@@ -34,8 +34,8 @@ var (
 )
 
 var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
+	ReadBufferSize:  maxMessageSize,
+	WriteBufferSize: maxMessageSize,
 	CheckOrigin:     func(r *http.Request) bool { return true },
 }
 
@@ -71,36 +71,40 @@ type AnswerMessage struct {
 	Answer     string `json:"answer"`
 }
 
-func getPeer(q url.Values) (*Peer, error) {
+// PeerFromQ retruns a fresh Peer based on query paramets: fp, name, kind &
+// email
+func PeerFromQ(q url.Values) (*Peer, error) {
 	fp := q.Get("fp")
 	if fp == "" {
 		return nil, fmt.Errorf("Missing `fp` query parameter")
 	}
-	peer := &Peer{DBPeer{FP: fp,
-		Name: q.Get("name"), Kind: q.Get("kind"), User: q.Get("email")},
-		nil, false}
-	exists, err := db.PeerExists(fp)
+	return &Peer{DBPeer{FP: fp, Name: q.Get("name"), Kind: q.Get("kind"),
+		User: q.Get("email")}, nil, false}, nil
+}
+
+// LoadPeer loads a peer from redis based on a given peer
+func LoadPeer(baseP *Peer) (*Peer, error) {
+	peer, found := hub.peers[baseP.FP]
+	if found {
+		return peer, nil
+	}
+	exists, err := db.PeerExists(baseP.FP)
 	if err != nil {
 		return nil, err
 	}
 	if !exists {
-		return peer, &PeerNotFound{}
+		return nil, &PeerNotFound{}
 	}
-	pd, err := db.GetPeer(fp)
-
-	// same fingerprint changed details. could be the hostname changed,
-	// return un authenticated peer and a the `PeerChanged` error
-	if pd.Name != q.Get("name") ||
-		pd.User != q.Get("user") ||
-		pd.Kind != q.Get("kind") {
-		return peer, &PeerChanged{}
+	var p Peer
+	key := fmt.Sprintf("peer:%s", baseP.FP)
+	db.getDoc(key, &p)
+	// ensure the same details
+	if p.Name != baseP.Name ||
+		p.User != baseP.User ||
+		p.Kind != baseP.Kind {
+		return nil, &PeerChanged{}
 	}
-	// copy all the data from redis
-	peer.User = pd.User
-	peer.Name = pd.Name
-	peer.Kind = pd.Kind
-	peer.authenticated = true
-	return peer, nil
+	return &p, nil
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -109,7 +113,6 @@ func getPeer(q url.Values) (*Peer, error) {
 // ensures that there is at most one reader on a connection by executing all
 // reads from this goroutine.
 func (p *Peer) readPump() {
-	var message map[string]string
 
 	defer func() {
 		hub.unregister <- p
@@ -119,10 +122,11 @@ func (p *Peer) readPump() {
 	p.ws.SetReadDeadline(time.Now().Add(pongWait))
 	p.ws.SetPongHandler(func(string) error { p.ws.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 	for {
+		var message map[string]string
 		err := p.ws.ReadJSON(&message)
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				Logger.Errorf("error: %v", err)
+				Logger.Errorf("ws error: %w", err)
 			}
 			break
 		}
@@ -137,7 +141,7 @@ func (p *Peer) pinger() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
-		p.ws.Close()
+		// p.ws.Close()
 	}()
 	for {
 		select {
@@ -193,23 +197,29 @@ func (p *Peer) sendList() error {
 
 // serveWs handles websocket requests from the peer.
 func serveWs(w http.ResponseWriter, r *http.Request) {
+	var notFound bool
 	q := r.URL.Query()
 	Logger.Infof("Got a new peer request: %v", q)
-	peer, err := getPeer(q)
-	if peer == nil {
-		msg := fmt.Sprintf("Failed to create a new peer: %s", err)
+	qp, err := PeerFromQ(q)
+	if err != nil {
+		msg := fmt.Sprintf("Bad peer requested: %s", err)
 		Logger.Warn(msg)
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
-	hub.register <- peer
-	// if err != nil {
-	if false {
-		_, notFound := err.(*PeerNotFound)
+	peer, err := LoadPeer(qp)
+	if err != nil {
+		_, notFound = err.(*PeerNotFound)
 		_, changed := err.(*PeerChanged)
-		if notFound || changed {
-			peer.Upgrade(w, r)
-			peer.sendStatus(401, err)
+		if changed {
+			msg := fmt.Sprintf("Request from a weird peer: %s", err)
+			Logger.Warn(msg)
+			http.Error(w, msg, http.StatusBadRequest)
+			return
+		}
+		if notFound {
+			// rollback - work with the unverified peer from the query
+			peer = qp
 			err = peer.sendAuthEmail()
 			if err != nil {
 				Logger.Errorf("Failed to send an auth email: %w", err)
@@ -218,11 +228,13 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-	} else {
-		peer.Upgrade(w, r)
 	}
-	// Allow collection of memory referenced by the caller by doing all work in
-	// new goroutines.
+	peer.Upgrade(w, r)
+	hub.register <- peer
 	go peer.pinger()
 	go peer.readPump()
+	// if it's an unknow peer, keep the connection open and send a status message
+	if notFound {
+		peer.sendStatus(401, fmt.Errorf("Unknown peer. To approve please check your email inbox."))
+	}
 }
