@@ -51,6 +51,7 @@ func (h *Hub) forwardSignal(s *Peer, m map[string]string) {
 	m["source_name"] = s.Name
 
 	delete(m, "target")
+	delete(m, "source")
 	p.Send(m)
 }
 func (h *Hub) run() {
