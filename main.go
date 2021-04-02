@@ -24,6 +24,8 @@ var (
 	stop   chan os.Signal
 	db     DBType
 	hub    Hub
+	addr   = flag.String("addr", "0.0.0.0:17777", "http service address")
+	redisH = flag.String("redis", "localhost:6379", "http service address")
 )
 
 // PeerIsForeign is an error for the time when a peer asks to connect to a peer
@@ -69,8 +71,6 @@ type PeerChanged struct{}
 func (p *PeerChanged) Error() string {
 	return "Peer exists with different properties"
 }
-
-var addr = flag.String("addr", "0.0.0.0:17777", "http service address")
 
 func serveHome(w http.ResponseWriter, r *http.Request) {
 	log.Println(r.URL)
@@ -143,7 +143,7 @@ func main() {
 	if Logger == nil {
 		initLogger()
 	}
-	db.Connect("localhost:6379")
+	db.Connect(*redisH)
 	defer db.Close()
 
 	hub = Hub{
