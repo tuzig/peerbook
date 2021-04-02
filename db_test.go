@@ -18,7 +18,7 @@ func TestGetPeer(t *testing.T) {
 }
 func TestAddPeer(t *testing.T) {
 	startTest(t)
-	redisDouble.RPush("user:j", "foo", "bar")
+	redisDouble.SAdd("user:j", "foo", "bar")
 	peer := &Peer{DBPeer{FP: "publickey", Name: "Yosi", User: "J"},
 		nil, true}
 	err := db.AddPeer(peer)
@@ -29,14 +29,18 @@ func TestAddPeer(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, "publickey", pd.FP)
 	require.Equal(t, "Yosi", pd.Name)
+	redisDouble.Del("user:j")
 }
 func TestGetUserList(t *testing.T) {
 	startTest(t)
 	redisDouble.HSet("peer:foo", "name", "fucked up", "user", "j")
 	redisDouble.HSet("peer:bar", "name", "behind a. recognition", "user", "j")
-	redisDouble.RPush("user:j", "foo", "bar")
+	redisDouble.SAdd("user:j", "foo", "bar")
 	list, err := db.GetUserPeers("j")
 	require.Nil(t, err)
-	require.Equal(t, "fucked up", (*list)[0]["name"])
-	require.Equal(t, "behind a. recognition", (*list)[1]["name"])
+	require.Equal(t, "fucked up", (*list)[1]["name"])
+	require.Equal(t, "behind a. recognition", (*list)[0]["name"])
+	redisDouble.Del("user:j")
+	redisDouble.Del("peer:foo")
+	redisDouble.Del("peer:bar")
 }

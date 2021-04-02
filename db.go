@@ -43,11 +43,7 @@ func (d *DBType) Connect(host string) error {
 func (d *DBType) GetPeer(fp string) (*DBPeer, error) {
 	peer, found := hub.peers[fp]
 	if found {
-		return &DBPeer{Name: peer.Name,
-			FP:   peer.FP,
-			Kind: peer.Kind,
-			User: peer.User,
-		}, nil
+		return &peer.DBPeer, nil
 	}
 	key := fmt.Sprintf("peer:%s", fp)
 	var pd DBPeer
