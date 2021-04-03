@@ -44,7 +44,7 @@ type UnauthorizedPeer struct {
 }
 
 func (e *UnauthorizedPeer) Error() string {
-	return fmt.Sprintf("An unathenticated peer tried to connect - %v", e.peer)
+	return "Peer is not verified, blocking request"
 }
 
 // TargetNotFound is an error
