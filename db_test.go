@@ -20,7 +20,7 @@ func TestAddPeer(t *testing.T) {
 	startTest(t)
 	redisDouble.SAdd("user:j", "foo", "bar")
 	peer := &Peer{DBPeer{FP: "publickey", Name: "Yosi", User: "J"},
-		nil, true}
+		nil}
 	err := db.AddPeer(peer)
 	exists, err := redis.Bool(db.conn.Do("EXISTS", "peer:publickey"))
 	require.Nil(t, err)

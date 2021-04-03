@@ -73,8 +73,10 @@ func TestUnknownFingerprint(t *testing.T) {
 }
 func TestSignalingAcrossUsers(t *testing.T) {
 	startTest(t)
-	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay", "user", "j")
-	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay", "user", "h")
+	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
+		"user", "j", "verified", "1")
+	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
+		"user", "h", "verified", "1")
 	// create client, connect to the hu
 	urlA := "ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&email=j"
 	wsA, _, err := cstDialer.Dial(urlA, nil)
@@ -100,13 +102,14 @@ func TestSignalingAcrossUsers(t *testing.T) {
 	var s StatusMessage
 	err = wsA.ReadJSON(&s)
 	require.Nil(t, err)
-	require.Equal(t, 401, s.Code)
+	require.Equal(t, 400, s.Code)
 }
 func TestValidSignaling(t *testing.T) {
 	startTest(t)
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
-		"user", "j")
-	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay", "user", "j")
+		"user", "j", "verified", "1")
+	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
+		"user", "j", "verified", "1")
 	// create client, connect to the hu
 	urlA := "ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&email=j"
 	wsA, _, err := cstDialer.Dial(urlA, nil)
@@ -116,8 +119,8 @@ func TestValidSignaling(t *testing.T) {
 	wsB, _, err := cstDialer.Dial(urlB, nil)
 	require.Nil(t, err)
 	defer wsB.Close()
-	hub.peers["A"].authenticated = true
-	hub.peers["B"].authenticated = true
+	hub.peers["A"].Verified = true
+	hub.peers["B"].Verified = true
 	err = wsA.SetWriteDeadline(time.Now().Add(time.Second))
 	require.Nil(t, err)
 	err = wsA.WriteJSON(map[string]string{"offer": "an offer", "target": "B"})

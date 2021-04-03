@@ -18,10 +18,11 @@ type DBPeerList []map[string]string
 
 // DBPeer is the info we store about a peer in redis
 type DBPeer struct {
-	User string `redis:"user"`
-	FP   string `redis:"fp"`
-	Name string `redis:"name"`
-	Kind string `redis:"kind"`
+	User     string `redis:"user"`
+	FP       string `redis:"fp"`
+	Name     string `redis:"name"`
+	Kind     string `redis:"kind"`
+	Verified bool   `redis:"verified"`
 }
 
 // for testing we use a redis "double"

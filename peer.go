@@ -44,8 +44,6 @@ type Peer struct {
 	DBPeer
 	// The websocket connection.
 	ws *websocket.Conn
-	// Buffered channel of outbound messages.
-	authenticated bool
 }
 
 // StatusMessage is used to update the peer to a change of state,
@@ -79,7 +77,7 @@ func PeerFromQ(q url.Values) (*Peer, error) {
 		return nil, fmt.Errorf("Missing `fp` query parameter")
 	}
 	return &Peer{DBPeer{FP: fp, Name: q.Get("name"), Kind: q.Get("kind"),
-		User: q.Get("email")}, nil, false}, nil
+		User: q.Get("email"), Verified: false}, nil}, nil
 }
 
 // LoadPeer loads a peer from redis based on a given peer
