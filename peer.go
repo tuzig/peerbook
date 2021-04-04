@@ -235,6 +235,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 	go peer.readPump()
 	// if it's an unknow peer, keep the connection open and send a status message
 	if notFound {
-		peer.sendStatus(401, fmt.Errorf("Unknown peer. To approve please check your email inbox."))
+		peer.sendStatus(401, fmt.Errorf(
+			"Unknown peer, please check your email to approve"))
 	}
 }
