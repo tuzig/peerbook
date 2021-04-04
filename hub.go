@@ -15,7 +15,7 @@ type Hub struct {
 	peers map[string]*Peer
 
 	// Inbound messages from the peers.
-	requests chan map[string]string
+	requests chan map[string]interface{}
 
 	// Register requests from the peers.
 	register chan *Peer
@@ -26,14 +26,14 @@ type Hub struct {
 
 // forwardSignal Forwards offers and answers after it ensures the peer is known
 // and is verified
-func (h *Hub) forwardSignal(s *Peer, m map[string]string) {
+func (h *Hub) forwardSignal(s *Peer, m map[string]interface{}) {
 	if !s.Verified {
 		e := &UnauthorizedPeer{s}
 		Logger.Warn(e)
 		s.sendStatus(http.StatusUnauthorized, e)
 		return
 	}
-	target := m["target"]
+	target := m["target"].(string)
 	p, found := h.peers[target]
 	if !found {
 		e := &TargetNotFound{target}
@@ -51,7 +51,6 @@ func (h *Hub) forwardSignal(s *Peer, m map[string]string) {
 	m["source_name"] = s.Name
 
 	delete(m, "target")
-	delete(m, "source")
 	p.Send(m)
 }
 func (h *Hub) run() {
@@ -66,7 +65,8 @@ func (h *Hub) run() {
 			}
 		case message := <-h.requests:
 			sFP := message["source"]
-			source, found := h.peers[sFP]
+			delete(message, "source")
+			source, found := h.peers[sFP.(string)]
 			if !found {
 				Logger.Errorf("Hub ignores a bad request because of wrong source: %s", sFP)
 				continue

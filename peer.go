@@ -120,7 +120,7 @@ func (p *Peer) readPump() {
 	p.ws.SetReadDeadline(time.Now().Add(pongWait))
 	p.ws.SetPongHandler(func(string) error { p.ws.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 	for {
-		var message map[string]string
+		var message map[string]interface{}
 		err := p.ws.ReadJSON(&message)
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
@@ -128,6 +128,7 @@ func (p *Peer) readPump() {
 			}
 			break
 		}
+		// TODO: do we use the "source" ?
 		message["source"] = p.FP
 		hub.requests <- message
 	}
@@ -216,6 +217,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if notFound {
+			Logger.Infof("Peer not found")
 			// rollback - work with the unverified peer from the query
 			peer = qp
 			err = peer.sendAuthEmail()

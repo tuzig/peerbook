@@ -150,7 +150,7 @@ func main() {
 		register:   make(chan *Peer),
 		unregister: make(chan *Peer),
 		peers:      make(map[string]*Peer),
-		requests:   make(chan map[string]string, 16),
+		requests:   make(chan map[string]interface{}, 16),
 	}
 	go hub.run()
 
