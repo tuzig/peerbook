@@ -47,6 +47,7 @@ func (h *Hub) forwardSignal(s *Peer, m map[string]interface{}) {
 		s.sendStatus(http.StatusBadRequest, e)
 		return
 	}
+	Logger.Infof("Forwarding: %v", m)
 	m["source_fp"] = s.FP
 	m["source_name"] = s.Name
 
@@ -73,11 +74,12 @@ func (h *Hub) run() {
 			}
 			_, offer := message["offer"]
 			_, answer := message["answer"]
-			cmd, command := message["command"]
-			if offer || answer {
+			_, candidate := message["candidate"]
+			if offer || answer || candidate {
 				h.forwardSignal(source, message)
 				continue
 			}
+			cmd, command := message["command"]
 			if command && (cmd == "get_list") {
 				err := source.sendList()
 				if err != nil {
