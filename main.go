@@ -24,8 +24,6 @@ var (
 	stop   chan os.Signal
 	db     DBType
 	hub    Hub
-	addr   = flag.String("addr", "0.0.0.0:17777", "http service address")
-	redisH = flag.String("redis", "localhost:6379", "http service address")
 )
 
 // PeerIsForeign is an error for the time when a peer asks to connect to a peer
@@ -115,8 +113,8 @@ func initLogger() {
 		"peerbook.err", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	Dup2(int(e.Fd()), 2)
 }
-func startHTTPServer(wg *sync.WaitGroup) *http.Server {
-	srv := &http.Server{Addr: *addr}
+func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
+	srv := &http.Server{Addr: addr}
 
 	http.HandleFunc("/", serveHome)
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
@@ -132,18 +130,24 @@ func startHTTPServer(wg *sync.WaitGroup) *http.Server {
 			log.Fatalf("ListenAndServe(): %v", err)
 		}
 	}()
-	Logger.Infof("Listening for HTTP connection at %s", *addr)
+	Logger.Infof("Listening for HTTP connection at %s", addr)
 
 	// returning reference so caller can call Shutdown()
 	return srv
 }
 
 func main() {
+	addr := flag.String("addr", "0.0.0.0:17777", "address to listen for http requests")
+	redisH := flag.String("redis", "localhost:6379", "redis address")
 	flag.Parse()
 	if Logger == nil {
 		initLogger()
 	}
-	db.Connect(*redisH)
+	err := db.Connect(*redisH)
+	if err != nil {
+		Logger.Errorf("Failed to connect to redis: %s", err)
+		os.Exit(1)
+	}
 	defer db.Close()
 
 	hub = Hub{
@@ -156,12 +160,12 @@ func main() {
 
 	httpServerExitDone := &sync.WaitGroup{}
 	httpServerExitDone.Add(3)
-	srv := startHTTPServer(httpServerExitDone)
+	srv := startHTTPServer(*addr, httpServerExitDone)
 	// Setting up signal capturing
 	stop = make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
 	<-stop
-	if err := srv.Shutdown(context.Background()); err != nil {
+	if err = srv.Shutdown(context.Background()); err != nil {
 		Logger.Error("failure/timeout shutting down the http server gracefully")
 	}
 	// wait for goroutine started in startHTTPServer() to stop
