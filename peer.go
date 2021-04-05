@@ -225,6 +225,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 				Logger.Errorf("Failed to send an auth email: %w", err)
 			}
 		} else {
+			Logger.Warnf("Refusing a bad request - %w", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
