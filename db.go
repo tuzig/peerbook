@@ -130,3 +130,27 @@ func (d *DBType) AddPeer(peer *Peer) error {
 	db.conn.Do("SADD", key, peer.FP)
 	return nil
 }
+func (p *DBPeer) Key() string {
+	return fmt.Sprintf("peer:%s", p.FP)
+}
+
+// Verify grants or revokes authorization from a peer
+func (p *DBPeer) Verify(v bool) {
+	peer, found := hub.peers[p.FP]
+	if v {
+		db.conn.Do("HSET", p.Key(), "verified", "1")
+		if found {
+			peer.Send(StatusMessage{200, "You've been authorized"})
+			peer.Verified = true
+		}
+	} else {
+		db.conn.Do("HSET", p.Key(), "verified", "0")
+		if found {
+			peer.sendStatus(401, fmt.Errorf("Your verification was revoked"))
+			peer.Verified = false
+			if peer.ws != nil {
+				peer.ws.Close()
+			}
+		}
+	}
+}

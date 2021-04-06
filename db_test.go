@@ -42,7 +42,15 @@ func TestGetUserList(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, "fucked up", (*list)[1].Name)
 	require.Equal(t, "behind a. recognition", (*list)[0].Name)
-	redisDouble.Del("user:j")
-	redisDouble.Del("peer:foo")
-	redisDouble.Del("peer:bar")
+}
+func TestVerifyPeer(t *testing.T) {
+	startTest(t)
+	redisDouble.HSet("peer:bar", "fp", "bar", "name", "behind a. recognition", "user", "j")
+	redisDouble.SAdd("user:j", "bar")
+	list, err := db.GetUserPeers("j")
+	require.Nil(t, err)
+	peer := (*list)[0]
+	require.Equal(t, false, peer.Verified)
+	peer.Verify(true)
+	require.Equal(t, "1", redisDouble.HGet("peer:bar", "verified"))
 }

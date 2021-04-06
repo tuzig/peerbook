@@ -167,6 +167,9 @@ func (p *Peer) sendStatus(code int, e error) error {
 
 // Send send a message as json
 func (p *Peer) Send(msg interface{}) error {
+	if p.ws == nil {
+		return fmt.Errorf("trying to send a message to closed websocket: %v", msg)
+	}
 	p.ws.SetWriteDeadline(time.Now().Add(writeWait))
 	if err := p.ws.WriteJSON(msg); err != nil {
 		return fmt.Errorf("failed to send status message: %w", err)
