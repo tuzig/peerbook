@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 	"net/http"
+	"net/url"
 	"strconv"
 	"testing"
 	"time"
@@ -31,6 +32,7 @@ func startTest(t *testing.T) {
 		// let the server open
 		time.Sleep(time.Second / 100)
 	} else {
+		hub.peers = map[string]*Peer{}
 		redisDouble.FlushAll()
 	}
 }
@@ -185,4 +187,31 @@ func TestGetUsersList(t *testing.T) {
 	require.Equal(t, map[string]interface{}{
 		"kind": "lay", "name": "bar", "user": "j", "verified": true, "fp": "B"},
 		list[1])
+}
+func TestHTTPPeerVerification(t *testing.T) {
+	var s StatusMessage
+
+	startTest(t)
+	// setup the fixture - a user, his token and two peers
+	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.Set("token:avalidtoken", "j")
+	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
+		"user", "j", "verified", "1")
+	ws, _, err := cstDialer.Dial("ws://127.0.0.1:17777/ws?fp=B&name=bar", nil)
+	require.Nil(t, err)
+	defer ws.Close()
+	err = ws.ReadJSON(&s)
+	require.Nil(t, err)
+	require.Equal(t, 401, s.Code)
+	time.Sleep(time.Second / 100)
+	resp, err := http.PostForm("http://127.0.0.1:17777/list/avalidtoken",
+		url.Values{"B": {"checked"}})
+	require.Nil(t, err)
+	require.Equal(t, 200, resp.StatusCode)
+	time.Sleep(time.Second / 100)
+	require.Equal(t, "0", redisDouble.HGet("peer:A", "verified"))
+	require.Equal(t, "1", redisDouble.HGet("peer:B", "verified"))
+	err = ws.ReadJSON(&s)
+	require.Nil(t, err)
+	require.Equal(t, 200, s.Code)
 }

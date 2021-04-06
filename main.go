@@ -83,19 +83,42 @@ func serveList(w http.ResponseWriter, r *http.Request) {
 		Logger.Warnf("Token not found, coauld be expired")
 		return
 	}
+	peers, err := db.GetUserPeers(user)
+	if err != nil {
+		Logger.Errorf("Failed to get user %q peers: %w", user, err)
+		return
+	}
 	if r.Method == "GET" {
-		l, err := db.GetUserPeers(user)
-		if err != nil {
-			Logger.Errorf("Failed to get user %q peers: %w", user, err)
-			return
-		}
-		m, err := json.Marshal(l)
+		m, err := json.Marshal(peers)
 		if err != nil {
 			Logger.Errorf("Failed to marshal user's list: %w", err)
 			return
 		}
 		w.Write(m)
 		return
+	}
+	if r.Method == "POST" {
+		verified := make(map[string]bool)
+		err := r.ParseForm()
+		if err != nil {
+			msg := fmt.Sprintf("Got an error parsing form: %s", err)
+			Logger.Warnf(msg)
+			http.Error(w, msg, http.StatusBadRequest)
+			return
+		}
+		for k, _ := range r.Form {
+			verified[k] = true
+		}
+		for _, p := range *peers {
+			_, toBeV := verified[p.FP]
+			peer := *p
+			if peer.Verified && !toBeV {
+				peer.Verify(false)
+			}
+			if !peer.Verified && toBeV {
+				peer.Verify(true)
+			}
+		}
 	}
 }
 
