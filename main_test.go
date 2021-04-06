@@ -1,10 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
+	"net/http"
 	"strconv"
 	"testing"
 	"time"
@@ -160,4 +162,27 @@ func TestNewPeerConnect(t *testing.T) {
 	ci, err := strconv.Atoi(c)
 	require.Nil(t, err)
 	require.InDelta(t, s.Unix(), int64(ci), 1)
+}
+func TestGetUsersList(t *testing.T) {
+	startTest(t)
+	// setup the fixture - a user, his token and two peers
+	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.Set("token:avalidtoken", "j")
+	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
+		"user", "j", "verified", "0")
+	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
+		"user", "j", "verified", "1")
+	resp, err := http.Get("http://127.0.0.1:17777/list/avalidtoken")
+	require.Nil(t, err)
+	defer resp.Body.Close()
+	list := make([]map[string]interface{}, 2)
+	err = json.NewDecoder(resp.Body).Decode(&list)
+	require.Nil(t, err)
+	require.Equal(t, 2, len(list))
+	require.Equal(t, map[string]interface{}{
+		"kind": "lay", "name": "foo", "user": "j", "fp": "A"},
+		list[0])
+	require.Equal(t, map[string]interface{}{
+		"kind": "lay", "name": "bar", "user": "j", "verified": true, "fp": "B"},
+		list[1])
 }

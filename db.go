@@ -43,6 +43,16 @@ func (d *DBType) Connect(host string) error {
 	return err
 }
 
+// GetToken reads the value of a token
+func (d *DBType) GetToken(token string) (string, error) {
+	key := fmt.Sprintf("token:%s", token)
+	value, err := redis.String(d.conn.Do("GET", key))
+	if err != nil {
+		return "", fmt.Errorf("Failed to read token: %w:", err)
+	}
+	return value, nil
+}
+
 // GetPeer gets a peer, using the hub as cache for connected peers
 func (d *DBType) GetPeer(fp string) (*DBPeer, error) {
 	peer, found := hub.peers[fp]

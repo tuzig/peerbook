@@ -6,6 +6,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"go.uber.org/zap"
@@ -15,6 +16,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 )
 
@@ -70,6 +72,33 @@ func (p *PeerChanged) Error() string {
 	return "Peer exists with different properties"
 }
 
+func serveList(w http.ResponseWriter, r *http.Request) {
+	i := strings.IndexRune(r.URL.Path[1:], '/')
+	user, err := db.GetToken(r.URL.Path[i+2:])
+	if err != nil {
+		Logger.Errorf("Failed to get token: %w", err)
+		return
+	}
+	if user == "" {
+		Logger.Warnf("Token not found, coauld be expired")
+		return
+	}
+	if r.Method == "GET" {
+		l, err := db.GetUserPeers(user)
+		if err != nil {
+			Logger.Errorf("Failed to get user %q peers: %w", user, err)
+			return
+		}
+		m, err := json.Marshal(l)
+		if err != nil {
+			Logger.Errorf("Failed to marshal user's list: %w", err)
+			return
+		}
+		w.Write(m)
+		return
+	}
+}
+
 func serveHome(w http.ResponseWriter, r *http.Request) {
 	log.Println(r.URL)
 	if r.URL.Path != "/" {
@@ -117,6 +146,7 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 	srv := &http.Server{Addr: addr}
 
 	http.HandleFunc("/", serveHome)
+	http.HandleFunc("/list/", serveList)
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		serveWs(w, r)
 	})
