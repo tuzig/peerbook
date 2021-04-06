@@ -2,11 +2,12 @@
 
 > WIP: This is just a plan, nothing to use yet
 
-peerbook is A WebRTC signaling server with an address book for
-passwordless-users and their WebRTC peers. It's based on websockets, redis and
-gorilla/websocket.
+peerbook is A WebRTC signaling server with a parivate address book for
+passwordless-users and their WebRTC peers.
+peerbook is based on golang and the great code from
+gomodule/redigo and gorilla/websocket.
 
-peerbook server lets users store and retrieve a list of trusted peers,
+peerbook server lets users store and retrieve a list of trusted peers.
 their fingerprints and any other properties the app wishes to store.
 For example, a terminal app can add a `kind` key with the values of `client`
 and `server` so the client can filter list and display only servers.
