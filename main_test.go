@@ -5,6 +5,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -144,4 +145,19 @@ func TestValidSignaling(t *testing.T) {
 	err = wsA.ReadJSON(&a)
 	require.Equal(t, "B's answer", a.Answer)
 	require.Equal(t, "bar", a.SourceName)
+}
+func TestNewPeerConnect(t *testing.T) {
+	startTest(t)
+	s := time.Now()
+	url := "ws://127.0.0.1:17777/ws?fp=foo&name=fuckedup"
+	ws, _, err := cstDialer.Dial(url, nil)
+	require.Nil(t, err)
+	defer ws.Close()
+	time.Sleep(time.Second / 100)
+	n := redisDouble.HGet("peer:foo", "name")
+	require.Equal(t, "fuckedup", n)
+	c := redisDouble.HGet("peer:foo", "created_on")
+	ci, err := strconv.Atoi(c)
+	require.Nil(t, err)
+	require.InDelta(t, s.Unix(), int64(ci), 1)
 }

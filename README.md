@@ -63,12 +63,13 @@ to which peerbook will reply with:
 
 ```json
 {
-    "list": [
+    "peers": [
      {"name": "<>", 
-     "fingerprint": "<>",
-     "resgitration_date": "<>",
-     "last_connection": "<>",
-     "kind": "<>"
+     "fp": "<>",
+     "kind": "<>",
+     "created_on": "<>",
+     "last_seen": "<>",
+     "verified_on": "<>"
      }]
  }
  ```

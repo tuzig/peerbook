@@ -14,15 +14,18 @@ type DBType struct {
 
 // DBUser is the info we store about a user - a list of peers' fingerprint
 type DBUser []string
-type DBPeerList []map[string]string
+type DBPeerList []*DBPeer
 
 // DBPeer is the info we store about a peer in redis
 type DBPeer struct {
-	User     string `redis:"user"`
-	FP       string `redis:"fp"`
-	Name     string `redis:"name"`
-	Kind     string `redis:"kind"`
-	Verified bool   `redis:"verified"`
+	FP          string `redis:"fp" json:"fp"`
+	Name        string `redis:"name" json:"name,omitempty"`
+	User        string `redis:"user" json:"user,omitempty"`
+	Kind        string `redis:"kind" json:"kind,omitempty"`
+	Verified    bool   `redis:"verified" json:"verified,omitempty"`
+	CreatedOn   int64  `redis:"created_on" json:"created_on,omitempty"`
+	VerifiedOn  int64  `redis:"verified_on" json:"verified_on,omitempty"`
+	LastConnect int64  `redis:"last_connect" json:"last_connect,omitempty"`
 }
 
 // for testing we use a redis "double"
@@ -48,7 +51,10 @@ func (d *DBType) GetPeer(fp string) (*DBPeer, error) {
 	}
 	key := fmt.Sprintf("peer:%s", fp)
 	var pd DBPeer
-	db.getDoc(key, &pd)
+	err := db.getDoc(key, &pd)
+	if err != nil {
+		return nil, err
+	}
 	return &pd, nil
 }
 
@@ -85,14 +91,12 @@ func (d *DBType) GetUserPeers(email string) (*DBPeerList, error) {
 		return nil, err
 	}
 	for _, fp := range *u {
-		i, err := d.GetPeer(fp)
+		p, err := d.GetPeer(fp)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to read peer: %w", err)
+			Logger.Warnf("Failed to read peer: %w", err)
+		} else {
+			l = append(l, p)
 		}
-		l = append(l, map[string]string{
-			"name": i.Name,
-			"kind": i.Kind,
-			"fp":   i.FP})
 	}
 	return &l, nil
 }
@@ -111,6 +115,7 @@ func (d *DBType) AddPeer(peer *Peer) error {
 			return err
 		}
 	}
+	// add to the user's list
 	key = fmt.Sprintf("user:%s", peer.User)
 	db.conn.Do("SADD", key, peer.FP)
 	return nil

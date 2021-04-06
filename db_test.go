@@ -4,11 +4,12 @@ import (
 	"github.com/gomodule/redigo/redis"
 	"github.com/stretchr/testify/require"
 	"testing"
+	"time"
 )
 
 func TestGetPeer(t *testing.T) {
 	startTest(t)
-	redisDouble.HSet("peer:foo", "name", "fucked up")
+	redisDouble.HSet("peer:foo", "fp", "foo", "name", "fucked up")
 	exists, err := redis.Bool(db.conn.Do("EXISTS", "peer:foo"))
 	require.Nil(t, err)
 	require.True(t, exists)
@@ -19,9 +20,10 @@ func TestGetPeer(t *testing.T) {
 func TestAddPeer(t *testing.T) {
 	startTest(t)
 	redisDouble.SAdd("user:j", "foo", "bar")
-	peer := &Peer{DBPeer{FP: "publickey", Name: "Yosi", User: "J"},
-		nil}
+	peer := &Peer{DBPeer{FP: "publickey", Name: "Yosi", User: "J",
+		CreatedOn: time.Now().Unix()}, nil}
 	err := db.AddPeer(peer)
+	require.Nil(t, err)
 	exists, err := redis.Bool(db.conn.Do("EXISTS", "peer:publickey"))
 	require.Nil(t, err)
 	require.True(t, exists)
@@ -38,8 +40,8 @@ func TestGetUserList(t *testing.T) {
 	redisDouble.SAdd("user:j", "foo", "bar")
 	list, err := db.GetUserPeers("j")
 	require.Nil(t, err)
-	require.Equal(t, "fucked up", (*list)[1]["name"])
-	require.Equal(t, "behind a. recognition", (*list)[0]["name"])
+	require.Equal(t, "fucked up", (*list)[1].Name)
+	require.Equal(t, "behind a. recognition", (*list)[0].Name)
 	redisDouble.Del("user:j")
 	redisDouble.Del("peer:foo")
 	redisDouble.Del("peer:bar")

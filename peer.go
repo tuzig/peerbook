@@ -77,7 +77,8 @@ func PeerFromQ(q url.Values) (*Peer, error) {
 		return nil, fmt.Errorf("Missing `fp` query parameter")
 	}
 	return &Peer{DBPeer{FP: fp, Name: q.Get("name"), Kind: q.Get("kind"),
-		User: q.Get("email"), Verified: false}, nil}, nil
+		CreatedOn: time.Now().Unix(), User: q.Get("email"), Verified: false},
+		nil}, nil
 }
 
 // LoadPeer loads a peer from redis based on a given peer
@@ -217,7 +218,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if notFound {
-			Logger.Infof("Peer not found")
+			Logger.Infof("Peer not found, using peer from Q %v", qp)
 			// rollback - work with the unverified peer from the query
 			peer = qp
 			err = peer.sendAuthEmail()
