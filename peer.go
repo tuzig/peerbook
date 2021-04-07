@@ -1,4 +1,3 @@
-// Copyright 2021 Tuzig LTD. All rights reserved.
 // based on Gorilla WebSocket.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
@@ -8,7 +7,9 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"net/smtp"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -176,9 +177,28 @@ func (p *Peer) Send(msg interface{}) error {
 	}
 	return nil
 }
-func (p *Peer) sendAuthEmail() error {
-	// TODO: send an email in the background, the email should havssss
-	return nil
+func (p *Peer) sendAuthEmail() {
+	// TODO: send an email in the background
+	token, err := db.CreateToken(p.User)
+	if err != nil {
+		Logger.Errorf("Failed to create token: %w", err)
+		return
+	}
+	host := os.Getenv("PB_SMTP_HOST")
+	auth := smtp.PlainAuth(
+		"", os.Getenv("PB_SMTP_USER"), os.Getenv("PB_SMTP_PASS"), host)
+	msg := []byte(`Peerbook updates for your approval
+
+<html lang=en> <head><meta charset=utf-8>
+<title>Peerbook updates for your approval</title>
+</head>
+Please click <a href="pb.terminal7.dev/auth/` + token + `">here to review</a>.`)
+	Logger.Infof("Sending an email to %s", p.User)
+	err = smtp.SendMail(host+":25", auth, "peerbook@terminal7.dev",
+		[]string{p.User}, msg)
+	if err != nil {
+		Logger.Errorf("Failed to send email: %w", err)
+	}
 }
 
 // Upgrade upgrade an http request to a websocket and stores it
@@ -224,10 +244,6 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 			Logger.Infof("Peer not found, using peer from Q %v", qp)
 			// rollback - work with the unverified peer from the query
 			peer = qp
-			err = peer.sendAuthEmail()
-			if err != nil {
-				Logger.Errorf("Failed to send an auth email: %w", err)
-			}
 		} else {
 			Logger.Warnf("Refusing a bad request - %w", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -238,8 +254,9 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 	hub.register <- peer
 	go peer.pinger()
 	go peer.readPump()
-	// if it's an unknow peer, keep the connection open and send a status message
-	if notFound {
+	// if it's an unverified peer, keep the connection open and send a status message
+	if !peer.Verified {
+		peer.sendAuthEmail()
 		peer.sendStatus(401, fmt.Errorf(
 			"Unknown peer, please check your email to approve"))
 	}

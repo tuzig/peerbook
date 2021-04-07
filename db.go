@@ -1,12 +1,16 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gomodule/redigo/redis"
 )
 
+const TokenLen = 10  // in Bytes, should be 4 times that in base64
+const TokenTTL = 300 // in Seconds
 // DBType is the type that holds our db
 type DBType struct {
 	conn redis.Conn
@@ -31,6 +35,25 @@ type DBPeer struct {
 // for testing we use a redis "double"
 var redisDouble *miniredis.Miniredis
 
+// CreateToken creates a short-live token to be emailed to the user
+func (d *DBType) CreateToken(email string) (string, error) {
+	if email == "" {
+		return "", fmt.Errorf("Failied to create a token for an empty email")
+	}
+	b := make([]byte, TokenLen)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	token := base64.StdEncoding.EncodeToString(b)
+	key := fmt.Sprintf("token:%s", token)
+	go func() {
+		_, err := d.conn.Do("SETEX", key, TokenTTL, email)
+		if err != nil {
+			Logger.Errorf("Failed to set token: %w", err)
+		}
+	}()
+	return token, nil
+}
 func (d *DBType) Connect(host string) error {
 	// should we use mock redis?
 	if redisDouble != nil {

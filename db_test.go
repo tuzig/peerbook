@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/gomodule/redigo/redis"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -53,4 +54,13 @@ func TestVerifyPeer(t *testing.T) {
 	require.Equal(t, false, peer.Verified)
 	peer.Verify(true)
 	require.Equal(t, "1", redisDouble.HGet("peer:bar", "verified"))
+}
+func TestCreateToken(t *testing.T) {
+	startTest(t)
+	token, err := db.CreateToken("j")
+	require.Nil(t, err)
+	key := fmt.Sprintf("token:%s", token)
+	exists := redisDouble.Exists(key)
+	require.Nil(t, err)
+	require.True(t, exists)
 }
