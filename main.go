@@ -20,6 +20,11 @@ import (
 	"sync"
 )
 
+const HTMLThankYou = `<html lang=en> <head><meta charset=utf-8>
+<title>Thank You</title>
+</head>
+<body><h2>Your changes have been recorded and connected peers notified</h2>`
+
 // Logger is our global logger
 var (
 	Logger *zap.SugaredLogger
@@ -76,15 +81,18 @@ func serveList(w http.ResponseWriter, r *http.Request) {
 	i := strings.IndexRune(r.URL.Path[1:], '/')
 	user, err := db.GetToken(r.URL.Path[i+2:])
 	if err != nil {
+		http.Error(w, "Bad Token", http.StatusBadRequest)
 		Logger.Errorf("Failed to get token: %w", err)
 		return
 	}
 	if user == "" {
+		http.Error(w, "Bad Token", http.StatusBadRequest)
 		Logger.Warnf("Token not found, coauld be expired")
 		return
 	}
 	peers, err := db.GetUserPeers(user)
 	if err != nil {
+		http.Error(w, "Failed to get user", http.StatusBadRequest)
 		Logger.Errorf("Failed to get user %q peers: %w", user, err)
 		return
 	}
@@ -119,9 +127,23 @@ func serveList(w http.ResponseWriter, r *http.Request) {
 				peer.Verify(true)
 			}
 		}
+		w.Write([]byte(HTMLThankYou))
 	}
 }
 
+func serveAuthPage(w http.ResponseWriter, r *http.Request) {
+	i := strings.IndexRune(r.URL.Path[1:], '/')
+	user, err := db.GetToken(r.URL.Path[i+2:])
+	if err != nil || user == "" {
+		http.Error(w, "Bad Token", http.StatusMethodNotAllowed)
+		return
+	}
+	if r.Method != "GET" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	http.ServeFile(w, r, "auth.html")
+}
 func serveHome(w http.ResponseWriter, r *http.Request) {
 	log.Println(r.URL)
 	if r.URL.Path != "/" {
@@ -170,6 +192,7 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 
 	http.HandleFunc("/", serveHome)
 	http.HandleFunc("/list/", serveList)
+	http.HandleFunc("/auth/", serveAuthPage)
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		serveWs(w, r)
 	})

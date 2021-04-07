@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang=en>
+<head>
+<meta charset=utf-8>
+<title>Review you peer list</title>
+</head>
+<body>
+    <form id="form" method="post">
+    <div id="container"></div>
+      <input type="submit" value="Submit">
+
+    </form>
+    <p>I'm the content</p>
+    <script>
+    document.addEventListener('DOMContentLoaded', event => {
+        var urlParts = window.location.pathname.split("/"),
+            token = urlParts[2],
+            con = document.getElementById("container")
+        console.log(`/list/${token}`)
+        fetch(`/list/${token}`).then(response =>  response.json())
+            .then(peers => {
+                        console.log(peers)
+                        if (Array.isArray(peers))
+                peers.forEach(p => {
+                    var newDiv = document.createElement("div"),
+                        newCheck = document.createElement("input"),
+                        newLabel = document.createElement("label")
+                    newCheck.checked = p.verified
+                    newCheck.setAttribute("name", p.fp)
+                    newCheck.setAttribute("value", "checked")
+                    newCheck.setAttribute("type", "checkbox")
+                    newCheck.id = p.fp
+                    newDiv.appendChild(newCheck)
+                    newLabel.setAttribute("for", p.fp)
+                            newLabel.innerHTML = `${p.name} ${p.kind} ${p.fp}`
+                    newDiv.appendChild(newLabel)
+                    newLabel.setAttribute("for", p.fp)
+                    con.appendChild(newDiv)
+                })
+        })
+        document.getElementById("form").setAttribute("action",`/list/${token}`)
+    })
+        
+    </script>
+</body</html>
+
