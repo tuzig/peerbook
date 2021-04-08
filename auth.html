@@ -7,16 +7,13 @@
 <body>
     <form id="form" method="post">
     <div id="container"></div>
-      <input type="submit" value="Submit">
-
+      <input type="submit" value="Update">
     </form>
-    <p>I'm the content</p>
     <script>
     document.addEventListener('DOMContentLoaded', event => {
         var urlParts = window.location.pathname.split("/"),
             token = urlParts[2],
             con = document.getElementById("container")
-        console.log(`/list/${token}`)
         fetch(`/list/${token}`).then(response =>  response.json())
             .then(peers => {
                         console.log(peers)
