@@ -60,6 +60,7 @@ func TestCreateToken(t *testing.T) {
 	token, err := db.CreateToken("j")
 	require.Nil(t, err)
 	key := fmt.Sprintf("token:%s", token)
+	time.Sleep(time.Millisecond)
 	exists := redisDouble.Exists(key)
 	require.Nil(t, err)
 	require.True(t, exists)
