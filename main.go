@@ -81,18 +81,18 @@ func serveList(w http.ResponseWriter, r *http.Request) {
 	i := strings.IndexRune(r.URL.Path[1:], '/')
 	user, err := db.GetToken(r.URL.Path[i+2:])
 	if err != nil {
-		http.Error(w, "Bad Token", http.StatusBadRequest)
-		Logger.Errorf("Failed to get token: %w", err)
+		http.Error(w, `{"m": "Bad Token"}`, http.StatusBadRequest)
+		Logger.Errorf("Failed to get token: %s", err)
 		return
 	}
 	if user == "" {
-		http.Error(w, "Bad Token", http.StatusBadRequest)
+		http.Error(w, `{"m": "Bad Token"}`, http.StatusBadRequest)
 		Logger.Warnf("Token not found, coauld be expired")
 		return
 	}
 	peers, err := db.GetUserPeers(user)
 	if err != nil {
-		http.Error(w, "Failed to get user", http.StatusBadRequest)
+		http.Error(w, `{"m": "Failed to get user"}`, http.StatusBadRequest)
 		Logger.Errorf("Failed to get user %q peers: %w", user, err)
 		return
 	}
@@ -111,7 +111,7 @@ func serveList(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			msg := fmt.Sprintf("Got an error parsing form: %s", err)
 			Logger.Warnf(msg)
-			http.Error(w, msg, http.StatusBadRequest)
+			http.Error(w, `{"msg": "`+msg+`"}`, http.StatusBadRequest)
 			return
 		}
 		for k, _ := range r.Form {
