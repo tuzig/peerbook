@@ -9,7 +9,7 @@ import (
 	"github.com/gomodule/redigo/redis"
 )
 
-const TokenLen = 10  // in Bytes, should be 4 times that in base64
+const TokenLen = 30  // in Bytes, four times that in base64 and urls
 const TokenTTL = 300 // in Seconds
 // DBType is the type that holds our db
 type DBType struct {
