@@ -27,6 +27,7 @@ const (
 
 	// Maximum message size allowed from peer.
 	maxMessageSize = 4096
+	DefaultHomeUrl = "https://pb.terminal7.dev"
 )
 
 var (
@@ -191,7 +192,11 @@ func (p *Peer) sendAuthEmail() {
 		return
 	}
 	m := gomail.NewMessage()
-	clickL := fmt.Sprintf("pb.terminal7.dev/auth/%s", token)
+	homeUrl := os.Getenv("PB_HOME_URL")
+	if homeUrl == "" {
+		homeUrl = DefaultHomeUrl
+	}
+	clickL := fmt.Sprintf("%s/auth/%s", homeUrl, token)
 	m.SetBody("text/html", `<html lang=en> <head><meta charset=utf-8>
 <title>Peerbook updates for your approval</title>
 </head>
