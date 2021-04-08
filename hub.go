@@ -5,8 +5,7 @@
 package main
 
 import (
-	"github.com/gomodule/redigo/redis"
-	"log"
+	"net/http"
 )
 
 // Hub maintains the set of active peers and broadcasts messages to the
@@ -16,60 +15,77 @@ type Hub struct {
 	peers map[string]*Peer
 
 	// Inbound messages from the peers.
-	requests chan map[string]string
+	requests chan map[string]interface{}
 
 	// Register requests from the peers.
 	register chan *Peer
 
 	// Unregister requests from peers.
 	unregister chan *Peer
-	redis      redis.Conn
 }
 
-func newHub(redisHost string) *Hub {
-	conn, err := redis.Dial("tcp", redisHost)
-	if err != nil {
-		log.Fatal(err)
+// forwardSignal Forwards offers and answers after it ensures the peer is known
+// and is verified
+func (h *Hub) forwardSignal(s *Peer, m map[string]interface{}) {
+	if !s.Verified {
+		e := &UnauthorizedPeer{s}
+		Logger.Warn(e)
+		s.sendStatus(http.StatusUnauthorized, e)
+		return
 	}
-	return &Hub{
-		register:   make(chan *Peer),
-		unregister: make(chan *Peer),
-		peers:      make(map[string]*Peer),
-		redis:      conn,
-		requests:   make(chan map[string]string),
-	}
-}
-
-// forwardSignal Forwards offersa nd answers
-func (h *Hub) forwardSignal(m map[string]string) {
-	target := m["target"]
+	target := m["target"].(string)
 	p, found := h.peers[target]
 	if !found {
-		log.Println("Couldn't find target peer")
+		e := &TargetNotFound{target}
+		Logger.Warn(e)
+		s.sendStatus(http.StatusBadRequest, e)
+		return
 	}
+	if p.User != s.User {
+		e := &PeerIsForeign{p}
+		Logger.Warn(e)
+		s.sendStatus(http.StatusBadRequest, e)
+		return
+	}
+	Logger.Infof("Forwarding: %v", m)
+	m["source_fp"] = s.FP
+	m["source_name"] = s.Name
+
 	delete(m, "target")
-	p.send <- m
+	p.Send(m)
 }
 func (h *Hub) run() {
 	for {
 		select {
 		case peer := <-h.register:
-			h.peers[peer.pd.fingerprint] = peer
+			h.peers[peer.FP] = peer
+			db.AddPeer(peer)
 		case peer := <-h.unregister:
-			if _, ok := h.peers[peer.pd.fingerprint]; ok {
-				delete(h.peers, peer.pd.fingerprint)
-				close(peer.send)
+			if _, ok := h.peers[peer.FP]; ok {
+				delete(h.peers, peer.FP)
 			}
 		case message := <-h.requests:
+			sFP := message["source"]
+			delete(message, "source")
+			source, found := h.peers[sFP.(string)]
+			if !found {
+				Logger.Errorf("Hub ignores a bad request because of wrong source: %s", sFP)
+				continue
+			}
 			_, offer := message["offer"]
 			_, answer := message["answer"]
-			if offer || answer {
-				h.forwardSignal(message)
+			_, candidate := message["candidate"]
+			if offer || answer || candidate {
+				h.forwardSignal(source, message)
+				continue
+			}
+			cmd, command := message["command"]
+			if command && (cmd == "get_list") {
+				err := source.sendList()
+				if err != nil {
+					Logger.Errorf("Failed to send a list of peers: %w", err)
+				}
 			}
 		}
 	}
-}
-
-func (h *Hub) Close() {
-	h.redis.Close()
 }

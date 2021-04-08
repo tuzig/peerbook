@@ -1,4 +1,3 @@
-// Copyright 2021 Tuzig LTD. All rights reserved.
 // based on Gorilla WebSocket.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
@@ -7,12 +6,12 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net/http"
+	"net/smtp"
 	"net/url"
+	"os"
 	"time"
 
-	"github.com/gomodule/redigo/redis"
 	"github.com/gorilla/websocket"
 )
 
@@ -24,10 +23,10 @@ const (
 	pongWait = 60 * time.Second
 
 	// Send pings to peer with this period. Must be less than pongWait.
-	pingPeriod = (pongWait * 9) / 10
+	pingPeriod = 50 * time.Second
 
 	// Maximum message size allowed from peer.
-	maxMessageSize = 512
+	maxMessageSize = 4096
 )
 
 var (
@@ -36,59 +35,76 @@ var (
 )
 
 var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-}
-
-// PeerDoc is the info we store at redis
-type PeerDoc struct {
-	user        string
-	fingerprint string
-	name        string
-	kind        string
+	ReadBufferSize:  maxMessageSize,
+	WriteBufferSize: maxMessageSize,
+	CheckOrigin:     func(r *http.Request) bool { return true },
 }
 
 // Peer is a middleman between the websocket connection and the hub.
 type Peer struct {
-	hub *Hub
+	DBPeer
 	// The websocket connection.
 	ws *websocket.Conn
-	// Buffered channel of outbound messages.
-	send          chan interface{}
-	authenticated bool
-	pd            *PeerDoc
 }
 
 // StatusMessage is used to update the peer to a change of state,
 // like 200 after the peer has been authorized
 type StatusMessage struct {
-	status_code int
-	description string
+	Code int    `json:"code"`
+	Text string `json:"text"`
 }
 
-func newPeer(hub *Hub, ws *websocket.Conn, q url.Values) (*Peer, error) {
-	var pd PeerDoc
-	key := fmt.Sprintf("peer:%s", q.Get("fingerprint"))
-	exists, err := redis.Bool(hub.redis.Do("EXISTS", key))
+// OfferMessage is the format of the offer message after processing -
+// including the source_name & source_fp read from the db
+type OfferMessage struct {
+	SourceName string `json:"source_name"`
+	SourceFP   string `json:"source_fp"`
+	Offer      string `json:"offer"`
+}
+
+// AnswerMessage is the format of the answer message after processing -
+// including the source_name & source_fp read from the db
+type AnswerMessage struct {
+	SourceName string `json:"source_name"`
+	SourceFP   string `json:"source_fp"`
+	Answer     string `json:"answer"`
+}
+
+// PeerFromQ retruns a fresh Peer based on query paramets: fp, name, kind &
+// email
+func PeerFromQ(q url.Values) (*Peer, error) {
+	fp := q.Get("fp")
+	if fp == "" {
+		return nil, fmt.Errorf("Missing `fp` query parameter")
+	}
+	return &Peer{DBPeer{FP: fp, Name: q.Get("name"), Kind: q.Get("kind"),
+		CreatedOn: time.Now().Unix(), User: q.Get("email"), Verified: false},
+		nil}, nil
+}
+
+// LoadPeer loads a peer from redis based on a given peer
+func LoadPeer(baseP *Peer) (*Peer, error) {
+	peer, found := hub.peers[baseP.FP]
+	if found {
+		return peer, nil
+	}
+	exists, err := db.PeerExists(baseP.FP)
 	if err != nil {
 		return nil, err
 	}
-	peer := Peer{hub: hub, ws: ws, send: make(chan interface{}, 8), authenticated: false}
 	if !exists {
-		return &peer, &PeerNotFound{}
+		return nil, &PeerNotFound{}
 	}
-	values, err := redis.Values(hub.redis.Do("HGETALL", key))
-	if err = redis.ScanStruct(values, &pd); err != nil {
-		return nil, fmt.Errorf("Failed to scan peer %q: %w", key, err)
+	var p Peer
+	key := fmt.Sprintf("peer:%s", baseP.FP)
+	db.getDoc(key, &p)
+	// ensure the same details
+	if p.Name != baseP.Name ||
+		p.User != baseP.User ||
+		p.Kind != baseP.Kind {
+		return nil, &PeerChanged{}
 	}
-	peer.pd = &pd
-	if pd.name != q.Get("name") ||
-		pd.user != q.Get("user") ||
-		pd.kind != q.Get("kind") {
-		return &peer, &PeerChanged{}
-	}
-	peer.authenticated = true
-	return &peer, nil
+	return &p, nil
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -97,97 +113,151 @@ func newPeer(hub *Hub, ws *websocket.Conn, q url.Values) (*Peer, error) {
 // ensures that there is at most one reader on a connection by executing all
 // reads from this goroutine.
 func (p *Peer) readPump() {
-	var message map[string]string
 
 	defer func() {
-		p.hub.unregister <- p
+		hub.unregister <- p
 		p.ws.Close()
 	}()
 	p.ws.SetReadLimit(maxMessageSize)
 	p.ws.SetReadDeadline(time.Now().Add(pongWait))
 	p.ws.SetPongHandler(func(string) error { p.ws.SetReadDeadline(time.Now().Add(pongWait)); return nil })
 	for {
+		var message map[string]interface{}
 		err := p.ws.ReadJSON(&message)
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("error: %v", err)
+				Logger.Errorf("ws error: %w", err)
 			}
 			break
 		}
-		message["source_fp"] = p.pd.fingerprint
-		message["source_name"] = p.pd.name
-		p.hub.requests <- message
+		// TODO: do we use the "source" ?
+		message["source"] = p.FP
+		hub.requests <- message
 	}
 }
 
-// writePump pumps messages from the hub to the websocket connection.
-//
-// A goroutine running writePump is started for each connection. The
-// application ensures that there is at most one writer to a connection by
-// executing all writes from this goroutine.
-func (p *Peer) writePump() {
+// pinger sends pings
+func (p *Peer) pinger() {
+	errRun := 0
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
-		p.ws.Close()
+		// p.ws.Close()
 	}()
 	for {
 		select {
-		case message, ok := <-p.send:
-			p.ws.SetWriteDeadline(time.Now().Add(writeWait))
-			if !ok {
-				// The hub closed the channel.
-				p.ws.WriteMessage(websocket.CloseMessage, []byte{})
-				return
-			}
-			if err := p.ws.WriteJSON(message); err != nil {
-				// TODO: add log.Warn
-				continue
-			}
 		case <-ticker.C:
-			p.ws.SetWriteDeadline(time.Now().Add(writeWait))
-			if err := p.ws.WriteMessage(websocket.PingMessage, nil); err != nil {
-				return
+			err := p.ws.WriteMessage(websocket.PingMessage, nil)
+			if err != nil {
+				Logger.Errorf("failed to send ping message: %w", err)
+				errRun++
+				if errRun == 3 {
+					return
+				}
+
+			} else {
+				errRun = 0
 			}
 		}
 	}
 }
-func (p *Peer) sendStatus(code int, err error) {
-	msg := StatusMessage{code, err.Error()}
-	p.send <- msg
+func (p *Peer) sendStatus(code int, e error) error {
+	msg := StatusMessage{code, e.Error()}
+	return p.Send(msg)
 }
-func (p *Peer) sendAuthEmail() error {
-	// TODO: send an email in the background, the email should havssss
+
+// Send send a message as json
+func (p *Peer) Send(msg interface{}) error {
+	if p.ws == nil {
+		return fmt.Errorf("trying to send a message to closed websocket: %v", msg)
+	}
+	p.ws.SetWriteDeadline(time.Now().Add(writeWait))
+	if err := p.ws.WriteJSON(msg); err != nil {
+		return fmt.Errorf("failed to send status message: %w", err)
+	}
 	return nil
+}
+func (p *Peer) sendAuthEmail() {
+	// TODO: send an email in the background
+	token, err := db.CreateToken(p.User)
+	if err != nil {
+		Logger.Errorf("Failed to create token: %w", err)
+		return
+	}
+	host := os.Getenv("PB_SMTP_HOST")
+	auth := smtp.PlainAuth(
+		"", os.Getenv("PB_SMTP_USER"), os.Getenv("PB_SMTP_PASS"), host)
+	msg := []byte(`Peerbook updates for your approval
+
+<html lang=en> <head><meta charset=utf-8>
+<title>Peerbook updates for your approval</title>
+</head>
+Please click <a href="pb.terminal7.dev/auth/` + token + `">here to review</a>.`)
+	Logger.Infof("Sending an email to %s", p.User)
+	err = smtp.SendMail(host+":25", auth, "peerbook@terminal7.dev",
+		[]string{p.User}, msg)
+	if err != nil {
+		Logger.Errorf("Failed to send email: %w", err)
+	}
+}
+
+// Upgrade upgrade an http request to a websocket and stores it
+func (p *Peer) Upgrade(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		Logger.Errorf("Failed to upgrade socket: %w", err)
+	}
+	p.ws = conn
+}
+
+func (p *Peer) sendList() error {
+	l, err := db.GetUserPeers(p.User)
+	if err != nil {
+		return err
+	}
+	return p.Send(map[string]*DBPeerList{"peers": l})
 }
 
 // serveWs handles websocket requests from the peer.
-func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Println(err)
-		return
-	}
+func serveWs(w http.ResponseWriter, r *http.Request) {
+	var notFound bool
 	q := r.URL.Query()
-	peer, err := newPeer(hub, conn, q)
-	if peer == nil {
-		log.Println(err)
+	Logger.Infof("Got a new peer request: %v", q)
+	qp, err := PeerFromQ(q)
+	if err != nil {
+		msg := fmt.Sprintf("Bad peer requested: %s", err)
+		Logger.Warn(msg)
+		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
+	peer, err := LoadPeer(qp)
 	if err != nil {
-		_, notFound := err.(*PeerNotFound)
+		_, notFound = err.(*PeerNotFound)
 		_, changed := err.(*PeerChanged)
-		if notFound || changed {
-			peer.sendStatus(401, err)
-			err = peer.sendAuthEmail()
-			if err != nil {
-				log.Println("failed to send email")
-			}
+		if changed {
+			msg := fmt.Sprintf("Request from a weird peer: %s", err)
+			Logger.Warn(msg)
+			http.Error(w, msg, http.StatusBadRequest)
+			return
+		}
+		if notFound {
+			Logger.Infof("Peer not found, using peer from Q %v", qp)
+			// rollback - work with the unverified peer from the query
+			peer = qp
+		} else {
+			Logger.Warnf("Refusing a bad request - %w", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 	}
-	// Allow collection of memory referenced by the caller by doing all work in
-	// new goroutines.
-	go peer.writePump()
+	peer.Upgrade(w, r)
+	hub.register <- peer
+	go peer.pinger()
 	go peer.readPump()
+	// if it's an unverified peer, keep the connection open and send a status message
+	if !peer.Verified {
+		peer.sendAuthEmail()
+		peer.sendStatus(401, fmt.Errorf(
+			"Unknown peer, please check your email to approve"))
+	}
 }

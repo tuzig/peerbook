@@ -2,11 +2,12 @@
 
 > WIP: This is just a plan, nothing to use yet
 
-peerbook is A WebRTC signaling server with an address book for
-passwordless-users and their WebRTC peers. It's based on websockets, redis and
-gorilla/websocket.
+peerbook is A WebRTC signaling server with a parivate address book for
+passwordless-users and their WebRTC peers.
+peerbook is based on golang and the great code from
+gomodule/redigo and gorilla/websocket.
 
-peerbook server lets users store and retrieve a list of trusted peers,
+peerbook server lets users store and retrieve a list of trusted peers.
 their fingerprints and any other properties the app wishes to store.
 For example, a terminal app can add a `kind` key with the values of `client`
 and `server` so the client can filter list and display only servers.
@@ -31,9 +32,9 @@ for pion/webrtc.
 Upon launch, peers should start a websocket connection at:
 `/ws` with the following query parameters:
 
+- `fp` - the peer's fingerprint
 - `email` - the user's email
 - `name` - peer's name
-- `fingerprint` - the peer's fingerprint
 - `kind` - the peer's type
 
 Upon receiving the request peerbook compares the peer's fingerprint & name
@@ -50,7 +51,7 @@ lists.
 
 ## Getting the peer list
 
-When a peer needs the user's list of peer it sends a `get_list` command:
+When a peer needs the user's list of peers it sends a `get_list` command:
 
 ```json
 {
@@ -62,19 +63,20 @@ to which peerbook will reply with:
 
 ```json
 {
-    "list": [
+    "peers": [
      {"name": "<>", 
-     "fingerprint": "<>",
-     "resgitration_date": "<>",
-     "last_connection": "<>",
-     "kind": "<>"
+     "fp": "<>",
+     "kind": "<>",
+     "created_on": "<>",
+     "last_seen": "<>",
+     "verified_on": "<>"
      }]
  }
  ```
 ## The Connection Flow
 
 To request a connection, a peer sends a request to peerbook. If it supports
-trickle ICE the peer sends the request as he gets new candidates:
+trickle ICE the peer sends the request as often as he gets new candidates:
 
 ```json
 {
@@ -98,13 +100,12 @@ start collencting answers and stream the candidates as it gets them.
 
 ```json
 {
-    "target": "<initiaotr's name>",
-    "fingerprint": "<initiator's fingerprint>",
+    "target": "<initiaotr's fingerprint>",
     "answer": "<encoded answer>"
 }
 ```
 
-peerbook uses the `fingerprint` field to identify the connection request and
+peerbook uses the `target` field to identify the connection request and
 forward the answer to the initiator:
 
 ```json
