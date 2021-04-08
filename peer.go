@@ -6,8 +6,8 @@ package main
 
 import (
 	"fmt"
+	"gopkg.in/gomail.v2" //go get gopkg.in/gomail.v2
 	"net/http"
-	"net/smtp"
 	"net/url"
 	"os"
 	"time"
@@ -190,20 +190,35 @@ func (p *Peer) sendAuthEmail() {
 		Logger.Errorf("Failed to create token: %w", err)
 		return
 	}
-	host := os.Getenv("PB_SMTP_HOST")
-	auth := smtp.PlainAuth(
-		"", os.Getenv("PB_SMTP_USER"), os.Getenv("PB_SMTP_PASS"), host)
-	msg := []byte(`Peerbook updates for your approval
-
-<html lang=en> <head><meta charset=utf-8>
+	m := gomail.NewMessage()
+	clickL := fmt.Sprintf("pb.terminal7.dev/auth/%s", token)
+	m.SetBody("text/html", `<html lang=en> <head><meta charset=utf-8>
 <title>Peerbook updates for your approval</title>
 </head>
-Please click <a href="pb.terminal7.dev/auth/` + token + `">here to review</a>.`)
-	Logger.Infof("Sending an email to %s", p.User)
-	err = smtp.SendMail(host+":25", auth, "peerbook@terminal7.dev",
-		[]string{p.User}, msg)
-	if err != nil {
-		Logger.Errorf("Failed to send email: %w", err)
+Please click <a href="`+clickL+`">here to review</a>.`)
+
+	m.AddAlternative("text/plain", fmt.Sprintf("Please click to review:\n%s", clickL))
+
+	m.SetHeaders(map[string][]string{
+		"From":               {m.FormatAddress("support@terminal7.dev", "Terminal7")},
+		"To":                 {p.User},
+		"Subject":            {"Pending changes to your peerbook"},
+		"X-SES-MESSAGE-TAGS": {"genre=auth_email"},
+		// Comment or remove the next line if you are not using a configuration set
+		// "X-SES-CONFIGURATION-SET": {ConfigSet},
+	})
+
+	host := os.Getenv("PB_SMTP_HOST")
+	user := os.Getenv("PB_SMTP_USER")
+	pass := os.Getenv("PB_SMTP_PASS")
+	d := gomail.NewPlainDialer(host, 587, user, pass)
+
+	// Display an error message if something goes wrong; otherwise,
+	// display a message confirming that the message was sent.
+	if err := d.DialAndSend(m); err != nil {
+		Logger.Errorf("Failed to send email: %s", err)
+	} else {
+		Logger.Infof("Send email to %q", p.User)
 	}
 }
 
@@ -251,7 +266,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 			// rollback - work with the unverified peer from the query
 			peer = qp
 		} else {
-			Logger.Warnf("Refusing a bad request - %w", err)
+			Logger.Warnf("Refusing a bad request: %s", err)
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
