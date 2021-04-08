@@ -11,7 +11,9 @@ import (
 func TestGetPeer(t *testing.T) {
 	startTest(t)
 	redisDouble.HSet("peer:foo", "fp", "foo", "name", "fucked up")
-	exists, err := redis.Bool(db.conn.Do("EXISTS", "peer:foo"))
+	conn := db.pool.Get()
+	defer conn.Close()
+	exists, err := redis.Bool(conn.Do("EXISTS", "peer:foo"))
 	require.Nil(t, err)
 	require.True(t, exists)
 	pd, err := db.GetPeer("foo")
@@ -25,7 +27,9 @@ func TestAddPeer(t *testing.T) {
 		CreatedOn: time.Now().Unix()}, nil}
 	err := db.AddPeer(peer)
 	require.Nil(t, err)
-	exists, err := redis.Bool(db.conn.Do("EXISTS", "peer:publickey"))
+	conn := db.pool.Get()
+	defer conn.Close()
+	exists, err := redis.Bool(conn.Do("EXISTS", "peer:publickey"))
 	require.Nil(t, err)
 	require.True(t, exists)
 	pd, err := db.GetPeer("publickey")

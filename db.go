@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"time"
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gomodule/redigo/redis"
@@ -13,7 +14,7 @@ const TokenLen = 30  // in Bytes, four times that in base64 and urls
 const TokenTTL = 300 // in Seconds
 // DBType is the type that holds our db
 type DBType struct {
-	conn redis.Conn
+	pool *redis.Pool
 }
 
 // DBUser is the info we store about a user - a list of peers' fingerprint
@@ -46,12 +47,12 @@ func (d *DBType) CreateToken(email string) (string, error) {
 	}
 	token := base64.StdEncoding.EncodeToString(b)
 	key := fmt.Sprintf("token:%s", token)
-	go func() {
-		_, err := d.conn.Do("SETEX", key, TokenTTL, email)
-		if err != nil {
-			Logger.Errorf("Failed to set token: %w", err)
-		}
-	}()
+	conn := d.pool.Get()
+	defer conn.Close()
+	_, err := conn.Do("SETEX", key, TokenTTL, email)
+	if err != nil {
+		Logger.Errorf("Failed to set token: %w", err)
+	}
 	return token, nil
 }
 func (d *DBType) Connect(host string) error {
@@ -59,17 +60,20 @@ func (d *DBType) Connect(host string) error {
 	if redisDouble != nil {
 		host = redisDouble.Addr()
 	}
-	rc, err := redis.Dial("tcp", host)
-	if err == nil {
-		d.conn = rc
+	d.pool = &redis.Pool{
+		MaxIdle:     3,
+		IdleTimeout: 240 * time.Second,
+		Dial:        func() (redis.Conn, error) { return redis.Dial("tcp", host) },
 	}
-	return err
+	return nil
 }
 
 // GetToken reads the value of a token
 func (d *DBType) GetToken(token string) (string, error) {
 	key := fmt.Sprintf("token:%s", token)
-	value, err := redis.String(d.conn.Do("GET", key))
+	conn := d.pool.Get()
+	defer conn.Close()
+	value, err := redis.String(conn.Do("GET", key))
 	if err != nil {
 		return "", fmt.Errorf("Failed to read token: %w:", err)
 	}
@@ -95,7 +99,9 @@ func (d *DBType) GetPeer(fp string) (*DBPeer, error) {
 func (d *DBType) GetUser(email string) (*DBUser, error) {
 	var r DBUser
 	key := fmt.Sprintf("user:%s", email)
-	values, err := redis.Values(d.conn.Do("SMEMBERS", key))
+	conn := d.pool.Get()
+	defer conn.Close()
+	values, err := redis.Values(conn.Do("SMEMBERS", key))
 	if err != nil {
 		return nil, fmt.Errorf("Failed to read user %q list: %w", email, err)
 	}
@@ -106,7 +112,9 @@ func (d *DBType) GetUser(email string) (*DBUser, error) {
 	return &r, nil
 }
 func (d *DBType) getDoc(key string, target interface{}) error {
-	values, err := redis.Values(d.conn.Do("HGETALL", key))
+	conn := d.pool.Get()
+	defer conn.Close()
+	values, err := redis.Values(conn.Do("HGETALL", key))
 	if err = redis.ScanStruct(values, target); err != nil {
 		return fmt.Errorf("Failed to scan peer %q: %w", key, err)
 	}
@@ -114,7 +122,9 @@ func (d *DBType) getDoc(key string, target interface{}) error {
 }
 func (d *DBType) PeerExists(fp string) (bool, error) {
 	key := fmt.Sprintf("peer:%s", fp)
-	return redis.Bool(db.conn.Do("EXISTS", key))
+	conn := d.pool.Get()
+	defer conn.Close()
+	return redis.Bool(conn.Do("EXISTS", key))
 }
 func (d *DBType) GetUserPeers(email string) (*DBPeerList, error) {
 	var l DBPeerList
@@ -134,7 +144,8 @@ func (d *DBType) GetUserPeers(email string) (*DBPeerList, error) {
 	return &l, nil
 }
 func (d *DBType) Close() error {
-	return d.conn.Close()
+	return nil
+	// return d.conn.Close()
 }
 func (d *DBType) AddPeer(peer *Peer) error {
 	key := fmt.Sprintf("peer:%s", peer.FP)
@@ -142,15 +153,17 @@ func (d *DBType) AddPeer(peer *Peer) error {
 	if err != nil {
 		return err
 	}
+	conn := d.pool.Get()
+	defer conn.Close()
 	if !exists {
-		_, err := d.conn.Do("HSET", redis.Args{}.Add(key).AddFlat(peer.DBPeer)...)
+		_, err := conn.Do("HSET", redis.Args{}.Add(key).AddFlat(peer.DBPeer)...)
 		if err != nil {
 			return err
 		}
 	}
 	// add to the user's list
 	key = fmt.Sprintf("user:%s", peer.User)
-	db.conn.Do("SADD", key, peer.FP)
+	conn.Do("SADD", key, peer.FP)
 	return nil
 }
 func (p *DBPeer) Key() string {
@@ -160,14 +173,16 @@ func (p *DBPeer) Key() string {
 // Verify grants or revokes authorization from a peer
 func (p *DBPeer) Verify(v bool) {
 	peer, found := hub.peers[p.FP]
+	conn := db.pool.Get()
+	defer conn.Close()
 	if v {
-		db.conn.Do("HSET", p.Key(), "verified", "1")
+		conn.Do("HSET", p.Key(), "verified", "1")
 		if found {
 			peer.Send(StatusMessage{200, "You've been authorized"})
 			peer.Verified = true
 		}
 	} else {
-		db.conn.Do("HSET", p.Key(), "verified", "0")
+		conn.Do("HSET", p.Key(), "verified", "0")
 		if found {
 			peer.sendStatus(401, fmt.Errorf("Your verification was revoked"))
 			peer.Verified = false

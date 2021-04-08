@@ -224,7 +224,6 @@ func main() {
 		Logger.Errorf("Failed to connect to redis: %s", err)
 		os.Exit(1)
 	}
-	defer db.Close()
 
 	hub = Hub{
 		register:   make(chan *Peer),
