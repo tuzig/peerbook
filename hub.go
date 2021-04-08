@@ -27,12 +27,6 @@ type Hub struct {
 // forwardSignal Forwards offers and answers after it ensures the peer is known
 // and is verified
 func (h *Hub) forwardSignal(s *Peer, m map[string]interface{}) {
-	if !s.Verified {
-		e := &UnauthorizedPeer{s}
-		Logger.Warn(e)
-		s.sendStatus(http.StatusUnauthorized, e)
-		return
-	}
 	target := m["target"].(string)
 	p, found := h.peers[target]
 	if !found {

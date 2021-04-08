@@ -131,6 +131,12 @@ func (p *Peer) readPump() {
 			break
 		}
 		// TODO: do we use the "source" ?
+		if !p.Verified {
+			e := &UnauthorizedPeer{p}
+			Logger.Warn(e)
+			p.sendStatus(http.StatusUnauthorized, e)
+			continue
+		}
 		message["source"] = p.FP
 		hub.requests <- message
 	}
