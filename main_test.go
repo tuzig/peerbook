@@ -30,11 +30,16 @@ func startTest(t *testing.T) {
 		go main()
 		mainRunning = true
 		// let the server open
-		time.Sleep(time.Second / 100)
 	} else {
 		hub.peers = map[string]*Peer{}
 		redisDouble.FlushAll()
 	}
+	time.Sleep(time.Millisecond)
+}
+func openWS(url string) (*websocket.Conn, error) {
+	time.Sleep(time.Millisecond)
+	ws, _, err := cstDialer.Dial(url, nil)
+	return ws, err
 }
 func TestBadConnectionRequest(t *testing.T) {
 	startTest(t)
@@ -47,8 +52,7 @@ func TestBadConnectionRequest(t *testing.T) {
 func TestUnknownFingerprint(t *testing.T) {
 	startTest(t)
 	// create client, connect to the hu
-	url := "ws://127.0.0.1:17777/ws?fp=BADWOLF"
-	ws, _, err := cstDialer.Dial(url, nil)
+	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=BADWOLF&email=cracker@forbidden.com")
 	require.Nil(t, err)
 	defer ws.Close()
 	if err := ws.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
@@ -61,15 +65,16 @@ func TestUnknownFingerprint(t *testing.T) {
 	// try and communicate with another peer
 	redisDouble.HSet("peer:foo", "fp", "foo", "name", "bar", "kind", "lay", "user", "UUID")
 	// create client, connect to the hu
-	url2 := "ws://127.0.0.1:17777/ws?fp=foo&name=bar&kind=lay&email=UUID"
-	ws2, _, err := cstDialer.Dial(url2, nil)
+	ws2, err := openWS("ws://127.0.0.1:17777/ws?fp=foo&name=bar&kind=lay&email=UUID")
+
 	require.Nil(t, err)
 	defer ws2.Close()
 	if err := ws.SetWriteDeadline(time.Now().Add(time.Second)); err != nil {
 		t.Fatalf("SetReadDeadline: %v", err)
 	}
-	err = ws.WriteJSON(map[string]string{"offer": "an offer", "target": "unknown"})
+	err = ws.WriteJSON(map[string]string{"offer": "an offer", "target": "foo"})
 	require.Nil(t, err)
+	time.Sleep(time.Second / 10)
 	err = ws.SetReadDeadline(time.Now().Add(time.Second))
 	require.Nil(t, err)
 	err = ws.ReadJSON(&s)
@@ -83,12 +88,10 @@ func TestSignalingAcrossUsers(t *testing.T) {
 	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
 		"user", "h", "verified", "1")
 	// create client, connect to the hu
-	urlA := "ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&email=j"
-	wsA, _, err := cstDialer.Dial(urlA, nil)
+	wsA, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&email=j")
 	require.Nil(t, err)
 	defer wsA.Close()
-	urlB := "ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&email=h"
-	wsB, _, err := cstDialer.Dial(urlB, nil)
+	wsB, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&email=h")
 	require.Nil(t, err)
 	defer wsB.Close()
 	err = wsA.SetWriteDeadline(time.Now().Add(time.Second))
@@ -116,12 +119,9 @@ func TestValidSignaling(t *testing.T) {
 	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
 		"user", "j", "verified", "1")
 	// create client, connect to the hu
-	urlA := "ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&email=j"
-	wsA, _, err := cstDialer.Dial(urlA, nil)
-	require.Nil(t, err)
+	wsA, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&email=j")
 	defer wsA.Close()
-	urlB := "ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&email=j"
-	wsB, _, err := cstDialer.Dial(urlB, nil)
+	wsB, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&email=j")
 	require.Nil(t, err)
 	defer wsB.Close()
 	hub.peers["A"].Verified = true
@@ -153,8 +153,7 @@ func TestValidSignaling(t *testing.T) {
 func TestNewPeerConnect(t *testing.T) {
 	startTest(t)
 	s := time.Now()
-	url := "ws://127.0.0.1:17777/ws?fp=foo&name=fuckedup"
-	ws, _, err := cstDialer.Dial(url, nil)
+	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=foo&name=fuckedup")
 	require.Nil(t, err)
 	defer ws.Close()
 	time.Sleep(time.Second / 100)
@@ -197,7 +196,7 @@ func TestHTTPPeerVerification(t *testing.T) {
 	redisDouble.Set("token:avalidtoken", "j")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "1")
-	ws, _, err := cstDialer.Dial("ws://127.0.0.1:17777/ws?fp=B&name=bar", nil)
+	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar")
 	require.Nil(t, err)
 	defer ws.Close()
 	err = ws.ReadJSON(&s)
