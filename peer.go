@@ -184,9 +184,9 @@ func (p *Peer) Send(msg interface{}) error {
 	}
 	return nil
 }
-func (p *Peer) sendAuthEmail() {
+func sendAuthEmail(email string) {
 	// TODO: send an email in the background
-	token, err := db.CreateToken(p.User)
+	token, err := db.CreateToken(email)
 	if err != nil {
 		Logger.Errorf("Failed to create token: %w", err)
 		return
@@ -206,7 +206,7 @@ Please click <a href="`+clickL+`">here to review</a>.`)
 
 	m.SetHeaders(map[string][]string{
 		"From":               {m.FormatAddress("support@terminal7.dev", "Terminal7")},
-		"To":                 {p.User},
+		"To":                 {email},
 		"Subject":            {"Pending changes to your peerbook"},
 		"X-SES-MESSAGE-TAGS": {"genre=auth_email"},
 		// Comment or remove the next line if you are not using a configuration set
@@ -223,7 +223,7 @@ Please click <a href="`+clickL+`">here to review</a>.`)
 	if err := d.DialAndSend(m); err != nil {
 		Logger.Errorf("Failed to send email: %s", err)
 	} else {
-		Logger.Infof("Send email to %q", p.User)
+		Logger.Infof("Send email to %q", email)
 	}
 }
 
@@ -282,8 +282,8 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 	go peer.readPump()
 	// if it's an unverified peer, keep the connection open and send a status message
 	if !peer.Verified {
-		peer.sendAuthEmail()
 		peer.sendStatus(401, fmt.Errorf(
 			"Unknown peer, please check your email to approve"))
+		sendAuthEmail(peer.User)
 	}
 }

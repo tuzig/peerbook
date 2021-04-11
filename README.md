@@ -49,6 +49,30 @@ Clicking the link leads the user to a page with the list of peers
 and new requests. The user can choose what changes to make and update his
 lists.
 
+## Verifying a peer
+
+Once it has a fingerprint and an email a program can verify it's fingerprint
+by POSTing to `/verify` with a body as in:
+
+```json
+{
+    "fp": "<>",
+    "email": "jrandomhacker@nowhere.org"
+}
+```
+
+peerbook will reply with a message:
+
+```json
+{
+    "verified": false
+}
+```
+
+If the peer is indeed not verified peerbook sends and email to the user
+letting him add the peer to his peerbook.
+
+
 ## Getting the peer list
 
 When a peer needs the user's list of peers it sends a `get_list` command:

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gorilla/websocket"
@@ -213,4 +214,68 @@ func TestHTTPPeerVerification(t *testing.T) {
 	err = ws.ReadJSON(&s)
 	require.Nil(t, err)
 	require.Equal(t, 200, s.Code)
+}
+func TestVerifyUnverified(t *testing.T) {
+	startTest(t)
+	// setup the fixture - a user, his token and two peers
+	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.Set("token:avalidtoken", "j")
+	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
+		"user", "j", "verified", "0")
+	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
+		"user", "j", "verified", "1")
+	msg := map[string]string{"fp": "A", "email": "j"}
+	m, err := json.Marshal(msg)
+	require.Nil(t, err)
+	resp, err := http.Post("http://127.0.0.1:17777/verify", "application/json",
+		bytes.NewBuffer(m))
+	require.Nil(t, err)
+	defer resp.Body.Close()
+	var ret map[string]bool
+	err = json.NewDecoder(resp.Body).Decode(&ret)
+	require.Nil(t, err)
+	require.False(t, ret["verified"])
+}
+func TestVerifyVerified(t *testing.T) {
+	startTest(t)
+	// setup the fixture - a user, his token and two peers
+	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.Set("token:avalidtoken", "j")
+	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
+		"user", "j", "verified", "0")
+	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
+		"user", "j", "verified", "1")
+	msg := map[string]string{"fp": "B", "email": "j"}
+	m, err := json.Marshal(msg)
+	require.Nil(t, err)
+	resp, err := http.Post("http://127.0.0.1:17777/verify", "application/json",
+		bytes.NewBuffer(m))
+	require.Nil(t, err)
+	defer resp.Body.Close()
+	var ret map[string]bool
+	err = json.NewDecoder(resp.Body).Decode(&ret)
+	require.Nil(t, err)
+	require.True(t, ret["verified"])
+}
+func TestVerifywrongUser(t *testing.T) {
+	startTest(t)
+	// setup the fixture - a user, his token and two peers
+	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.Set("token:avalidtoken", "j")
+	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
+		"user", "j", "verified", "0")
+	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
+		"user", "j", "verified", "1")
+
+	msg := map[string]string{"fp": "B", "email": "i"}
+	m, err := json.Marshal(msg)
+	require.Nil(t, err)
+	resp, err := http.Post("http://127.0.0.1:17777/verify", "application/json",
+		bytes.NewBuffer(m))
+	require.Nil(t, err)
+	defer resp.Body.Close()
+	var ret map[string]bool
+	err = json.NewDecoder(resp.Body).Decode(&ret)
+	require.Nil(t, err)
+	require.False(t, ret["verified"])
 }

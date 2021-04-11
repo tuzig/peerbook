@@ -144,6 +144,46 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 	}
 	http.ServeFile(w, r, "auth.html")
 }
+func serveVerify(w http.ResponseWriter, r *http.Request) {
+	var req map[string]string
+	dec := json.NewDecoder(r.Body)
+	err := dec.Decode(&req)
+	if err != nil {
+		http.Error(w, `{"m": "Bad JSON"}`, http.StatusBadRequest)
+		return
+	}
+	if req["fp"] == "" {
+		http.Error(w, `{"m": "Missing fp"}`, http.StatusBadRequest)
+		return
+	}
+	if req["email"] == "" {
+		http.Error(w, `{"m": "Missing email"}`, http.StatusBadRequest)
+		return
+	}
+	peer, err := db.GetPeer(req["fp"])
+	if err != nil {
+		msg := fmt.Sprintf("Failed to get peer: %s", err)
+		Logger.Errorf(msg)
+		m, _ := json.Marshal(map[string]string{"m": msg})
+		http.Error(w, string(m), http.StatusInternalServerError)
+		return
+	}
+	if r.Method == "POST" {
+		verified := peer.Verified && peer.User == req["email"]
+		m, err := json.Marshal(map[string]bool{"verified": verified})
+		if err != nil {
+			msg := fmt.Sprintf("Failed to marshal user's list: %s", err)
+			Logger.Errorf(msg)
+			m, _ := json.Marshal(map[string]string{"m": msg})
+			http.Error(w, string(m), http.StatusInternalServerError)
+			return
+		}
+		w.Write(m)
+		if !peer.Verified {
+			sendAuthEmail(req["email"])
+		}
+	}
+}
 func serveHome(w http.ResponseWriter, r *http.Request) {
 	log.Println(r.URL)
 	if r.URL.Path != "/" {
@@ -193,6 +233,7 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 	http.HandleFunc("/", serveHome)
 	http.HandleFunc("/list/", serveList)
 	http.HandleFunc("/auth/", serveAuthPage)
+	http.HandleFunc("/verify", serveVerify)
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		serveWs(w, r)
 	})
