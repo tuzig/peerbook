@@ -219,7 +219,6 @@ func TestVerifyUnverified(t *testing.T) {
 	startTest(t)
 	// setup the fixture - a user, his token and two peers
 	redisDouble.SetAdd("user:j", "A", "B")
-	redisDouble.Set("token:avalidtoken", "j")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "0")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
@@ -236,11 +235,29 @@ func TestVerifyUnverified(t *testing.T) {
 	require.Nil(t, err)
 	require.False(t, ret["verified"])
 }
+func TestVerifyNew(t *testing.T) {
+	startTest(t)
+	// setup the fixture - a user, his token and two peers
+	msg := map[string]string{"fp": "A", "email": "j", "kind": "server",
+		"name": "foo"}
+	m, err := json.Marshal(msg)
+	require.Nil(t, err)
+	resp, err := http.Post("http://127.0.0.1:17777/verify", "application/json",
+		bytes.NewBuffer(m))
+	require.Nil(t, err)
+	defer resp.Body.Close()
+	var ret map[string]bool
+	err = json.NewDecoder(resp.Body).Decode(&ret)
+	require.Nil(t, err)
+	require.False(t, ret["verified"])
+	require.Equal(t, "0", redisDouble.HGet("peer:A", "verified"))
+	require.Equal(t, "foo", redisDouble.HGet("peer:A", "name"))
+	require.Equal(t, "server", redisDouble.HGet("peer:A", "kind"))
+}
 func TestVerifyVerified(t *testing.T) {
 	startTest(t)
 	// setup the fixture - a user, his token and two peers
 	redisDouble.SetAdd("user:j", "A", "B")
-	redisDouble.Set("token:avalidtoken", "j")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "0")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
@@ -261,7 +278,6 @@ func TestVerifywrongUser(t *testing.T) {
 	startTest(t)
 	// setup the fixture - a user, his token and two peers
 	redisDouble.SetAdd("user:j", "A", "B")
-	redisDouble.Set("token:avalidtoken", "j")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "0")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",

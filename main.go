@@ -18,6 +18,7 @@ import (
 	"os/signal"
 	"strings"
 	"sync"
+	"time"
 )
 
 const HTMLThankYou = `<html lang=en> <head><meta charset=utf-8>
@@ -180,6 +181,11 @@ func serveVerify(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Write(m)
 		if !peer.Verified {
+			peer := &Peer{DBPeer{FP: req["fp"], Name: req["name"],
+				Kind: req["kind"], CreatedOn: time.Now().Unix(),
+				User: req["email"], Verified: false},
+				nil}
+			db.AddPeer(peer)
 			sendAuthEmail(req["email"])
 		}
 	}
