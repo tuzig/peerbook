@@ -283,7 +283,6 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 	// if it's an unverified peer, keep the connection open and send a status message
 	if !peer.Verified {
 		peer.sendStatus(401, fmt.Errorf(
-			"Unknown peer, please check your email to approve"))
-		sendAuthEmail(peer.User)
+			"Unknown peer. Please visit https://pb.terminal7.dev to approve"))
 	}
 }
