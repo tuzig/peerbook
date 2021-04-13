@@ -11,8 +11,9 @@
     </form>
     <script>
     document.addEventListener('DOMContentLoaded', event => {
-        var urlParts = window.location.pathname.split("/"),
-            token = urlParts[2],
+        var path = window.location.pathname,
+            i = path.substr(1).indexOf("/"),
+            token = path.substr(i+2),
             con = document.getElementById("container")
         fetch(`/list/${token}`).then(response =>  response.json())
             .then(peers => {
