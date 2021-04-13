@@ -134,16 +134,20 @@ func serveList(w http.ResponseWriter, r *http.Request) {
 
 func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 	i := strings.IndexRune(r.URL.Path[1:], '/')
-	user, err := db.GetToken(r.URL.Path[i+2:])
+	token := r.URL.Path[i+2:]
+	user, err := db.GetToken(token)
 	if err != nil || user == "" {
-		http.Error(w, "Bad Token", http.StatusMethodNotAllowed)
+		Logger.Warnf("Got auth page request with bad token: err: %s, token: %s",
+			err, token)
+		http.Error(w, "Bad Token", http.StatusBadRequest)
 		return
 	}
 	if r.Method != "GET" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	http.ServeFile(w, r, "auth.html")
+	p := fmt.Sprintf("%s/auth.html", os.Getenv("PB_STATIC_ROOT"))
+	http.ServeFile(w, r, p)
 }
 func serveVerify(w http.ResponseWriter, r *http.Request) {
 	var req map[string]string
@@ -200,7 +204,8 @@ func serveHome(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	http.ServeFile(w, r, "home.html")
+	p := fmt.Sprintf("%s/home.html", os.Getenv("PB_STATIC_ROOT"))
+	http.ServeFile(w, r, p)
 }
 
 func initLogger() {
