@@ -1,8 +1,6 @@
 # peerbook
 
-> WIP: This is just a plan, nothing to use yet
-
-peerbook is A WebRTC signaling server with a parivate address book for
+peerbook is A WebRTC signaling server with a private address book for
 passwordless-users and their WebRTC peers.
 peerbook is based on golang and the great code from
 gomodule/redigo and gorilla/websocket.
