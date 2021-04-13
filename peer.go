@@ -43,10 +43,20 @@ var upgrader = websocket.Upgrader{
 
 // Peer is a middleman between the websocket connection and the hub.
 type Peer struct {
-	DBPeer
+	FP          string `redis:"fp" json:"fp"`
+	Name        string `redis:"name" json:"name,omitempty"`
+	User        string `redis:"user" json:"user,omitempty"`
+	Kind        string `redis:"kind" json:"kind,omitempty"`
+	Verified    bool   `redis:"verified" json:"verified,omitempty"`
+	CreatedOn   int64  `redis:"created_on" json:"created_on,omitempty"`
+	VerifiedOn  int64  `redis:"verified_on" json:"verified_on,omitempty"`
+	LastConnect int64  `redis:"last_connect" json:"last_connect,omitempty"`
+	// is it online?
+	Online bool `redis:"-" json:"online"`
 	// The websocket connection.
 	ws *websocket.Conn
 }
+type PeerList []*Peer
 
 // StatusMessage is used to update the peer to a change of state,
 // like 200 after the peer has been authorized
@@ -78,9 +88,9 @@ func PeerFromQ(q url.Values) (*Peer, error) {
 	if fp == "" {
 		return nil, fmt.Errorf("Missing `fp` query parameter")
 	}
-	return &Peer{DBPeer{FP: fp, Name: q.Get("name"), Kind: q.Get("kind"),
-		CreatedOn: time.Now().Unix(), User: q.Get("email"), Verified: false},
-		nil}, nil
+	return &Peer{FP: fp, Name: q.Get("name"), Kind: q.Get("kind"),
+		CreatedOn: time.Now().Unix(), User: q.Get("email"), Verified: false,
+		Online: false}, nil
 }
 
 // LoadPeer loads a peer from redis based on a given peer
@@ -237,11 +247,11 @@ func (p *Peer) Upgrade(w http.ResponseWriter, r *http.Request) {
 }
 
 func (p *Peer) sendList() error {
-	l, err := db.GetUserPeers(p.User)
+	l, err := GetUsersPeers(p.User)
 	if err != nil {
 		return err
 	}
-	return p.Send(map[string]*DBPeerList{"peers": l})
+	return p.Send(map[string]*PeerList{"peers": l})
 }
 
 // serveWs handles websocket requests from the peer.
@@ -284,5 +294,65 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 	if !peer.Verified {
 		peer.sendStatus(401, fmt.Errorf(
 			"Unknown peer. Please visit https://pb.terminal7.dev to approve"))
+	}
+}
+
+// Getting the list of users peers
+func GetUsersPeers(email string) (*PeerList, error) {
+	var l PeerList
+	u, err := db.GetUser(email)
+	Logger.Infof("got back user: %v", u)
+	if err != nil {
+		return nil, err
+	}
+	for _, fp := range *u {
+		p, err := GetPeer(fp)
+		if err != nil {
+			Logger.Warnf("Failed to read peer: %w", err)
+		} else {
+			l = append(l, p)
+		}
+	}
+	return &l, nil
+}
+
+// GetPeer gets a peer, using the hub as cache for connected peers
+func GetPeer(fp string) (*Peer, error) {
+	peer, found := hub.peers[fp]
+	if found {
+		return peer, nil
+	}
+	key := fmt.Sprintf("peer:%s", fp)
+	var pd Peer
+	err := db.getDoc(key, &pd)
+	if err != nil {
+		return nil, err
+	}
+	return &pd, nil
+}
+func (p *Peer) Key() string {
+	return fmt.Sprintf("peer:%s", p.FP)
+}
+
+// Verify grants or revokes authorization from a peer
+func (p *Peer) Verify(v bool) {
+	peer, found := hub.peers[p.FP]
+	conn := db.pool.Get()
+	defer conn.Close()
+	if v {
+		conn.Do("HSET", p.Key(), "verified", "1")
+		if found {
+			peer.Send(StatusMessage{200, "You've been authorized"})
+			peer.Verified = true
+		}
+	} else {
+		conn.Do("HSET", p.Key(), "verified", "0")
+		if found {
+			peer.sendStatus(401, fmt.Errorf("Your verification was revoked"))
+			peer.Verified = false
+			if peer.ws != nil {
+				peer.ws.Close()
+			}
+		}
 	}
 }

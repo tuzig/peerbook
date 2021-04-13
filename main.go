@@ -91,7 +91,7 @@ func serveList(w http.ResponseWriter, r *http.Request) {
 		Logger.Warnf("Token not found, coauld be expired")
 		return
 	}
-	peers, err := db.GetUserPeers(user)
+	peers, err := GetUsersPeers(user)
 	if err != nil {
 		http.Error(w, `{"m": "Failed to get user"}`, http.StatusBadRequest)
 		Logger.Errorf("Failed to get user %q peers: %w", user, err)
@@ -165,7 +165,7 @@ func serveVerify(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"m": "Missing email"}`, http.StatusBadRequest)
 		return
 	}
-	peer, err := db.GetPeer(req["fp"])
+	peer, err := GetPeer(req["fp"])
 	if err != nil {
 		msg := fmt.Sprintf("Failed to get peer: %s", err)
 		Logger.Errorf(msg)
@@ -185,10 +185,9 @@ func serveVerify(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Write(m)
 		if !peer.Verified {
-			peer := &Peer{DBPeer{FP: req["fp"], Name: req["name"],
+			peer := &Peer{FP: req["fp"], Name: req["name"],
 				Kind: req["kind"], CreatedOn: time.Now().Unix(),
-				User: req["email"], Verified: false},
-				nil}
+				User: req["email"], Verified: false, Online: false}
 			db.AddPeer(peer)
 			sendAuthEmail(req["email"])
 		}

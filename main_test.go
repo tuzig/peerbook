@@ -174,6 +174,9 @@ func TestGetUsersList(t *testing.T) {
 		"user", "j", "verified", "0")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
 		"user", "j", "verified", "1")
+	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&email=j&kind=lay")
+	require.Nil(t, err)
+	defer ws.Close()
 	resp, err := http.Get("http://127.0.0.1:17777/list/avalidtoken")
 	require.Nil(t, err)
 	defer resp.Body.Close()
@@ -182,10 +185,11 @@ func TestGetUsersList(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, 2, len(list))
 	require.Equal(t, map[string]interface{}{
-		"kind": "lay", "name": "foo", "user": "j", "fp": "A"},
+		"kind": "lay", "name": "foo", "user": "j", "fp": "A", "online": false},
 		list[0])
 	require.Equal(t, map[string]interface{}{
-		"kind": "lay", "name": "bar", "user": "j", "verified": true, "fp": "B"},
+		"kind": "lay", "name": "bar", "user": "j", "verified": true, "fp": "B",
+		"online": true},
 		list[1])
 }
 func TestHTTPPeerVerification(t *testing.T) {

@@ -52,6 +52,7 @@ func (h *Hub) run() {
 	for {
 		select {
 		case peer := <-h.register:
+			peer.Online = true
 			h.peers[peer.FP] = peer
 			db.AddPeer(peer)
 		case peer := <-h.unregister:
