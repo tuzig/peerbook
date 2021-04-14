@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/rs/cors"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -238,7 +239,8 @@ func initLogger() {
 	Dup2(int(e.Fd()), 2)
 }
 func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
-	srv := &http.Server{Addr: addr}
+	srv := &http.Server{Addr: addr,
+		Handler: cors.Default().Handler(http.DefaultServeMux)}
 
 	http.HandleFunc("/", serveHome)
 	http.HandleFunc("/list/", serveList)
