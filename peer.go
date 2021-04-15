@@ -194,6 +194,11 @@ func (p *Peer) Send(msg interface{}) error {
 	}
 	return nil
 }
+
+// sendAuthEmail creates a short lived token and emails a message with a link
+// to `/auth/<token>` so the javascript at /auth can read the list of peers and
+// use checkboxes to enable/disable
+
 func sendAuthEmail(email string) {
 	// TODO: send an email in the background
 	token, err := db.CreateToken(email)
@@ -212,7 +217,8 @@ func sendAuthEmail(email string) {
 </head>
 Please click <a href="`+clickL+`">here to review</a>.`)
 
-	m.AddAlternative("text/plain", fmt.Sprintf("Please click to review:\n%s", clickL))
+	text := fmt.Sprintf("Please click to review:\n%s", clickL)
+	m.AddAlternative("text/plain", text)
 
 	m.SetHeaders(map[string][]string{
 		"From":               {m.FormatAddress("support@terminal7.dev", "Terminal7")},
@@ -228,6 +234,7 @@ Please click <a href="`+clickL+`">here to review</a>.`)
 	pass := os.Getenv("PB_SMTP_PASS")
 	d := gomail.NewPlainDialer(host, 587, user, pass)
 
+	Logger.Infof("Sending email %q", text)
 	// Display an error message if something goes wrong; otherwise,
 	// display a message confirming that the message was sent.
 	if err := d.DialAndSend(m); err != nil {

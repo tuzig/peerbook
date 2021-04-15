@@ -27,6 +27,13 @@ const HTMLThankYou = `<html lang=en> <head><meta charset=utf-8>
 </head>
 <body><h2>Your changes have been recorded and connected peers notified</h2>`
 
+const HTMLEmailSent = `<html lang=en> <head><meta charset=utf-8>
+<title>Peerbook</title>
+</head>
+<body><h2>Please check your inbox for your peerbook link</h2>
+
+`
+
 // Logger is our global logger
 var (
 	Logger *zap.SugaredLogger
@@ -150,6 +157,26 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 	p := fmt.Sprintf("%s/auth.html", os.Getenv("PB_STATIC_ROOT"))
 	http.ServeFile(w, r, p)
 }
+func serveHitMe(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "POST" {
+		err := r.ParseForm()
+		if err != nil {
+			msg := fmt.Sprintf("Got an error parsing form: %s", err)
+			Logger.Warnf(msg)
+			http.Error(w, `{"msg": "`+msg+`"}`, http.StatusBadRequest)
+			return
+		}
+		email := r.Form.Get("email")
+		if email == "" {
+			msg := "Got a hitme request with no email"
+			Logger.Warnf(msg)
+			http.Error(w, `{"msg": "`+msg+`"}`, http.StatusBadRequest)
+			return
+		}
+		sendAuthEmail(email)
+		w.Write([]byte(HTMLEmailSent))
+	}
+}
 func serveVerify(w http.ResponseWriter, r *http.Request) {
 	var req map[string]string
 	dec := json.NewDecoder(r.Body)
@@ -238,28 +265,28 @@ func initLogger() {
 		"peerbook.err", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	Dup2(int(e.Fd()), 2)
 }
+
 func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
-	srv := &http.Server{Addr: addr,
-		Handler: cors.Default().Handler(http.DefaultServeMux)}
+	srv := &http.Server{
+		Addr: addr, Handler: cors.Default().Handler(http.DefaultServeMux)}
 
 	http.HandleFunc("/", serveHome)
 	http.HandleFunc("/list/", serveList)
 	http.HandleFunc("/auth/", serveAuthPage)
 	http.HandleFunc("/verify", serveVerify)
-	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
-		serveWs(w, r)
-	})
+	http.HandleFunc("/hitme", serveHitMe)
+	http.HandleFunc("/ws", serveWs)
 
 	go func() {
 		defer wg.Done() // let main know we are done cleaning up
-
 		// always returns error. ErrServerClosed on graceful close
 		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 			// unexpected error. port in use?
-			log.Fatalf("ListenAndServe(): %v", err)
+			Logger.Errorf("ListenAndServe failed: %v", err)
+		} else {
+			Logger.Infof("Listening for HTTP connection at %s", addr)
 		}
 	}()
-	Logger.Infof("Listening for HTTP connection at %s", addr)
 
 	// returning reference so caller can call Shutdown()
 	return srv
