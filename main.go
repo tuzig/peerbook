@@ -218,6 +218,11 @@ func serveVerify(w http.ResponseWriter, r *http.Request) {
 				User: req["email"], Verified: false, Online: false}
 			db.AddPeer(peer)
 			sendAuthEmail(req["email"])
+			return
+		}
+		// update the name
+		if peer.Name != req["name"] {
+			peer.setName(req["name"])
 		}
 	}
 }

@@ -342,6 +342,12 @@ func (p *Peer) Key() string {
 }
 
 // Verify grants or revokes authorization from a peer
+func (p *Peer) setName(name string) {
+	p.Name = name
+	conn := db.pool.Get()
+	defer conn.Close()
+	conn.Do("HSET", p.Key(), "name", name)
+}
 func (p *Peer) Verify(v bool) {
 	peer, found := hub.peers[p.FP]
 	conn := db.pool.Get()
