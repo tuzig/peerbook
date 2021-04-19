@@ -48,6 +48,21 @@ func (h *Hub) forwardSignal(s *Peer, m map[string]interface{}) {
 	delete(m, "target")
 	p.Send(m)
 }
+
+// notify peers when a new peer registers
+func (h *Hub) notifyPeers(u string) {
+	peers, err := db.GetUser(u)
+	if err != nil {
+		Logger.Errorf("Failed to get user: %s", err)
+		return
+	}
+	for _, fp := range *peers {
+		p, found := h.peers[fp]
+		if found {
+			p.sendList()
+		}
+	}
+}
 func (h *Hub) run() {
 	for {
 		select {
@@ -55,6 +70,7 @@ func (h *Hub) run() {
 			peer.Online = true
 			h.peers[peer.FP] = peer
 			db.AddPeer(peer)
+			h.notifyPeers(peer.Name)
 		case peer := <-h.unregister:
 			if _, ok := h.peers[peer.FP]; ok {
 				delete(h.peers, peer.FP)
