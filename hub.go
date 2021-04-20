@@ -49,7 +49,7 @@ func (h *Hub) forwardSignal(s *Peer, m map[string]interface{}) {
 	p.Send(m)
 }
 
-// notify peers when a new peer registers
+// notifyPeers is called when the peer list changes
 func (h *Hub) notifyPeers(u string) error {
 	l, err := GetUsersPeers(u)
 	if err != nil {
@@ -58,7 +58,7 @@ func (h *Hub) notifyPeers(u string) error {
 	msg := map[string]*PeerList{"peers": l}
 	for _, p := range *l {
 		p, found := h.peers[p.FP]
-		if found {
+		if found && p.Verified {
 			err = p.Send(msg)
 			if err != nil {
 				return err
