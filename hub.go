@@ -50,18 +50,22 @@ func (h *Hub) forwardSignal(s *Peer, m map[string]interface{}) {
 }
 
 // notify peers when a new peer registers
-func (h *Hub) notifyPeers(u string) {
-	peers, err := db.GetUser(u)
+func (h *Hub) notifyPeers(u string) error {
+	l, err := GetUsersPeers(u)
 	if err != nil {
-		Logger.Errorf("Failed to get user: %s", err)
-		return
+		return err
 	}
-	for _, fp := range *peers {
-		p, found := h.peers[fp]
+	msg := map[string]*PeerList{"peers": l}
+	for _, p := range *l {
+		p, found := h.peers[p.FP]
 		if found {
-			p.sendList()
+			err = p.Send(msg)
+			if err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 func (h *Hub) run() {
 	for {
@@ -70,7 +74,10 @@ func (h *Hub) run() {
 			peer.Online = true
 			h.peers[peer.FP] = peer
 			db.AddPeer(peer)
-			h.notifyPeers(peer.Name)
+			err := h.notifyPeers(peer.Name)
+			if err != nil {
+				Logger.Warnf("Failed to notify peers of list change: %s", err)
+			}
 		case peer := <-h.unregister:
 			if _, ok := h.peers[peer.FP]; ok {
 				delete(h.peers, peer.FP)

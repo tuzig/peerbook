@@ -80,7 +80,7 @@ func (d *DBType) GetUser(email string) (*DBUser, error) {
 	for _, fp := range values {
 		r = append(r, string(fp.([]byte)))
 	}
-	Logger.Infof("returning: %v", r)
+	Logger.Infof("returning user: %v", r)
 	return &r, nil
 }
 func (d *DBType) getDoc(key string, target interface{}) error {
