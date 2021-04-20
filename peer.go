@@ -20,10 +20,10 @@ const (
 	writeWait = 10 * time.Second
 
 	// Time allowed to read the next pong message from the peer.
-	pongWait = 60 * time.Second
+	pongWait = 6 * time.Second
 
 	// Send pings to peer with this period. Must be less than pongWait.
-	pingPeriod = 50 * time.Second
+	pingPeriod = 5 * time.Second
 
 	// Maximum message size allowed from peer.
 	maxMessageSize = 4096
@@ -131,7 +131,10 @@ func (p *Peer) readPump() {
 	}()
 	p.ws.SetReadLimit(maxMessageSize)
 	p.ws.SetReadDeadline(time.Now().Add(pongWait))
-	p.ws.SetPongHandler(func(string) error { p.ws.SetReadDeadline(time.Now().Add(pongWait)); return nil })
+	p.ws.SetPongHandler(func(string) error {
+		p.ws.SetReadDeadline(time.Now().Add(pongWait))
+		return nil
+	})
 	for {
 		var message map[string]interface{}
 		err := p.ws.ReadJSON(&message)
@@ -141,6 +144,7 @@ func (p *Peer) readPump() {
 			}
 			break
 		}
+		p.ws.SetReadDeadline(time.Now().Add(pongWait))
 		// TODO: do we use the "source" ?
 		if !p.Verified {
 			e := &UnauthorizedPeer{p}
@@ -159,19 +163,19 @@ func (p *Peer) pinger() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
-		// p.ws.Close()
+		p.ws.Close()
 	}()
 	for {
 		select {
 		case <-ticker.C:
+			p.ws.SetWriteDeadline(time.Now().Add(writeWait))
 			err := p.ws.WriteMessage(websocket.PingMessage, nil)
 			if err != nil {
-				Logger.Errorf("failed to send ping message: %w", err)
+				Logger.Errorf("failed to send ping message: %s", err)
 				errRun++
 				if errRun == 3 {
 					return
 				}
-
 			} else {
 				errRun = 0
 			}
@@ -312,6 +316,7 @@ func GetUsersPeers(email string) (*PeerList, error) {
 	if err != nil {
 		return nil, err
 	}
+	// TODO: user redis transaction tor ead them all at once
 	for _, fp := range *u {
 		p, err := GetPeer(fp)
 		if err != nil {
