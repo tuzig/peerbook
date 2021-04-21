@@ -161,6 +161,7 @@ func (p *Peer) pinger() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
+		hub.unregister <- p
 		p.ws.Close()
 	}()
 	for {

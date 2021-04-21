@@ -74,13 +74,17 @@ func (h *Hub) run() {
 			peer.Online = true
 			h.peers[peer.FP] = peer
 			db.AddPeer(peer)
-			err := h.notifyPeers(peer.Name)
+			err := h.notifyPeers(peer.User)
 			if err != nil {
 				Logger.Warnf("Failed to notify peers of list change: %s", err)
 			}
 		case peer := <-h.unregister:
 			if _, ok := h.peers[peer.FP]; ok {
 				delete(h.peers, peer.FP)
+				err := h.notifyPeers(peer.User)
+				if err != nil {
+					Logger.Warnf("Failed to notify peers of list change: %s", err)
+				}
 			}
 		case message := <-h.requests:
 			sFP := message["source"]
