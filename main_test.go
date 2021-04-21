@@ -95,6 +95,20 @@ func TestSignalingAcrossUsers(t *testing.T) {
 	wsB, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&email=h")
 	require.Nil(t, err)
 	defer wsB.Close()
+	// clean the pipe by reading the first three peers messages
+	var pl map[string]*PeerList
+	if err = wsA.SetReadDeadline(time.Now().Add(time.Second / 100)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
+	err = wsA.ReadJSON(&pl)
+	require.Nil(t, err)
+	require.Contains(t, pl, "peers")
+	if err = wsB.SetReadDeadline(time.Now().Add(time.Second / 100)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
+	err = wsB.ReadJSON(&pl)
+	require.Nil(t, err)
+	require.Contains(t, pl, "peers")
 	err = wsA.SetWriteDeadline(time.Now().Add(time.Second))
 	require.Nil(t, err)
 	err = wsA.WriteJSON(map[string]string{"offer": "an offer", "target": "B"})
@@ -127,6 +141,27 @@ func TestValidSignaling(t *testing.T) {
 	defer wsB.Close()
 	hub.peers["A"].Verified = true
 	hub.peers["B"].Verified = true
+	// read all the peers messages
+	var pl map[string]*PeerList
+	if err = wsA.SetReadDeadline(time.Now().Add(time.Second / 100)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
+	err = wsA.ReadJSON(&pl)
+	require.Nil(t, err)
+	require.Contains(t, pl, "peers")
+	if err = wsA.SetReadDeadline(time.Now().Add(time.Second / 100)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
+	err = wsA.ReadJSON(&pl)
+	require.Nil(t, err)
+	require.Contains(t, pl, "peers")
+	if err = wsB.SetReadDeadline(time.Now().Add(time.Second / 100)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
+	err = wsB.ReadJSON(&pl)
+	require.Nil(t, err)
+	require.Contains(t, pl, "peers")
+	// end of peers messages
 	err = wsA.SetWriteDeadline(time.Now().Add(time.Second))
 	require.Nil(t, err)
 	err = wsA.WriteJSON(map[string]string{"offer": "an offer", "target": "B"})

@@ -110,9 +110,7 @@ func LoadPeer(baseP *Peer) (*Peer, error) {
 	key := fmt.Sprintf("peer:%s", baseP.FP)
 	db.getDoc(key, &p)
 	// ensure the same details
-	if p.Name != baseP.Name ||
-		p.User != baseP.User ||
-		p.Kind != baseP.Kind {
+	if p.User != baseP.User || p.Kind != baseP.Kind {
 		return nil, &PeerChanged{}
 	}
 	return &p, nil
