@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
@@ -202,9 +203,10 @@ func TestNewPeerConnect(t *testing.T) {
 }
 func TestGetUsersList(t *testing.T) {
 	startTest(t)
+	token := "=a+valid/token="
 	// setup the fixture - a user, his token and two peers
 	redisDouble.SetAdd("user:j", "A", "B")
-	redisDouble.Set("token:avalidtoken", "j")
+	redisDouble.Set(fmt.Sprintf("token:%s", token), "j")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "0")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
@@ -212,7 +214,8 @@ func TestGetUsersList(t *testing.T) {
 	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&email=j&kind=lay")
 	require.Nil(t, err)
 	defer ws.Close()
-	resp, err := http.Get("http://127.0.0.1:17777/list/avalidtoken")
+	listU := fmt.Sprintf("http://127.0.0.1:17777/list/%s", url.PathEscape(token))
+	resp, err := http.Get(listU)
 	require.Nil(t, err)
 	defer resp.Body.Close()
 	list := make([]map[string]interface{}, 2)

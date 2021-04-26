@@ -218,7 +218,7 @@ func sendAuthEmail(email string) {
 	if homeUrl == "" {
 		homeUrl = DefaultHomeUrl
 	}
-	clickL := fmt.Sprintf("%s/auth/%s", homeUrl, token)
+	clickL := fmt.Sprintf("%s/auth/%s", homeUrl, url.PathEscape(token))
 	m.SetBody("text/html", `<html lang=en> <head><meta charset=utf-8>
 <title>Peerbook updates for your approval</title>
 </head>

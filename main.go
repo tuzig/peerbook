@@ -15,6 +15,7 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -88,7 +89,16 @@ func (p *PeerChanged) Error() string {
 
 func serveList(w http.ResponseWriter, r *http.Request) {
 	i := strings.IndexRune(r.URL.Path[1:], '/')
-	user, err := db.GetToken(r.URL.Path[i+2:])
+	t := r.URL.Path[i+2:]
+	token, err := url.PathUnescape(t)
+	if err != nil {
+		Logger.Warnf(
+			"Failed to unescape token: err: %s, token: %s", err, token)
+		http.Error(w, "Bad Token", http.StatusBadRequest)
+		return
+	}
+
+	user, err := db.GetToken(token)
 	if err != nil {
 		http.Error(w, `{"m": "Bad Token"}`, http.StatusBadRequest)
 		Logger.Errorf("Failed to get token: %s", err)
@@ -156,11 +166,19 @@ func serveList(w http.ResponseWriter, r *http.Request) {
 
 func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 	i := strings.IndexRune(r.URL.Path[1:], '/')
-	token := r.URL.Path[i+2:]
+	// TODO: rinse. The next 10 line also appear a few lines back
+	t := r.URL.Path[i+2:]
+	token, err := url.PathUnescape(t)
+	if err != nil {
+		Logger.Warnf(
+			"Failed to unescape token: err: %s, token: %s", err, token)
+		http.Error(w, "Bad Token", http.StatusBadRequest)
+		return
+	}
+
 	user, err := db.GetToken(token)
 	if err != nil || user == "" {
-		Logger.Warnf("Got auth page request with bad token: err: %s, token: %s",
-			err, token)
+		Logger.Warnf("Failed to get token: err: %s, token: %s", err, token)
 		http.Error(w, "Bad Token", http.StatusBadRequest)
 		return
 	}
