@@ -8,6 +8,18 @@ his file's format is define in
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and the release workflow reads it to set github's release notes.
 
+
+## [0.2.0] 2020-4-26
+
+### Added 
+
+- smtp integration
+- CORS
+- verify endpoint
+- home page with a form to send email
+- `online` fieldon peers
+- time fields on peers
+
 ## 0.1.0 - 2020-3-22
 
 ### Added 

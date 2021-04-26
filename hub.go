@@ -79,6 +79,7 @@ func (h *Hub) run() {
 				Logger.Warnf("Failed to notify peers of list change: %s", err)
 			}
 		case peer := <-h.unregister:
+			Logger.Infof("Unregistering peer %s", peer.Name)
 			if _, ok := h.peers[peer.FP]; ok {
 				delete(h.peers, peer.FP)
 				err := h.notifyPeers(peer.User)

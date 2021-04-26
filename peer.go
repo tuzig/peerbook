@@ -90,7 +90,7 @@ func PeerFromQ(q url.Values) (*Peer, error) {
 	}
 	return &Peer{FP: fp, Name: q.Get("name"), Kind: q.Get("kind"),
 		CreatedOn: time.Now().Unix(), User: q.Get("email"), Verified: false,
-		Online: false}, nil
+		Online: true}, nil
 }
 
 // LoadPeer loads a peer from redis based on a given peer
@@ -125,24 +125,27 @@ func (p *Peer) readPump() {
 
 	defer func() {
 		hub.unregister <- p
-		p.ws.Close()
+		if p.ws != nil {
+			p.ws.Close()
+			p.ws = nil
+		}
 	}()
 	p.ws.SetReadLimit(maxMessageSize)
-	p.ws.SetReadDeadline(time.Now().Add(pongWait))
 	p.ws.SetPongHandler(func(string) error {
 		p.ws.SetReadDeadline(time.Now().Add(pongWait))
 		return nil
 	})
+	p.ws.SetReadDeadline(time.Now().Add(pongWait))
 	for {
 		var message map[string]interface{}
 		err := p.ws.ReadJSON(&message)
 		if err != nil {
+			Logger.Errorf("read pump got an error: %w", err)
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				Logger.Errorf("ws error: %w", err)
 			}
 			break
 		}
-		p.ws.SetReadDeadline(time.Now().Add(pongWait))
 		// TODO: do we use the "source" ?
 		if !p.Verified {
 			e := &UnauthorizedPeer{p}
@@ -161,12 +164,17 @@ func (p *Peer) pinger() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
-		hub.unregister <- p
-		p.ws.Close()
+		if p.ws != nil {
+			p.ws.Close()
+			p.ws = nil
+		}
 	}()
 	for {
 		select {
 		case <-ticker.C:
+			if p.ws == nil {
+				break
+			}
 			p.ws.SetWriteDeadline(time.Now().Add(writeWait))
 			err := p.ws.WriteMessage(websocket.PingMessage, nil)
 			if err != nil {
@@ -311,11 +319,10 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 func GetUsersPeers(email string) (*PeerList, error) {
 	var l PeerList
 	u, err := db.GetUser(email)
-	Logger.Infof("got back user: %v", u)
 	if err != nil {
 		return nil, err
 	}
-	// TODO: user redis transaction tor ead them all at once
+	// TODO: use redis transaction to read them all at once
 	for _, fp := range *u {
 		p, err := GetPeer(fp)
 		if err != nil {
