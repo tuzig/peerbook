@@ -51,15 +51,17 @@ func (h *Hub) forwardSignal(s *Peer, m map[string]interface{}) {
 
 // notifyPeers is called when the peer list changes
 func (h *Hub) notifyPeers(u string) error {
-	l, err := GetUsersPeers(u)
+	peers, err := GetUsersPeers(u)
 	if err != nil {
 		return err
 	}
-	msg := map[string]*PeerList{"peers": l}
-	for _, p := range *l {
-		p, found := h.peers[p.FP]
-		if found && p.Verified {
-			err = p.Send(msg)
+	return h.multicast(peers, map[string]interface{}{"peers": peers})
+}
+func (h *Hub) multicast(peers *PeerList, msg map[string]interface{}) error {
+	for _, p := range *peers {
+		if p.Online && p.Verified {
+			Logger.Infof("Sending message to peer %q", p.Name)
+			err := p.Send(msg)
 			if err != nil {
 				return err
 			}

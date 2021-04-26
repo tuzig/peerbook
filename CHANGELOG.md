@@ -9,6 +9,12 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
+## Unreleased
+
+### Fixed
+
+- notifying unverified peers on authorization
+
 ## [0.2.0] 2020-4-26
 
 ### Added 

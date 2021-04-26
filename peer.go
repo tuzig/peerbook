@@ -135,9 +135,9 @@ func (p *Peer) readPump() {
 		p.ws.SetReadDeadline(time.Now().Add(pongWait))
 		return nil
 	})
-	p.ws.SetReadDeadline(time.Now().Add(pongWait))
 	for {
 		var message map[string]interface{}
+		p.ws.SetReadDeadline(time.Now().Add(pongWait))
 		err := p.ws.ReadJSON(&message)
 		if err != nil {
 			Logger.Errorf("read pump got an error: %w", err)
@@ -199,11 +199,7 @@ func (p *Peer) Send(msg interface{}) error {
 	if p.ws == nil {
 		return fmt.Errorf("trying to send a message to closed websocket: %v", msg)
 	}
-	p.ws.SetWriteDeadline(time.Now().Add(writeWait))
-	if err := p.ws.WriteJSON(msg); err != nil {
-		return fmt.Errorf("failed to send status message: %w", err)
-	}
-	return nil
+	return p.ws.WriteJSON(msg)
 }
 
 // sendAuthEmail creates a short lived token and emails a message with a link
@@ -311,7 +307,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 	// if it's an unverified peer, keep the connection open and send a status message
 	if !peer.Verified {
 		peer.sendStatus(401, fmt.Errorf(
-			"Unknown peer. Please visit https://pb.terminal7.dev to approve"))
+			"Unverified peer, please check your inbox to verify"))
 	}
 }
 
@@ -360,23 +356,18 @@ func (p *Peer) setName(name string) {
 	conn.Do("HSET", p.Key(), "name", name)
 }
 func (p *Peer) Verify(v bool) {
-	peer, found := hub.peers[p.FP]
 	conn := db.pool.Get()
 	defer conn.Close()
 	if v {
 		conn.Do("HSET", p.Key(), "verified", "1")
-		if found {
-			peer.Send(StatusMessage{200, "You've been authorized"})
-			peer.Verified = true
-		}
+		p.Send(StatusMessage{200, "peer is verified"})
+		Logger.Infof("Sent a 200 to a newly verified peer")
 	} else {
 		conn.Do("HSET", p.Key(), "verified", "0")
-		if found {
-			peer.sendStatus(401, fmt.Errorf("Your verification was revoked"))
-			peer.Verified = false
-			if peer.ws != nil {
-				peer.ws.Close()
-			}
-		}
+		p.sendStatus(401, fmt.Errorf("peer's verification was revoked"))
+	}
+	p.Verified = v
+	if p2, inmem := hub.peers[p.FP]; inmem {
+		p2.Verified = v
 	}
 }

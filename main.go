@@ -126,16 +126,30 @@ func serveList(w http.ResponseWriter, r *http.Request) {
 		for k, _ := range r.Form {
 			verified[k] = true
 		}
+		notify := false
 		for _, p := range *peers {
 			_, toBeV := verified[p.FP]
 			peer := *p
 			if peer.Verified && !toBeV {
 				peer.Verify(false)
+				notify = true
 			}
 			if !peer.Verified && toBeV {
 				peer.Verify(true)
+				notify = true
 			}
 		}
+		if notify {
+			Logger.Infof("Notifying peers of %q of list changes", user)
+			err = hub.multicast(peers, map[string]interface{}{"peers": peers})
+			if err != nil {
+				msg := fmt.Sprintf("Failing notifying peers of changes: %s", err)
+				Logger.Errorf(msg)
+				http.Error(w, `{"msg": "`+msg+`"}`,
+					http.StatusInternalServerError)
+			}
+		}
+
 		w.Write([]byte(HTMLThankYou))
 	}
 }
@@ -215,7 +229,7 @@ func serveVerify(w http.ResponseWriter, r *http.Request) {
 		if !peer.Verified {
 			peer := &Peer{FP: req["fp"], Name: req["name"],
 				Kind: req["kind"], CreatedOn: time.Now().Unix(),
-				User: req["email"], Verified: false, Online: false}
+				User: req["email"], Verified: false, Online: true}
 			db.AddPeer(peer)
 			sendAuthEmail(req["email"])
 			return

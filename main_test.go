@@ -334,3 +334,62 @@ func TestVerifywrongUser(t *testing.T) {
 	require.Nil(t, err)
 	require.False(t, ret["verified"])
 }
+func TestValidatePeerNPublish(t *testing.T) {
+	startTest(t)
+	// setup the fixture - a user, his token and two peers
+	redisDouble.Set("token:avalidtoken", "j")
+	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
+		"user", "j", "verified", "0")
+	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
+		"user", "j", "verified", "1")
+
+	wsA, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&email=j")
+	require.Nil(t, err)
+	defer wsA.Close()
+	wsB, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&email=j")
+	require.Nil(t, err)
+	defer wsB.Close()
+	var s StatusMessage
+	if err = wsA.SetReadDeadline(time.Now().Add(time.Second / 100)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
+	err = wsA.ReadJSON(&s)
+	require.Nil(t, err)
+	require.Equal(t, 401, s.Code)
+	if err = wsB.SetReadDeadline(time.Now().Add(time.Second / 100)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
+	var pl map[string]*PeerList
+	err = wsB.ReadJSON(&pl)
+	require.Nil(t, err)
+	require.Contains(t, pl, "peers")
+	resp, err := http.PostForm("http://127.0.0.1:17777/list/avalidtoken",
+		url.Values{"A": {"checked"}, "B": {"checked"}})
+	require.Nil(t, err)
+	require.Equal(t, 200, resp.StatusCode)
+	defer resp.Body.Close()
+	require.Equal(t, "1", redisDouble.HGet("peer:A", "verified"))
+	// read the upodated status
+	if err = wsA.SetReadDeadline(time.Now().Add(time.Second / 100)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
+	err = wsA.ReadJSON(&s)
+	require.Nil(t, err)
+	require.Equal(t, 200, s.Code)
+	// and the peers
+	if err = wsA.SetReadDeadline(time.Now().Add(time.Second / 100)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
+	err = wsA.ReadJSON(&pl)
+	require.Nil(t, err)
+	require.Contains(t, pl, "peers")
+	if err = wsB.SetReadDeadline(time.Now().Add(time.Second / 100)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
+	err = wsB.ReadJSON(&pl)
+	require.Nil(t, err)
+	require.Contains(t, pl, "peers")
+	time.Sleep(time.Millisecond)
+
+}
