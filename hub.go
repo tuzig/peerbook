@@ -1,10 +1,12 @@
-// Copyright 2013 The Gorilla WebSocket Authors. All rights reserved.
+// Copyright 2021 TUZIG LTD and peerbook Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
 package main
 
 import (
+	"fmt"
+	"github.com/gomodule/redigo/redis"
 	"net/http"
 )
 
@@ -12,41 +14,17 @@ import (
 // peers.
 type Hub struct {
 	// Registered peers.
-	peers map[string]*Peer
+
+	conns map[string]*Conn
 
 	// Inbound messages from the peers.
 	requests chan map[string]interface{}
 
 	// Register requests from the peers.
-	register chan *Peer
+	register chan *Conn
 
 	// Unregister requests from peers.
-	unregister chan *Peer
-}
-
-// forwardSignal Forwards offers and answers after it ensures the peer is known
-// and is verified
-func (h *Hub) forwardSignal(s *Peer, m map[string]interface{}) {
-	target := m["target"].(string)
-	p, found := h.peers[target]
-	if !found {
-		e := &TargetNotFound{target}
-		Logger.Warn(e)
-		s.sendStatus(http.StatusBadRequest, e)
-		return
-	}
-	if p.User != s.User {
-		e := &PeerIsForeign{p}
-		Logger.Warn(e)
-		s.sendStatus(http.StatusBadRequest, e)
-		return
-	}
-	Logger.Infof("Forwarding: %v", m)
-	m["source_fp"] = s.FP
-	m["source_name"] = s.Name
-
-	delete(m, "target")
-	p.Send(m)
+	unregister chan *Conn
 }
 
 // notifyPeers is called when the peer list changes
@@ -60,56 +38,93 @@ func (h *Hub) notifyPeers(u string) error {
 func (h *Hub) multicast(peers *PeerList, msg map[string]interface{}) error {
 	for _, p := range *peers {
 		if p.Online && p.Verified {
-			Logger.Infof("Sending message to peer %q", p.Name)
-			err := p.Send(msg)
-			if err != nil {
-				return err
+			c, found := h.conns[p.FP]
+			if found {
+				Logger.Infof("Sending message to peer %q", p.Name)
+				err := c.Send(msg)
+				if err != nil {
+					return err
+				}
+			} else {
+				Logger.Warnf("Peer Online mismatch")
 			}
 		}
+	}
+	return nil
+}
+
+func (h *Hub) SetPeerOnline(fp string, o bool) error {
+	key := fmt.Sprintf("peer:%s", fp)
+	rc := db.pool.Get()
+	defer rc.Close()
+	if _, err := rc.Do("HSET", key, "online", o); err != nil {
+		return err
+	}
+	email, err := redis.String(rc.Do("HGET", key, "user"))
+	if err != nil {
+		return fmt.Errorf("Failed reading fp's user: %w", err)
+	}
+	err = h.notifyPeers(email)
+	if err != nil {
+		Logger.Warnf("Failed to notify peers of list change: %w", err)
 	}
 	return nil
 }
 func (h *Hub) run() {
 	for {
 		select {
-		case peer := <-h.register:
-			peer.Online = true
-			h.peers[peer.FP] = peer
-			db.AddPeer(peer)
-			err := h.notifyPeers(peer.User)
-			if err != nil {
-				Logger.Warnf("Failed to notify peers of list change: %s", err)
-			}
-		case peer := <-h.unregister:
-			Logger.Infof("Unregistering peer %s", peer.Name)
-			if _, ok := h.peers[peer.FP]; ok {
-				delete(h.peers, peer.FP)
-				err := h.notifyPeers(peer.User)
-				if err != nil {
-					Logger.Warnf("Failed to notify peers of list change: %s", err)
-				}
-			}
-		case message := <-h.requests:
-			sFP := message["source"]
-			delete(message, "source")
-			source, found := h.peers[sFP.(string)]
-			if !found {
-				Logger.Errorf("Hub ignores a bad request because of wrong source: %s", sFP)
+		case c := <-h.register:
+			h.conns[c.FP] = c
+			if err := h.SetPeerOnline(c.FP, true); err != nil {
+				Logger.Errorf("Failed setting a peer as online: %s", err)
 				continue
 			}
-			_, offer := message["offer"]
-			_, answer := message["answer"]
-			_, candidate := message["candidate"]
+		case c := <-h.unregister:
+			if c.WS != nil {
+				c.WS.Close()
+			}
+			if err := h.SetPeerOnline(c.FP, false); err != nil {
+				Logger.Errorf("Failed setting a peer as offline: %s", err)
+				continue
+			}
+			delete(h.conns, c.FP)
+		case m := <-h.requests:
+			_, offer := m["offer"]
+			_, answer := m["answer"]
+			_, candidate := m["candidate"]
 			if offer || answer || candidate {
-				h.forwardSignal(source, message)
-				continue
-			}
-			cmd, command := message["command"]
-			if command && (cmd == "get_list") {
-				err := source.sendList()
-				if err != nil {
-					Logger.Errorf("Failed to send a list of peers: %w", err)
+				v, found := m["target"]
+				if !found {
+					Logger.Warnf("Ignoring an forwarding msg with no target")
+					continue
 				}
+				target := v.(string)
+				t, found := h.conns[target]
+				if !found {
+					e := &TargetNotFound{target}
+					Logger.Warn(e)
+					t.sendStatus(http.StatusBadRequest, e)
+					continue
+				}
+				user, found := m["user"]
+				if !found || t.User != user {
+					// Notify the source Unauthorized
+					Logger.Warnf("Ignoring forwarding across users")
+					source, found := m["source_fp"]
+					if found {
+						sc, found := h.conns[source.(string)]
+						if found {
+							sc.sendStatus(http.StatusUnauthorized,
+								fmt.Errorf("Target belongs to another user"))
+						}
+					}
+					continue
+				}
+				delete(m, "user")
+				delete(m, "target")
+				Logger.Infof("Forwarding: %v", m)
+				t.Send(m)
+				continue
 			}
 		}
 	}

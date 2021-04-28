@@ -56,7 +56,7 @@ func TestVerifyPeer(t *testing.T) {
 	require.Nil(t, err)
 	peer := (*list)[0]
 	require.Equal(t, false, peer.Verified)
-	peer.Verify(true)
+	VerifyPeer("bar", true)
 	require.Equal(t, "1", redisDouble.HGet("peer:bar", "verified"))
 }
 func TestCreateToken(t *testing.T) {

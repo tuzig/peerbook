@@ -120,3 +120,45 @@ func (d *DBType) AddPeer(peer *Peer) error {
 	conn.Do("SADD", key, peer.FP)
 	return nil
 }
+
+// IsVerfied tests the db to see if a peer is verfied
+func IsVerified(fp string) (bool, error) {
+	key := fmt.Sprintf("peer:%s", fp)
+	conn := db.pool.Get()
+	defer conn.Close()
+	return redis.Bool(conn.Do("HGET", key, "verified"))
+}
+
+// GetPeer gets a peer, using the hub as cache for connected peers
+func GetPeer(fp string) (*Peer, error) {
+	key := fmt.Sprintf("peer:%s", fp)
+	var pd Peer
+	err := db.getDoc(key, &pd)
+	if err != nil {
+		return nil, err
+	}
+	return &pd, nil
+}
+func VerifyPeer(fp string, v bool) {
+	rc := db.pool.Get()
+	defer rc.Close()
+	key := fmt.Sprintf("peer:%s", fp)
+	c, connected := hub.conns[fp]
+	if connected {
+		c.Verified = v
+	}
+	if v {
+		rc.Do("HSET", key, "verified", "1")
+		if connected {
+			c.Send(StatusMessage{200, "peer is verified"})
+			Logger.Infof("Sent a 200 to a newly verified peer")
+		} else {
+			Logger.Infof("Verified an offline peer")
+		}
+	} else {
+		rc.Do("HSET", key, "verified", "0")
+		if connected {
+			c.sendStatus(401, fmt.Errorf("peer's verification was revoked"))
+		}
+	}
+}
