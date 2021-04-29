@@ -284,6 +284,7 @@ func TestVerifyNew(t *testing.T) {
 	resp, err := http.Post("http://127.0.0.1:17777/verify", "application/json",
 		bytes.NewBuffer(m))
 	require.Nil(t, err)
+	require.Equal(t, 200, resp.StatusCode)
 	defer resp.Body.Close()
 	var ret map[string]bool
 	err = json.NewDecoder(resp.Body).Decode(&ret)
@@ -313,7 +314,7 @@ func TestVerifyVerified(t *testing.T) {
 	require.Nil(t, err)
 	require.True(t, ret["verified"])
 }
-func TestVerifywrongUser(t *testing.T) {
+func TestVerifyWrongUser(t *testing.T) {
 	startTest(t)
 	// setup the fixture - a user, his token and two peers
 	redisDouble.SetAdd("user:j", "A", "B")
@@ -327,12 +328,8 @@ func TestVerifywrongUser(t *testing.T) {
 	require.Nil(t, err)
 	resp, err := http.Post("http://127.0.0.1:17777/verify", "application/json",
 		bytes.NewBuffer(m))
-	require.Nil(t, err)
-	defer resp.Body.Close()
-	var ret map[string]bool
-	err = json.NewDecoder(resp.Body).Decode(&ret)
-	require.Nil(t, err)
-	require.False(t, ret["verified"])
+	require.Nil(t, err, err)
+	require.Equal(t, 409, resp.StatusCode)
 }
 func TestValidatePeerNPublish(t *testing.T) {
 	startTest(t)

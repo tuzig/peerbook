@@ -120,7 +120,7 @@ func serveList(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			msg := fmt.Sprintf("Got an error parsing form: %s", err)
 			Logger.Warnf(msg)
-			http.Error(w, `{"msg": "`+msg+`"}`, http.StatusBadRequest)
+			http.Error(w, msg, http.StatusBadRequest)
 			return
 		}
 		for k, _ := range r.Form {
@@ -196,15 +196,15 @@ func serveVerify(w http.ResponseWriter, r *http.Request) {
 	dec := json.NewDecoder(r.Body)
 	err := dec.Decode(&req)
 	if err != nil {
-		http.Error(w, `{"m": "Bad JSON"}`, http.StatusBadRequest)
+		http.Error(w, "Bad JSON", http.StatusBadRequest)
 		return
 	}
 	if req["fp"] == "" {
-		http.Error(w, `{"m": "Missing fp"}`, http.StatusBadRequest)
+		http.Error(w, "Missing fingerprint", http.StatusBadRequest)
 		return
 	}
 	if req["email"] == "" {
-		http.Error(w, `{"m": "Missing email"}`, http.StatusBadRequest)
+		http.Error(w, "Missing email", http.StatusBadRequest)
 		return
 	}
 	peer, err := GetPeer(req["fp"])
@@ -216,24 +216,28 @@ func serveVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == "POST" {
-		verified := peer.Verified && peer.User == req["email"]
-		m, err := json.Marshal(map[string]bool{"verified": verified})
-		if err != nil {
-			msg := fmt.Sprintf("Failed to marshal user's list: %s", err)
-			Logger.Errorf(msg)
-			m, _ := json.Marshal(map[string]string{"m": msg})
-			http.Error(w, string(m), http.StatusInternalServerError)
-			return
-		}
-		w.Write(m)
-		if !peer.Verified {
+		// handle new peer
+		if peer.FP == "" {
 			peer := &Peer{FP: req["fp"], Name: req["name"],
 				Kind: req["kind"], CreatedOn: time.Now().Unix(),
 				User: req["email"], Verified: false, Online: true}
 			db.AddPeer(peer)
 			sendAuthEmail(req["email"])
+		} else {
+			if peer.User != req["email"] {
+				http.Error(w, "Fingerprint is associated to another email",
+					http.StatusConflict)
+				return
+			}
+		}
+		m, err := json.Marshal(map[string]bool{"verified": peer.Verified})
+		if err != nil {
+			msg := fmt.Sprintf("Failed to marshal user's list: %s", err)
+			Logger.Errorf(msg)
+			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
+		w.Write(m)
 		// update the name
 		if peer.Name != req["name"] {
 			peer.setName(req["name"])
