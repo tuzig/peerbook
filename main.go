@@ -12,9 +12,11 @@ import (
 	"github.com/rs/cors"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"gopkg.in/gomail.v2" //go get gopkg.in/gomail.v2
 	"gopkg.in/natefinch/lumberjack.v2"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -22,6 +24,8 @@ import (
 	"time"
 )
 
+// SendChanSize is the size of the send channel in messages
+const SendChanSize = 4
 const HTMLThankYou = `<html lang=en> <head><meta charset=utf-8>
 <title>Thank You</title>
 </head>
@@ -54,7 +58,7 @@ func (e *PeerIsForeign) Error() string {
 
 // UnauthorizedPeer is an error
 type UnauthorizedPeer struct {
-	peer *Peer
+	FP string
 }
 
 func (e *UnauthorizedPeer) Error() string {
@@ -88,7 +92,16 @@ func (p *PeerChanged) Error() string {
 
 func serveList(w http.ResponseWriter, r *http.Request) {
 	i := strings.IndexRune(r.URL.Path[1:], '/')
-	user, err := db.GetToken(r.URL.Path[i+2:])
+	t := r.URL.Path[i+2:]
+	token, err := url.PathUnescape(t)
+	if err != nil {
+		Logger.Warnf(
+			"Failed to unescape token: err: %s, token: %s", err, token)
+		http.Error(w, "Bad Token", http.StatusBadRequest)
+		return
+	}
+
+	user, err := db.GetToken(token)
 	if err != nil {
 		http.Error(w, `{"m": "Bad Token"}`, http.StatusBadRequest)
 		Logger.Errorf("Failed to get token: %s", err)
@@ -115,7 +128,6 @@ func serveList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == "POST" {
-		verified := make(map[string]bool)
 		err := r.ParseForm()
 		if err != nil {
 			msg := fmt.Sprintf("Got an error parsing form: %s", err)
@@ -123,19 +135,21 @@ func serveList(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, msg, http.StatusBadRequest)
 			return
 		}
+		verified := make(map[string]bool)
 		for k, _ := range r.Form {
 			verified[k] = true
 		}
 		notify := false
 		for _, p := range *peers {
 			_, toBeV := verified[p.FP]
-			peer := *p
-			if peer.Verified && !toBeV {
-				peer.Verify(false)
+			if p.Verified && !toBeV {
+				p.Verified = false
+				VerifyPeer(p.FP, false)
 				notify = true
 			}
-			if !peer.Verified && toBeV {
-				peer.Verify(true)
+			if !p.Verified && toBeV {
+				p.Verified = true
+				VerifyPeer(p.FP, true)
 				notify = true
 			}
 		}
@@ -156,11 +170,19 @@ func serveList(w http.ResponseWriter, r *http.Request) {
 
 func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 	i := strings.IndexRune(r.URL.Path[1:], '/')
-	token := r.URL.Path[i+2:]
+	// TODO: rinse. The next 10 line also appear a few lines back
+	t := r.URL.Path[i+2:]
+	token, err := url.PathUnescape(t)
+	if err != nil {
+		Logger.Warnf(
+			"Failed to unescape token: err: %s, token: %s", err, token)
+		http.Error(w, "Bad Token", http.StatusBadRequest)
+		return
+	}
+
 	user, err := db.GetToken(token)
 	if err != nil || user == "" {
-		Logger.Warnf("Got auth page request with bad token: err: %s, token: %s",
-			err, token)
+		Logger.Warnf("Failed to get token: err: %s, token: %s", err, token)
 		http.Error(w, "Bad Token", http.StatusBadRequest)
 		return
 	}
@@ -218,9 +240,9 @@ func serveVerify(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
 		// handle new peer
 		if peer.FP == "" {
-			peer := &Peer{FP: req["fp"], Name: req["name"],
-				Kind: req["kind"], CreatedOn: time.Now().Unix(),
-				User: req["email"], Verified: false, Online: true}
+			peer := &Peer{FP: req["fp"], Name: req["name"], Kind: req["kind"],
+				CreatedOn: time.Now().Unix(), User: req["email"],
+				Verified: false, Online: false}
 			db.AddPeer(peer)
 			sendAuthEmail(req["email"])
 		} else {
@@ -228,6 +250,9 @@ func serveVerify(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "Fingerprint is associated to another email",
 					http.StatusConflict)
 				return
+			}
+			if peer.Name != req["name"] {
+				peer.setName(req["name"])
 			}
 		}
 		m, err := json.Marshal(map[string]bool{"verified": peer.Verified})
@@ -238,10 +263,6 @@ func serveVerify(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Write(m)
-		// update the name
-		if peer.Name != req["name"] {
-			peer.setName(req["name"])
-		}
 	}
 }
 func serveHome(w http.ResponseWriter, r *http.Request) {
@@ -329,9 +350,9 @@ func main() {
 	}
 
 	hub = Hub{
-		register:   make(chan *Peer),
-		unregister: make(chan *Peer),
-		peers:      make(map[string]*Peer),
+		register:   make(chan *Conn),
+		unregister: make(chan *Conn),
+		conns:      make(map[string]*Conn),
 		requests:   make(chan map[string]interface{}, 16),
 	}
 	go hub.run()
@@ -348,4 +369,82 @@ func main() {
 	}
 	// wait for goroutine started in startHTTPServer() to stop
 	httpServerExitDone.Wait()
+}
+
+// ConnFromQ retruns a fresh Peer based on query paramets: fp, name, kind &
+// email
+func ConnFromQ(q url.Values) (*Conn, error) {
+	fp := q.Get("fp")
+	if fp == "" {
+		return nil, &PeerNotFound{}
+	}
+	_, found := hub.conns[fp]
+	if found {
+		Logger.Errorf("Peer already connected")
+		return nil, fmt.Errorf("Peer is aleadt connected")
+	}
+	peer, err := GetPeer(fp)
+	if err != nil {
+		return nil, err
+	}
+	if peer == nil {
+		return nil, &PeerNotFound{}
+	}
+	verified, err := IsVerified(fp)
+	if err != nil {
+		return nil, err
+	}
+	ret := Conn{FP: fp,
+		Verified: verified,
+		User:     peer.User,
+		send:     make(chan interface{}, SendChanSize)}
+	return &ret, nil
+}
+
+// sendAuthEmail creates a short lived token and emails a message with a link
+// to `/auth/<token>` so the javascript at /auth can read the list of peers and
+// use checkboxes to enable/disable
+func sendAuthEmail(email string) {
+	// TODO: send an email in the background
+	token, err := db.CreateToken(email)
+	if err != nil {
+		Logger.Errorf("Failed to create token: %w", err)
+		return
+	}
+	m := gomail.NewMessage()
+	homeUrl := os.Getenv("PB_HOME_URL")
+	if homeUrl == "" {
+		homeUrl = DefaultHomeUrl
+	}
+	clickL := fmt.Sprintf("%s/auth/%s", homeUrl, url.PathEscape(token))
+	m.SetBody("text/html", `<html lang=en> <head><meta charset=utf-8>
+<title>Peerbook updates for your approval</title>
+</head>
+Please click <a href="`+clickL+`">here to review</a>.`)
+
+	text := fmt.Sprintf("Please click to review:\n%s", clickL)
+	m.AddAlternative("text/plain", text)
+
+	m.SetHeaders(map[string][]string{
+		"From":               {m.FormatAddress("support@terminal7.dev", "Terminal7")},
+		"To":                 {email},
+		"Subject":            {"Pending changes to your peerbook"},
+		"X-SES-MESSAGE-TAGS": {"genre=auth_email"},
+		// Comment or remove the next line if you are not using a configuration set
+		// "X-SES-CONFIGURATION-SET": {ConfigSet},
+	})
+
+	host := os.Getenv("PB_SMTP_HOST")
+	user := os.Getenv("PB_SMTP_USER")
+	pass := os.Getenv("PB_SMTP_PASS")
+	d := gomail.NewPlainDialer(host, 587, user, pass)
+
+	Logger.Infof("Sending email %q", text)
+	// Display an error message if something goes wrong; otherwise,
+	// display a message confirming that the message was sent.
+	if err := d.DialAndSend(m); err != nil {
+		Logger.Errorf("Failed to send email: %s", err)
+	} else {
+		Logger.Infof("Send email to %q", email)
+	}
 }

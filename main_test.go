@@ -3,13 +3,13 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 	"net/http"
 	"net/url"
-	"strconv"
 	"testing"
 	"time"
 )
@@ -32,10 +32,10 @@ func startTest(t *testing.T) {
 		mainRunning = true
 		// let the server open
 	} else {
-		hub.peers = map[string]*Peer{}
+		hub.conns = map[string]*Conn{}
 		redisDouble.FlushAll()
 	}
-	time.Sleep(time.Millisecond)
+	time.Sleep(time.Millisecond * 10)
 }
 func openWS(url string) (*websocket.Conn, error) {
 	time.Sleep(time.Millisecond)
@@ -53,37 +53,13 @@ func TestBadConnectionRequest(t *testing.T) {
 func TestUnknownFingerprint(t *testing.T) {
 	startTest(t)
 	// create client, connect to the hu
-	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=BADWOLF&email=cracker@forbidden.com")
-	require.Nil(t, err)
-	defer ws.Close()
-	if err := ws.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
-		t.Fatalf("SetReadDeadline: %v", err)
-	}
-	var s StatusMessage
-	err = ws.ReadJSON(&s)
-	require.Nil(t, err)
-	require.Equal(t, 401, s.Code)
-	// try and communicate with another peer
-	redisDouble.HSet("peer:foo", "fp", "foo", "name", "bar", "kind", "lay", "user", "UUID")
-	// create client, connect to the hu
-	ws2, err := openWS("ws://127.0.0.1:17777/ws?fp=foo&name=bar&kind=lay&email=UUID")
-
-	require.Nil(t, err)
-	defer ws2.Close()
-	if err := ws.SetWriteDeadline(time.Now().Add(time.Second)); err != nil {
-		t.Fatalf("SetReadDeadline: %v", err)
-	}
-	err = ws.WriteJSON(map[string]string{"offer": "an offer", "target": "foo"})
-	require.Nil(t, err)
-	time.Sleep(time.Second / 10)
-	err = ws.SetReadDeadline(time.Now().Add(time.Second))
-	require.Nil(t, err)
-	err = ws.ReadJSON(&s)
-	require.Nil(t, err)
-	require.Equal(t, 401, s.Code)
+	_, err := openWS("ws://127.0.0.1:17777/ws?fp=BADWOLF&email=cracker@forbidden.com")
+	require.NotNil(t, err)
 }
 func TestSignalingAcrossUsers(t *testing.T) {
 	startTest(t)
+	redisDouble.SetAdd("user:j", "A")
+	redisDouble.SetAdd("user:h", "B")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "1")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
@@ -118,17 +94,18 @@ func TestSignalingAcrossUsers(t *testing.T) {
 	}
 	var o OfferMessage
 	err = wsB.ReadJSON(&o)
-	require.NotNil(t, err)
+	require.NotNil(t, err, "Got message %v", o)
 	if err := wsA.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 		t.Fatalf("SetReadDeadline: %v", err)
 	}
 	var s StatusMessage
 	err = wsA.ReadJSON(&s)
 	require.Nil(t, err)
-	require.Equal(t, 400, s.Code)
+	require.Equal(t, 401, s.Code)
 }
 func TestValidSignaling(t *testing.T) {
 	startTest(t)
+	redisDouble.SetAdd("user:j", "A", "B")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "1")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
@@ -139,8 +116,8 @@ func TestValidSignaling(t *testing.T) {
 	wsB, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&email=j")
 	require.Nil(t, err)
 	defer wsB.Close()
-	hub.peers["A"].Verified = true
-	hub.peers["B"].Verified = true
+	hub.conns["A"].Verified = true
+	hub.conns["B"].Verified = true
 	// read all the peers messages
 	var pl map[string]*PeerList
 	if err = wsA.SetReadDeadline(time.Now().Add(time.Second / 100)); err != nil {
@@ -173,7 +150,6 @@ func TestValidSignaling(t *testing.T) {
 	err = wsB.ReadJSON(&o)
 	require.Nil(t, err)
 	require.Equal(t, "an offer", o.Offer)
-	require.Equal(t, "foo", o.SourceName)
 	err = wsB.SetWriteDeadline(time.Now().Add(time.Second))
 	require.Nil(t, err)
 	err = wsB.WriteJSON(map[string]string{"answer": "B's answer", "target": "A"})
@@ -184,27 +160,13 @@ func TestValidSignaling(t *testing.T) {
 	var a AnswerMessage
 	err = wsA.ReadJSON(&a)
 	require.Equal(t, "B's answer", a.Answer)
-	require.Equal(t, "bar", a.SourceName)
-}
-func TestNewPeerConnect(t *testing.T) {
-	startTest(t)
-	s := time.Now()
-	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=foo&name=fuckedup")
-	require.Nil(t, err)
-	defer ws.Close()
-	time.Sleep(time.Second / 100)
-	n := redisDouble.HGet("peer:foo", "name")
-	require.Equal(t, "fuckedup", n)
-	c := redisDouble.HGet("peer:foo", "created_on")
-	ci, err := strconv.Atoi(c)
-	require.Nil(t, err)
-	require.InDelta(t, s.Unix(), int64(ci), 1)
 }
 func TestGetUsersList(t *testing.T) {
 	startTest(t)
+	token := "=a+valid/token="
 	// setup the fixture - a user, his token and two peers
 	redisDouble.SetAdd("user:j", "A", "B")
-	redisDouble.Set("token:avalidtoken", "j")
+	redisDouble.Set(fmt.Sprintf("token:%s", token), "j")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "0")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
@@ -212,7 +174,8 @@ func TestGetUsersList(t *testing.T) {
 	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&email=j&kind=lay")
 	require.Nil(t, err)
 	defer ws.Close()
-	resp, err := http.Get("http://127.0.0.1:17777/list/avalidtoken")
+	listU := fmt.Sprintf("http://127.0.0.1:17777/list/%s", url.PathEscape(token))
+	resp, err := http.Get(listU)
 	require.Nil(t, err)
 	defer resp.Body.Close()
 	list := make([]map[string]interface{}, 2)
@@ -236,6 +199,8 @@ func TestHTTPPeerVerification(t *testing.T) {
 	redisDouble.Set("token:avalidtoken", "j")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "1")
+	redisDouble.HSet("peer:B", "fp", "B", "name", "foo", "kind", "lay",
+		"user", "j", "verified", "0")
 	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar")
 	require.Nil(t, err)
 	defer ws.Close()
@@ -388,5 +353,4 @@ func TestValidatePeerNPublish(t *testing.T) {
 	require.Nil(t, err)
 	require.Contains(t, pl, "peers")
 	time.Sleep(time.Millisecond)
-
 }
