@@ -9,6 +9,13 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
+## [0.2.2] 2020-4-29
+
+### Fixed
+
+- refactoring connection management for stability & optimization
+- returning 409 on mismatched email
+
 ## [0.2.1] 2020-4-26
 
 ### Fixed
