@@ -89,15 +89,16 @@ func (c *Conn) readPump() {
 		hub.unregister <- c
 	}()
 	c.WS.SetReadLimit(maxMessageSize)
+	c.WS.SetReadDeadline(time.Now().Add(pongWait))
 	c.WS.SetPongHandler(func(string) error {
 		c.WS.SetReadDeadline(time.Now().Add(pongWait))
 		return nil
 	})
 	for {
 		var message map[string]interface{}
-		c.WS.SetReadDeadline(time.Now().Add(pongWait))
 		err := c.WS.ReadJSON(&message)
 		if err != nil {
+			Logger.Errorf("ws error: %w", err)
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				Logger.Errorf("ws error: %w", err)
 			}
@@ -190,8 +191,8 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 		Logger.Errorf("Failed to upgrade socket: %w", err)
 	}
 	hub.register <- conn
-	go conn.pinger()
 	go conn.readPump()
+	go conn.pinger()
 	// if it's an unverified peer, keep the connection open and send a status message
 	if !conn.Verified {
 		err = conn.sendStatus(401, fmt.Errorf(

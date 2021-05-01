@@ -6,7 +6,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/gomodule/redigo/redis"
 	"net/http"
 )
 
@@ -41,9 +40,10 @@ func (h *Hub) multicast(peers *PeerList, msg map[string]interface{}) error {
 			c, found := h.conns[p.FP]
 			if found {
 				Logger.Infof("Sending message to peer %q", p.Name)
-				err := c.Send(msg)
-				if err != nil {
-					return err
+				select {
+				case c.send <- msg:
+				default:
+					h.unregister <- c
 				}
 			} else {
 				Logger.Warnf("Peer Online mismatch")
@@ -53,18 +53,14 @@ func (h *Hub) multicast(peers *PeerList, msg map[string]interface{}) error {
 	return nil
 }
 
-func (h *Hub) SetPeerOnline(fp string, o bool) error {
-	key := fmt.Sprintf("peer:%s", fp)
+func (h *Hub) SetPeerOnline(c *Conn, o bool) error {
+	key := fmt.Sprintf("peer:%s", c.FP)
 	rc := db.pool.Get()
 	defer rc.Close()
 	if _, err := rc.Do("HSET", key, "online", o); err != nil {
 		return err
 	}
-	email, err := redis.String(rc.Do("HGET", key, "user"))
-	if err != nil {
-		return fmt.Errorf("Failed reading fp's user: %w", err)
-	}
-	err = h.notifyPeers(email)
+	err := h.notifyPeers(c.User)
 	if err != nil {
 		Logger.Warnf("Failed to notify peers of list change: %w", err)
 	}
@@ -75,17 +71,13 @@ func (h *Hub) run() {
 		select {
 		case c := <-h.register:
 			h.conns[c.FP] = c
-			if err := h.SetPeerOnline(c.FP, true); err != nil {
+			if err := h.SetPeerOnline(c, true); err != nil {
 				Logger.Errorf("Failed setting a peer as online: %s", err)
 				continue
 			}
 		case c := <-h.unregister:
 			if c.WS != nil {
 				c.WS.Close()
-			}
-			if err := h.SetPeerOnline(c.FP, false); err != nil {
-				Logger.Errorf("Failed setting a peer as offline: %s", err)
-				continue
 			}
 			delete(h.conns, c.FP)
 		case m := <-h.requests:
