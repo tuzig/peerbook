@@ -35,6 +35,7 @@ func (h *Hub) notifyPeers(u string) error {
 	return h.multicast(peers, map[string]interface{}{"peers": peers})
 }
 func (h *Hub) multicast(peers *PeerList, msg map[string]interface{}) error {
+	u := ""
 	for _, p := range *peers {
 		if p.Online && p.Verified {
 			c, found := h.conns[p.FP]
@@ -46,78 +47,88 @@ func (h *Hub) multicast(peers *PeerList, msg map[string]interface{}) error {
 					h.unregister <- c
 				}
 			} else {
-				Logger.Warnf("Peer Online mismatch")
+				Logger.Warnf("Reseting peer %q to offline", p.Name)
+				u = p.User
+				p.SetOnline(false)
 			}
+		}
+	}
+	if u != "" {
+		err := h.notifyPeers(u)
+		if err != nil {
+			Logger.Warnf("Failed to notify peers of list change: %w", err)
 		}
 	}
 	return nil
 }
 
-func (h *Hub) SetPeerOnline(c *Conn, o bool) error {
-	key := fmt.Sprintf("peer:%s", c.FP)
-	rc := db.pool.Get()
-	defer rc.Close()
-	if _, err := rc.Do("HSET", key, "online", o); err != nil {
-		return err
-	}
-	err := h.notifyPeers(c.User)
-	if err != nil {
-		Logger.Warnf("Failed to notify peers of list change: %w", err)
-	}
-	return nil
-}
 func (h *Hub) run() {
 	for {
+		u := ""
 		select {
 		case c := <-h.register:
 			h.conns[c.FP] = c
-			if err := h.SetPeerOnline(c, true); err != nil {
+			if err := c.SetOnline(true); err != nil {
 				Logger.Errorf("Failed setting a peer as online: %s", err)
 				continue
 			}
+			u = c.User
 		case c := <-h.unregister:
 			if c.WS != nil {
 				c.WS.Close()
 			}
-			delete(h.conns, c.FP)
-		case m := <-h.requests:
-			_, offer := m["offer"]
-			_, answer := m["answer"]
-			_, candidate := m["candidate"]
-			if offer || answer || candidate {
-				v, found := m["target"]
-				if !found {
-					Logger.Warnf("Ignoring an forwarding msg with no target")
-					continue
-				}
-				target := v.(string)
-				t, found := h.conns[target]
-				if !found {
-					e := &TargetNotFound{target}
-					Logger.Warn(e)
-					t.sendStatus(http.StatusBadRequest, e)
-					continue
-				}
-				user, found := m["user"]
-				if !found || t.User != user {
-					// Notify the source Unauthorized
-					Logger.Warnf("Ignoring forwarding across users")
-					source, found := m["source_fp"]
-					if found {
-						sc, found := h.conns[source.(string)]
-						if found {
-							sc.sendStatus(http.StatusUnauthorized,
-								fmt.Errorf("Target belongs to another user"))
-						}
-					}
-					continue
-				}
-				delete(m, "user")
-				delete(m, "target")
-				Logger.Infof("Forwarding: %v", m)
-				t.Send(m)
+			if err := c.SetOnline(false); err != nil {
+				Logger.Errorf("Failed setting a peer as offline: %s", err)
 				continue
 			}
+			delete(h.conns, c.FP)
+			u = c.User
+		case m := <-h.requests:
+			h.handleMsg(m)
 		}
+		if u != "" {
+			err := h.notifyPeers(u)
+			if err != nil {
+				Logger.Warnf("Failed to notify peers of list change: %w", err)
+			}
+		}
+	}
+}
+func (h *Hub) handleMsg(m map[string]interface{}) {
+	_, offer := m["offer"]
+	_, answer := m["answer"]
+	_, candidate := m["candidate"]
+	if offer || answer || candidate {
+		v, found := m["target"]
+		if !found {
+			Logger.Warnf("Ignoring an forwarding msg with no target")
+			return
+		}
+		target := v.(string)
+		t, found := h.conns[target]
+		if !found {
+			e := &TargetNotFound{target}
+			Logger.Warn(e)
+			t.sendStatus(http.StatusBadRequest, e)
+			return
+		}
+		user, found := m["user"]
+		if !found || t.User != user {
+			// Notify the source Unauthorized
+			Logger.Warnf("Ignoring forwarding across users")
+			source, found := m["source_fp"]
+			if found {
+				sc, found := h.conns[source.(string)]
+				if found {
+					sc.sendStatus(http.StatusUnauthorized,
+						fmt.Errorf("Target belongs to another user"))
+				}
+			}
+			return
+		}
+		delete(m, "user")
+		delete(m, "target")
+		Logger.Infof("Forwarding: %v", m)
+		t.Send(m)
 	}
 }

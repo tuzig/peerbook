@@ -11,9 +11,9 @@ func TestSetPeerOnline(t *testing.T) {
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "1", "online", "0")
 	c := &Conn{User: "j", FP: "A"}
-	hub.SetPeerOnline(c, true)
+	c.SetOnline(true)
 	require.Equal(t, "1", redisDouble.HGet("peer:A", "online"))
-	hub.SetPeerOnline(c, false)
+	c.SetOnline(false)
 	require.Equal(t, "0", redisDouble.HGet("peer:A", "online"))
 }
 func TestNotifyPeers(t *testing.T) {
