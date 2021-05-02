@@ -54,7 +54,6 @@ func (c *Conn) readPump() {
 
 // pinger sends pings
 func (c *Conn) pinger() {
-	errRun := 0
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
@@ -83,12 +82,7 @@ func (c *Conn) pinger() {
 			err := c.WS.WriteMessage(websocket.PingMessage, nil)
 			if err != nil {
 				Logger.Errorf("failed to send ping message: %s", err)
-				errRun++
-				if errRun == 3 {
-					return
-				}
-			} else {
-				errRun = 0
+				return
 			}
 		}
 	}
