@@ -93,15 +93,17 @@ func GetUsersPeers(email string) (*PeerList, error) {
 }
 
 func (p *Peer) setName(name string) {
-	key := fmt.Sprintf("peer:%s", p.FP)
 	p.Name = name
 	conn := db.pool.Get()
 	defer conn.Close()
-	conn.Do("HSET", key, "name", name)
+	conn.Do("HSET", p.Key(), "name", name)
 }
 
 // SetOnline sets the peer's online redis cache and notifies peers
 func (p *Peer) SetOnline(o bool) {
 	temp := Conn{FP: p.FP, User: p.User}
 	temp.SetOnline(o)
+}
+func (p *Peer) Key() string {
+	return fmt.Sprintf("peer:%s", p.FP)
 }

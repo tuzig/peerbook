@@ -354,3 +354,22 @@ func TestValidatePeerNPublish(t *testing.T) {
 	require.Contains(t, pl, "peers")
 	time.Sleep(time.Millisecond)
 }
+func TestHTTPrmrf(t *testing.T) {
+
+	startTest(t)
+	// setup the fixture - a user, his token and two peers
+	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.Set("token:avalidtoken", "j")
+	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
+		"user", "j", "verified", "1")
+	redisDouble.HSet("peer:B", "fp", "B", "name", "foo", "kind", "lay",
+		"user", "j", "verified", "0")
+	resp, err := http.PostForm("http://127.0.0.1:17777/list/avalidtoken",
+		url.Values{"rmrf": {"checked"}})
+	require.Nil(t, err)
+	require.Equal(t, 200, resp.StatusCode)
+	time.Sleep(time.Second / 100)
+	require.False(t, redisDouble.Exists("peer:A"))
+	require.False(t, redisDouble.Exists("peer:B"))
+	require.False(t, redisDouble.Exists("user:j"))
+}

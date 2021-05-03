@@ -31,6 +31,11 @@ const HTMLThankYou = `<html lang=en> <head><meta charset=utf-8>
 </head>
 <body><h2>Your changes have been recorded and connected peers notified</h2>`
 
+const HTMLPostrmrf = `<html lang=en> <head><meta charset=utf-8>
+<title>Thank You</title>
+</head>
+<body><h2>All your peers and your email address was deleted</h2>`
+
 const HTMLEmailSent = `<html lang=en> <head><meta charset=utf-8>
 <title>Peerbook</title>
 </head>
@@ -136,6 +141,19 @@ func serveList(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		verified := make(map[string]bool)
+		_, rmrf := r.Form["rmrf"]
+		if rmrf {
+			Logger.Infof("Removing user %s and his peers", user)
+			conn := db.pool.Get()
+			defer conn.Close()
+			for _, p := range *peers {
+				conn.Do("DEL", p.Key())
+			}
+			key := fmt.Sprintf("user:%s", user)
+			conn.Do("DEL", key)
+			w.Write([]byte(HTMLPostrmrf))
+			return
+		}
 		for k, _ := range r.Form {
 			verified[k] = true
 		}
