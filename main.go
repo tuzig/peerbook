@@ -21,7 +21,6 @@ import (
 	"os/signal"
 	"strings"
 	"sync"
-	"time"
 )
 
 // SendChanSize is the size of the send channel in messages
@@ -34,7 +33,7 @@ const HTMLThankYou = `<html lang=en> <head><meta charset=utf-8>
 const HTMLPostrmrf = `<html lang=en> <head><meta charset=utf-8>
 <title>Thank You</title>
 </head>
-<body><h2>All your peers and your email address was deleted</h2>`
+<body><h2>All your peers and your email were deleted</h2>`
 
 const HTMLEmailSent = `<html lang=en> <head><meta charset=utf-8>
 <title>Peerbook</title>
@@ -235,36 +234,56 @@ func serveVerify(w http.ResponseWriter, r *http.Request) {
 	var req map[string]string
 	dec := json.NewDecoder(r.Body)
 	err := dec.Decode(&req)
+	fp := req["fp"]
+	email := req["email"]
 	if err != nil {
 		http.Error(w, "Bad JSON", http.StatusBadRequest)
 		return
 	}
-	if req["fp"] == "" {
+	if fp == "" {
 		http.Error(w, "Missing fingerprint", http.StatusBadRequest)
 		return
 	}
-	if req["email"] == "" {
+	if email == "" {
 		http.Error(w, "Missing email", http.StatusBadRequest)
 		return
 	}
-	peer, err := GetPeer(req["fp"])
-	if err != nil {
-		msg := fmt.Sprintf("Failed to get peer: %s", err)
-		Logger.Errorf(msg)
-		m, _ := json.Marshal(map[string]string{"m": msg})
-		http.Error(w, string(m), http.StatusInternalServerError)
-		return
-	}
 	if r.Method == "POST" {
-		// handle new peer
-		if peer.FP == "" {
-			peer := &Peer{FP: req["fp"], Name: req["name"], Kind: req["kind"],
-				CreatedOn: time.Now().Unix(), User: req["email"],
-				Verified: false, Online: false}
-			db.AddPeer(peer)
-			sendAuthEmail(req["email"])
+		var peer *Peer
+		pexists, err := db.PeerExists(fp)
+		if err != nil {
+			http.Error(w, "DB read failure", http.StatusInternalServerError)
+			return
+		}
+		if !pexists {
+			peer = NewPeer(fp, req["name"], email, req["kind"])
+			err = db.AddPeer(peer)
+			if err != nil {
+				msg := fmt.Sprintf("Failed to add peer: %s", err)
+				Logger.Warn(msg)
+				http.Error(w, msg, http.StatusInternalServerError)
+				return
+			}
+			sendAuthEmail(email)
 		} else {
-			if peer.User != req["email"] {
+			peer, err = GetPeer(fp)
+			if err != nil {
+				msg := fmt.Sprintf("Failed to get peer: %s", err)
+				Logger.Errorf(msg)
+				m, _ := json.Marshal(map[string]string{"m": msg})
+				http.Error(w, string(m), http.StatusInternalServerError)
+				return
+			}
+			if peer.User == "" {
+				peer = NewPeer(fp, req["name"], email, req["kind"])
+				err = db.AddPeer(peer)
+				if err != nil {
+					msg := fmt.Sprintf("Failed to add peer: %s", err)
+					Logger.Warn(msg)
+					http.Error(w, msg, http.StatusInternalServerError)
+					return
+				}
+			} else if peer.User != email {
 				msg := fmt.Sprintf(
 					"Fingerprint is associated to another email: %s", peer.User)
 				http.Error(w, msg, http.StatusConflict)
@@ -272,6 +291,9 @@ func serveVerify(w http.ResponseWriter, r *http.Request) {
 			}
 			if peer.Name != req["name"] {
 				peer.setName(req["name"])
+			}
+			if !peer.Verified {
+				sendAuthEmail(email)
 			}
 		}
 		m, err := json.Marshal(map[string]bool{"verified": peer.Verified})

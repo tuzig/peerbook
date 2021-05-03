@@ -107,3 +107,7 @@ func (p *Peer) SetOnline(o bool) {
 func (p *Peer) Key() string {
 	return fmt.Sprintf("peer:%s", p.FP)
 }
+func NewPeer(fp string, name string, user string, kind string) *Peer {
+	return &Peer{FP: fp, Name: name, Kind: kind, CreatedOn: time.Now().Unix(),
+		User: user, Verified: false, Online: false}
+}

@@ -101,22 +101,17 @@ func (d *DBType) Close() error {
 	return nil
 	// return d.conn.Close()
 }
+
+// AddPeer adds or updates a peer
 func (d *DBType) AddPeer(peer *Peer) error {
-	key := fmt.Sprintf("peer:%s", peer.FP)
-	exists, err := db.PeerExists(peer.FP)
+	conn := d.pool.Get()
+	defer conn.Close()
+	_, err := conn.Do("HSET", redis.Args{}.Add(peer.Key()).AddFlat(peer)...)
 	if err != nil {
 		return err
 	}
-	conn := d.pool.Get()
-	defer conn.Close()
-	if !exists {
-		_, err := conn.Do("HSET", redis.Args{}.Add(key).AddFlat(peer)...)
-		if err != nil {
-			return err
-		}
-	}
 	// add to the user's list
-	key = fmt.Sprintf("user:%s", peer.User)
+	key := fmt.Sprintf("user:%s", peer.User)
 	conn.Do("SADD", key, peer.FP)
 	return nil
 }
