@@ -265,8 +265,9 @@ func serveVerify(w http.ResponseWriter, r *http.Request) {
 			sendAuthEmail(req["email"])
 		} else {
 			if peer.User != req["email"] {
-				http.Error(w, "Fingerprint is associated to another email",
-					http.StatusConflict)
+				msg := fmt.Sprintf(
+					"Fingerprint is associated to another email: %s", peer.User)
+				http.Error(w, msg, http.StatusConflict)
 				return
 			}
 			if peer.Name != req["name"] {
