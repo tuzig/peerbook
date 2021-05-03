@@ -28,11 +28,19 @@ type Hub struct {
 
 // notifyPeers is called when the peer list changes
 func (h *Hub) notifyPeers(u string) error {
-	peers, err := GetUsersPeers(u)
+	var peers PeerList
+
+	ps, err := GetUsersPeers(u)
 	if err != nil {
 		return err
 	}
-	return h.multicast(peers, map[string]interface{}{"peers": peers})
+	for _, p := range *ps {
+		if p.Verified {
+			peers = append(peers, p)
+		}
+	}
+
+	return h.multicast(&peers, map[string]interface{}{"peers": peers})
 }
 func (h *Hub) multicast(peers *PeerList, msg map[string]interface{}) error {
 	u := ""

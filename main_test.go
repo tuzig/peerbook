@@ -326,6 +326,7 @@ func TestValidatePeerNPublish(t *testing.T) {
 	err = wsB.ReadJSON(&pl)
 	require.Nil(t, err)
 	require.Contains(t, pl, "peers")
+	require.Equal(t, 1, len(*pl["peers"]))
 	resp, err := http.PostForm("http://127.0.0.1:17777/list/avalidtoken",
 		url.Values{"A": {"checked"}, "B": {"checked"}})
 	require.Nil(t, err)
