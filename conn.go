@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"github.com/gomodule/redigo/redis"
 	"github.com/gorilla/websocket"
 	"net/http"
 	"time"
@@ -20,7 +22,7 @@ type Conn struct {
 // The application runs readPump in a per-connection goroutine. The application
 // ensures that there is at most one reader on a connection by executing all
 // reads from this goroutine.
-func (c *Conn) readPump() {
+func (c *Conn) readPump(onDone func()) {
 	defer func() {
 		hub.unregister <- c
 	}()
@@ -50,6 +52,7 @@ func (c *Conn) readPump() {
 		message["user"] = c.User
 		hub.requests <- message
 	}
+	onDone()
 }
 
 // pinger sends pings
@@ -91,16 +94,18 @@ func (c *Conn) pinger() {
 func (c *Conn) sendStatus(code int, e error) error {
 	Logger.Infof("Sending status %d %s", code, e)
 	msg := StatusMessage{code, e.Error()}
-	return c.Send(msg)
+	return SendMessage(c.FP, msg)
 }
 
 // Send send a message as json
-func (c *Conn) Send(msg interface{}) error {
-	if c.WS == nil {
-		return fmt.Errorf("trying to send a message to closed websocket: %v", msg)
+func SendMessage(target string, msg interface{}) error {
+	m, err := json.Marshal(msg)
+	conn := db.pool.Get()
+	defer conn.Close()
+	key := fmt.Sprintf("out:%s", tfp)
+	if _, err = c.Do("PUBLISH", key, m); err != nil {
+		return err
 	}
-	c.send <- msg
-	Logger.Infof("Added a message to send, it's size: %d", len(c.send))
 	return nil
 }
 
@@ -121,8 +126,12 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 		Logger.Errorf("Failed to upgrade socket: %w", err)
 	}
 	hub.register <- conn
-	go conn.readPump()
 	go conn.pinger()
+	ctx, cancel := context.WithCancel(context.Background())
+	go conn.listenOutChannel(ctx)
+	go conn.readPump(func() {
+		cancel()
+	})
 	// if it's an unverified peer, keep the connection open and send a status message
 	if !conn.Verified {
 		err = conn.sendStatus(401, fmt.Errorf(
@@ -142,4 +151,73 @@ func (c *Conn) SetOnline(o bool) error {
 		return err
 	}
 	return nil
+}
+
+func (c *Conn) onOutMessage(channel string, data []byte) {
+	Logger.Infof("sending message: %s", data)
+
+}
+
+// listenPubSubChannels listens for messages on Redis pubsub channels. The
+// onStart function is called after the channels are subscribed. The onMessage
+// function is called for each message.
+func (c *Conn) listenOutChannel(ctx context.Context) {
+	// A ping is set to the server with this period to test for the health of
+	// the connection and server.
+	const healthCheckPeriod = time.Minute
+	conn := db.pool.Get()
+	defer conn.Close()
+	psc := redis.PubSubConn{Conn: conn}
+	key := fmt.Sprintf("out:%s", c.FP)
+	if err := psc.Subscribe(key); err != nil {
+		Logger.Errorf("Failed subscribint to our messages: %s", err)
+		return
+	}
+
+	done := make(chan bool, 1)
+
+	// Start a goroutine to receive notifications from the server.
+	go func() {
+		for {
+			switch n := psc.Receive().(type) {
+			case error:
+				Logger.Errorf("Receive error from redis: %v", n)
+				done <- true
+				return
+			case redis.Message:
+				c.WS.SetWriteDeadline(time.Now().Add(writeWait))
+				err := c.WS.WriteMessage(websocket.TextMessage, n.Data)
+				if err != nil {
+					Logger.Warnf("Failed to write websocket msg: %s", err)
+					done <- true
+					return
+				}
+			}
+		}
+	}()
+
+	ticker := time.NewTicker(healthCheckPeriod)
+	defer ticker.Stop()
+loop:
+	for {
+		select {
+		case <-ticker.C:
+			// Send ping to test health of connection and server. If
+			// corresponding pong is not received, then receive on the
+			// connection will timeout and the receive goroutine will exit.
+			if err := psc.Ping(""); err != nil {
+				break loop
+			}
+		case <-ctx.Done():
+			break loop
+		case <-done:
+			break loop
+		}
+	}
+
+	// Signal the receiving goroutine to exit by unsubscribing from all channels.
+	if err := psc.Unsubscribe(); err != nil {
+		Logger.Errorf("Failed to unsubscribe: %s", err)
+	}
+	<-done
 }

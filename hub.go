@@ -112,31 +112,14 @@ func (h *Hub) handleMsg(m map[string]interface{}) {
 			Logger.Warnf("Ignoring an forwarding msg with no target")
 			return
 		}
-		target := v.(string)
-		t, found := h.conns[target]
-		if !found {
-			e := &TargetNotFound{target}
-			Logger.Warn(e)
-			t.sendStatus(http.StatusBadRequest, e)
-			return
-		}
-		user, found := m["user"]
-		if !found || t.User != user {
-			// Notify the source Unauthorized
-			Logger.Warnf("Ignoring forwarding across users")
-			source, found := m["source_fp"]
-			if found {
-				sc, found := h.conns[source.(string)]
-				if found {
-					sc.sendStatus(http.StatusUnauthorized,
-						fmt.Errorf("Target belongs to another user"))
-				}
-			}
-			return
-		}
+		tfp := v.(string)
+		// TODO: verify message is not across users
+		Logger.Infof("Forwarding: %v", m)
 		delete(m, "user")
 		delete(m, "target")
-		Logger.Infof("Forwarding: %v", m)
-		t.Send(m)
+		err := SendMessage(tfp, m)
+		if err != nil {
+			Logger.Errorf("Failed to encode a clients msg: %s", err)
+		}
 	}
 }
