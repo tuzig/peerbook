@@ -9,6 +9,17 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
+## [0.2.3] 2020-5-12
+
+### Added 
+
+- returning 409 on email mismatch
+
+### Fixed 
+
+- peer list to include only verified peers
+- improved notifications
+
 ## [0.2.2] 2020-4-29
 
 ### Fixed

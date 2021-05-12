@@ -1,6 +1,6 @@
 module github.com/tuzig/peerbook
 
-go 1.15
+go 1.16
 
 require (
 	github.com/alicebob/miniredis/v2 v2.14.3
