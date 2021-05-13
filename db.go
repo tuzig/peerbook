@@ -135,13 +135,16 @@ func GetPeer(fp string) (*Peer, error) {
 	}
 	return &pd, nil
 }
+
+// VerifyPeer is a function that sets the peers verification and publishes
+// it's new state to the user's channel
 func VerifyPeer(fp string, v bool) error {
 	rc := db.pool.Get()
 	defer rc.Close()
 	key := fmt.Sprintf("peer:%s", fp)
 	online, err := redis.Bool(rc.Do("HGET", key, "online"))
 	if err != nil {
-		return err
+		return fmt.Errorf("Failed to get online key: %s", err)
 	}
 	if v {
 		rc.Do("HSET", key, "verified", "1")
@@ -159,14 +162,14 @@ func VerifyPeer(fp string, v bool) error {
 	}
 	user, err := redis.String(rc.Do("HGET", key, "user"))
 	if err != nil {
-		return err
+		return fmt.Errorf("Failed to hget user from %s: %w", key, err)
 	}
 	// publish the peer's state
 	key = fmt.Sprintf("peers:%s", user)
 	msg := map[string]PeerUpdate{"peers": PeerUpdate{fp, v, online}}
 	m, err := json.Marshal(msg)
 	if _, err = rc.Do("PUBLISH", key, m); err != nil {
-		return err
+		return fmt.Errorf("Failed to publish to %s: %w", key, err)
 	}
 	return nil
 }
