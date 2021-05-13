@@ -195,12 +195,14 @@ func (c *Conn) subscribe(ctx context.Context) {
 				done <- true
 				return
 			case redis.Message:
-				c.WS.SetWriteDeadline(time.Now().Add(writeWait))
-				err := c.WS.WriteMessage(websocket.TextMessage, n.Data)
-				if err != nil {
-					Logger.Warnf("Failed to write websocket msg: %s", err)
-					done <- true
-					return
+				if c.Verified {
+					c.WS.SetWriteDeadline(time.Now().Add(writeWait))
+					err := c.WS.WriteMessage(websocket.TextMessage, n.Data)
+					if err != nil {
+						Logger.Warnf("Failed to write websocket msg: %s", err)
+						done <- true
+						return
+					}
 				}
 			}
 		}
