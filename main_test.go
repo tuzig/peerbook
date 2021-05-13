@@ -209,12 +209,15 @@ func TestHTTPPeerVerification(t *testing.T) {
 	redisDouble.SetAdd("user:j", "A", "B")
 	redisDouble.Set("token:avalidtoken", "j")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
-		"user", "j", "verified", "1")
+		"user", "j", "verified", "1", "online", "0")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "foo", "kind", "lay",
-		"user", "j", "verified", "0")
+		"user", "j", "verified", "0", "online", "0")
 	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar")
 	require.Nil(t, err)
 	defer ws.Close()
+	if err = ws.SetReadDeadline(time.Now().Add(ReadTimeout)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
 	err = ws.ReadJSON(&s)
 	require.Nil(t, err)
 	require.Equal(t, 401, s.Code)

@@ -150,9 +150,7 @@ func VerifyPeer(fp string, v bool) error {
 		rc.Do("HSET", key, "verified", "1")
 		if online {
 			SendMessage(fp, StatusMessage{200, "peer is verified"})
-			Logger.Infof("Sent a 200 to a newly verified peer")
-		} else {
-			Logger.Infof("Verified an offline peer")
+			Logger.Infof("Sent a 200 to %q - a newly verified peer", fp)
 		}
 	} else {
 		rc.Do("HSET", key, "verified", "0")

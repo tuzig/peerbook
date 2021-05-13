@@ -205,8 +205,11 @@ func (c *Conn) subscribe(ctx context.Context) {
 			case redis.Message:
 				Logger.Infof("%q got a message: %s", c.FP, n.Data)
 				if c.Verified {
+					Logger.Infof("forwarding %q message: %s", c.FP, n.Data)
 					c.WS.SetWriteDeadline(time.Now().Add(writeWait))
 					c.send <- n.Data
+				} else {
+					Logger.Infof("ignoring %q message: %s", c.FP, n.Data)
 				}
 			}
 		}
