@@ -1,9 +1,10 @@
 package main
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestSetPeerOnline(t *testing.T) {
@@ -16,20 +17,18 @@ func TestSetPeerOnline(t *testing.T) {
 	c.SetOnline(false)
 	require.Equal(t, "0", redisDouble.HGet("peer:A", "online"))
 }
-func TestNotifyPeers(t *testing.T) {
+func TestPeersNotifications(t *testing.T) {
 	startTest(t)
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "1")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
-		"user", "j", "verified", "1")
+		"user", "j", "verified", "0")
 	redisDouble.SAdd("user:j", "A", "B")
 	wsA, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&email=j")
 	defer wsA.Close()
 	wsB, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&email=j")
 	require.Nil(t, err)
 	defer wsB.Close()
-	redisDouble.HSet("peer:A", "verified", "1")
-	redisDouble.HSet("peer:B", "verified", "0")
 	if err := wsA.SetReadDeadline(time.Now().Add(time.Second / 100)); err != nil {
 		t.Fatalf("SetReadDeadline: %v", err)
 	}
@@ -37,7 +36,7 @@ func TestNotifyPeers(t *testing.T) {
 	err = wsA.ReadJSON(&i)
 	require.Nil(t, err)
 	_, found := i["peers"]
-	require.True(t, found)
+	require.True(t, found, "No peers in: %v", i)
 	if err := wsB.SetReadDeadline(time.Now().Add(time.Second / 100)); err != nil {
 		t.Fatalf("SetReadDeadline: %v", err)
 	}

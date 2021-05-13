@@ -4,14 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/alicebob/miniredis/v2"
-	"github.com/gorilla/websocket"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap/zaptest"
 	"net/http"
 	"net/url"
 	"testing"
 	"time"
+
+	"github.com/alicebob/miniredis/v2"
+	"github.com/gorilla/websocket"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 )
 
 var cstDialer = websocket.Dialer{
@@ -102,13 +103,23 @@ func TestSignalingAcrossUsers(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, 401, s.Code)
 }
+
+// TestValidSignaling runs through the following steps:
+// - setup db with user J and his A & B peers
+// - use websockets to connect A and then B
+// - peer A reads to two peers messages
+// - peer B reads a peers message
+// - peer A send an offer
+// - peer B recieves the offer
+// - peer B send an answer
+// - peer A recieves the answer
 func TestValidSignaling(t *testing.T) {
 	startTest(t)
 	redisDouble.SetAdd("user:j", "A", "B")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
-		"user", "j", "verified", "1")
+		"user", "j", "verified", "1", "online", "0")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
-		"user", "j", "verified", "1")
+		"user", "j", "verified", "1", "online", "0")
 	// create client, connect to the hu
 	wsA, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&email=j")
 	defer wsA.Close()
@@ -135,6 +146,11 @@ func TestValidSignaling(t *testing.T) {
 	err = wsB.ReadJSON(&pl)
 	require.Nil(t, err)
 	require.Contains(t, pl, "peers")
+	Logger.Infof("Got peers: %v", *pl["peers"])
+	err = wsB.ReadJSON(&pl)
+	require.Nil(t, err)
+	Logger.Infof("Got peers: %v", *pl["peers"])
+	require.Contains(t, pl, "peers")
 	// end of peers messages
 	err = wsA.SetWriteDeadline(time.Now().Add(time.Second))
 	require.Nil(t, err)
@@ -143,10 +159,10 @@ func TestValidSignaling(t *testing.T) {
 	if err := wsB.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 		t.Fatalf("SetReadDeadline: %v", err)
 	}
-	var o OfferMessage
-	err = wsB.ReadJSON(&o)
+	var msg map[string]interface{}
+	err = wsB.ReadJSON(&msg)
 	require.Nil(t, err)
-	require.Equal(t, "an offer", o.Offer)
+	require.Equal(t, "an offer", msg["offer"], "Got a msg: %v", msg)
 	err = wsB.SetWriteDeadline(time.Now().Add(time.Second))
 	require.Nil(t, err)
 	err = wsB.WriteJSON(map[string]string{"answer": "B's answer", "target": "A"})

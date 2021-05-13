@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/gomodule/redigo/redis"
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"github.com/gomodule/redigo/redis"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetPeer(t *testing.T) {
@@ -50,13 +51,15 @@ func TestGetUserList(t *testing.T) {
 }
 func TestVerifyPeer(t *testing.T) {
 	startTest(t)
-	redisDouble.HSet("peer:bar", "fp", "bar", "name", "behind a. recognition", "user", "j")
+	redisDouble.HSet("peer:bar", "fp", "bar", "name", "behind a. recognition",
+	"user", "j", "online", "0")
 	redisDouble.SAdd("user:j", "bar")
 	list, err := GetUsersPeers("j")
 	require.Nil(t, err)
 	peer := (*list)[0]
 	require.Equal(t, false, peer.Verified)
-	VerifyPeer("bar", true)
+	err = VerifyPeer("bar", true)
+	require.Nil(t, err)
 	require.Equal(t, "1", redisDouble.HGet("peer:bar", "verified"))
 }
 func TestCreateToken(t *testing.T) {

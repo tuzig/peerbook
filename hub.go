@@ -4,8 +4,6 @@
 
 package main
 
-import ()
-
 // Hub maintains the set of active peers and broadcasts messages to the
 // peers.
 type Hub struct {
