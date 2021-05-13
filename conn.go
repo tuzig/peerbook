@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/gomodule/redigo/redis"
-	"github.com/gorilla/websocket"
 	"net/http"
 	"time"
+
+	"github.com/gomodule/redigo/redis"
+	"github.com/gorilla/websocket"
 )
 
 type Conn struct {
@@ -152,9 +153,9 @@ func (c *Conn) SetOnline(o bool) error {
 		return err
 	}
 	// publish the peers state
+	m, err := json.Marshal(map[string][]PeerUpdate{
+		"peers": []PeerUpdate{PeerUpdate{c.FP, c.Verified, o}}})
 	key = fmt.Sprintf("peers:%s", c.User)
-	msg := PeerUpdate{c.FP, c.Verified, o}
-	m, err := json.Marshal(msg)
 	if _, err = rc.Do("PUBLISH", key, m); err != nil {
 		return err
 	}
