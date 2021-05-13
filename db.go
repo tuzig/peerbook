@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -134,26 +135,38 @@ func GetPeer(fp string) (*Peer, error) {
 	}
 	return &pd, nil
 }
-func VerifyPeer(fp string, v bool) {
+func VerifyPeer(fp string, v bool) error {
 	rc := db.pool.Get()
 	defer rc.Close()
 	key := fmt.Sprintf("peer:%s", fp)
-	c, connected := hub.conns[fp]
-	if connected {
-		c.Verified = v
+	online, err := redis.Bool(rc.Do("HGET", key, "online"))
+	if err != nil {
+		return err
 	}
 	if v {
 		rc.Do("HSET", key, "verified", "1")
-		if connected {
-			c.Send(StatusMessage{200, "peer is verified"})
+		if online {
+			SendMessage(fp, StatusMessage{200, "peer is verified"})
 			Logger.Infof("Sent a 200 to a newly verified peer")
 		} else {
 			Logger.Infof("Verified an offline peer")
 		}
 	} else {
 		rc.Do("HSET", key, "verified", "0")
-		if connected {
-			c.sendStatus(401, fmt.Errorf("peer's verification was revoked"))
+		if online {
+			SendMessage(fp, StatusMessage{401, "peer's verification was revoked"})
 		}
 	}
+	user, err := redis.String(rc.Do("HGET", key, "user"))
+	if err != nil {
+		return err
+	}
+	// publish the peer's state
+	key = fmt.Sprintf("peers:%s", user)
+	msg := map[string]PeerUpdate{"peers": PeerUpdate{fp, v, online}}
+	m, err := json.Marshal(msg)
+	if _, err = rc.Do("PUBLISH", key, m); err != nil {
+		return err
+	}
+	return nil
 }

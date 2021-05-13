@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/gomodule/redigo/redis"
 	"github.com/gorilla/websocket"
@@ -97,13 +98,13 @@ func (c *Conn) sendStatus(code int, e error) error {
 	return SendMessage(c.FP, msg)
 }
 
-// Send send a message as json
-func SendMessage(target string, msg interface{}) error {
+// SendMessage sends a message as json
+func SendMessage(tfp string, msg interface{}) error {
 	m, err := json.Marshal(msg)
-	conn := db.pool.Get()
-	defer conn.Close()
+	rc := db.pool.Get()
+	defer rc.Close()
 	key := fmt.Sprintf("out:%s", tfp)
-	if _, err = c.Do("PUBLISH", key, m); err != nil {
+	if _, err = rc.Do("PUBLISH", key, m); err != nil {
 		return err
 	}
 	return nil
@@ -128,13 +129,13 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 	hub.register <- conn
 	go conn.pinger()
 	ctx, cancel := context.WithCancel(context.Background())
-	go conn.listenOutChannel(ctx)
+	go conn.subscribe(ctx)
 	go conn.readPump(func() {
 		cancel()
 	})
 	// if it's an unverified peer, keep the connection open and send a status message
 	if !conn.Verified {
-		err = conn.sendStatus(401, fmt.Errorf(
+		err = conn.sendStatus(402, fmt.Errorf(
 			"Unverified peer, please check your inbox to verify"))
 		if err != nil {
 			Logger.Errorf("Failed to send status message: %s", err)
@@ -142,7 +143,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// SetOnline sets the related peer's online redis cache and notifies peers
+// SetOnline sets the related peer's online redis and notifies peers
 func (c *Conn) SetOnline(o bool) error {
 	key := fmt.Sprintf("peer:%s", c.FP)
 	rc := db.pool.Get()
@@ -150,26 +151,35 @@ func (c *Conn) SetOnline(o bool) error {
 	if _, err := rc.Do("HSET", key, "online", o); err != nil {
 		return err
 	}
+	// publish the peers state
+	key = fmt.Sprintf("peers:%s", c.User)
+	msg := PeerUpdate{c.FP, c.Verified, o}
+	m, err := json.Marshal(msg)
+	if _, err = rc.Do("PUBLISH", key, m); err != nil {
+		return err
+	}
 	return nil
 }
 
-func (c *Conn) onOutMessage(channel string, data []byte) {
-	Logger.Infof("sending message: %s", data)
-
+func (c *Conn) SendPeerList() error {
+	ps, err := GetUsersPeers(c.User)
+	if err != nil {
+		return err
+	}
+	return SendMessage(c.FP, map[string]interface{}{"peers": ps})
 }
 
-// listenPubSubChannels listens for messages on Redis pubsub channels. The
-// onStart function is called after the channels are subscribed. The onMessage
-// function is called for each message.
-func (c *Conn) listenOutChannel(ctx context.Context) {
+// subscribe listens for messages on Redis pubsub channels. The
+func (c *Conn) subscribe(ctx context.Context) {
 	// A ping is set to the server with this period to test for the health of
 	// the connection and server.
 	const healthCheckPeriod = time.Minute
 	conn := db.pool.Get()
 	defer conn.Close()
 	psc := redis.PubSubConn{Conn: conn}
-	key := fmt.Sprintf("out:%s", c.FP)
-	if err := psc.Subscribe(key); err != nil {
+	outK := fmt.Sprintf("out:%s", c.FP)
+	peersK := fmt.Sprintf("peers:%s", c.User)
+	if err := psc.Subscribe(outK, peersK); err != nil {
 		Logger.Errorf("Failed subscribint to our messages: %s", err)
 		return
 	}

@@ -32,7 +32,6 @@ func startTest(t *testing.T) {
 		mainRunning = true
 		// let the server open
 	} else {
-		hub.conns = map[string]*Conn{}
 		redisDouble.FlushAll()
 	}
 	time.Sleep(time.Millisecond * 10)
@@ -116,8 +115,6 @@ func TestValidSignaling(t *testing.T) {
 	wsB, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&email=j")
 	require.Nil(t, err)
 	defer wsB.Close()
-	hub.conns["A"].Verified = true
-	hub.conns["B"].Verified = true
 	// read all the peers messages
 	var pl map[string]*PeerList
 	if err = wsA.SetReadDeadline(time.Now().Add(time.Second / 100)); err != nil {

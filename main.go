@@ -156,31 +156,24 @@ func serveList(w http.ResponseWriter, r *http.Request) {
 		for k, _ := range r.Form {
 			verified[k] = true
 		}
-		notify := false
 		for _, p := range *peers {
+			var err error
 			_, toBeV := verified[p.FP]
 			if p.Verified && !toBeV {
 				p.Verified = false
-				VerifyPeer(p.FP, false)
-				notify = true
+				err = VerifyPeer(p.FP, false)
 			}
 			if !p.Verified && toBeV {
 				p.Verified = true
-				VerifyPeer(p.FP, true)
-				notify = true
+				err = VerifyPeer(p.FP, true)
 			}
-		}
-		if notify {
-			Logger.Infof("Notifying peers of %q of list changes", user)
-			err = hub.multicast(peers, map[string]interface{}{"peers": peers})
 			if err != nil {
-				msg := fmt.Sprintf("Failing notifying peers of changes: %s", err)
+				msg := fmt.Sprintf("Failed to verify peer: %s", err)
 				Logger.Errorf(msg)
-				http.Error(w, `{"msg": "`+msg+`"}`,
-					http.StatusInternalServerError)
+				http.Error(w, msg, http.StatusInternalServerError)
+				return
 			}
 		}
-
 		w.Write([]byte(HTMLThankYou))
 	}
 }
@@ -393,7 +386,6 @@ func main() {
 	hub = Hub{
 		register:   make(chan *Conn),
 		unregister: make(chan *Conn),
-		conns:      make(map[string]*Conn),
 		requests:   make(chan map[string]interface{}, 16),
 	}
 	go hub.run()
@@ -418,11 +410,6 @@ func ConnFromQ(q url.Values) (*Conn, error) {
 	fp := q.Get("fp")
 	if fp == "" {
 		return nil, &PeerNotFound{}
-	}
-	_, found := hub.conns[fp]
-	if found {
-		Logger.Errorf("Peer already connected")
-		return nil, fmt.Errorf("Peer is aleadt connected")
 	}
 	peer, err := GetPeer(fp)
 	if err != nil {

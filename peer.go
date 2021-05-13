@@ -47,6 +47,12 @@ type Peer struct {
 }
 type PeerList []*Peer
 
+type PeerUpdate struct {
+	FP       string `redis:"fp" json:"fp"`
+	Verified bool   `redis:"verified" json:"verified,omitempty"`
+	Online   bool   `redis:"online" json:"online"`
+}
+
 // StatusMessage is used to update the peer to a change of state,
 // like 200 after the peer has been authorized
 type StatusMessage struct {

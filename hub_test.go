@@ -30,12 +30,9 @@ func TestNotifyPeers(t *testing.T) {
 	defer wsB.Close()
 	redisDouble.HSet("peer:A", "verified", "1")
 	redisDouble.HSet("peer:B", "verified", "0")
-	hub.conns["A"].Verified = true
-	hub.conns["B"].Verified = false
 	if err := wsA.SetReadDeadline(time.Now().Add(time.Second / 100)); err != nil {
 		t.Fatalf("SetReadDeadline: %v", err)
 	}
-	hub.notifyPeers("j")
 	var i map[string]interface{}
 	err = wsA.ReadJSON(&i)
 	require.Nil(t, err)
