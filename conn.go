@@ -5,17 +5,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/gomodule/redigo/redis"
 	"github.com/gorilla/websocket"
 )
 
+const SendBufSize = 4096
+
 type Conn struct {
 	WS       *websocket.Conn
 	FP       string
 	Verified bool
-	send     chan interface{}
+	send     chan []byte
 	User     string
 }
 
@@ -50,9 +53,10 @@ func (c *Conn) readPump(onDone func()) {
 			c.sendStatus(http.StatusUnauthorized, e)
 			continue
 		}
-		message["source_fp"] = c.FP
-		message["user"] = c.User
-		hub.requests <- message
+		// message["source_fp"] = c.FP
+		// message["user"] = c.User
+		c.handleMessage(message)
+		// hub.requests <- message
 	}
 	onDone()
 }
@@ -72,9 +76,8 @@ func (c *Conn) pinger() {
 				Logger.Errorf("Got a bad message to send")
 				return
 			}
-			Logger.Infof("sending message: %v", message)
 			c.WS.SetWriteDeadline(time.Now().Add(writeWait))
-			err := c.WS.WriteJSON(message)
+			err := c.WS.WriteMessage(websocket.TextMessage, message)
 			if err != nil {
 				Logger.Warnf("Failed to get websocket writer: %s", err)
 				continue
@@ -95,8 +98,12 @@ func (c *Conn) pinger() {
 }
 func (c *Conn) sendStatus(code int, e error) error {
 	Logger.Infof("Sending status %d %s", code, e)
-	msg := StatusMessage{code, e.Error()}
-	return SendMessage(c.FP, msg)
+	m, err := json.Marshal(StatusMessage{code, e.Error()})
+	if err != nil {
+		return err
+	}
+	c.send <- m
+	return nil
 }
 
 // SendMessage sends a message as json
@@ -136,7 +143,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 	})
 	// if it's an unverified peer, keep the connection open and send a status message
 	if !conn.Verified {
-		err = conn.sendStatus(402, fmt.Errorf(
+		err = conn.sendStatus(401, fmt.Errorf(
 			"Unverified peer, please check your inbox to verify"))
 		if err != nil {
 			Logger.Errorf("Failed to send status message: %s", err)
@@ -152,9 +159,9 @@ func (c *Conn) SetOnline(o bool) error {
 	if _, err := rc.Do("HSET", key, "online", o); err != nil {
 		return err
 	}
-	// publish the peers state
-	m, err := json.Marshal(map[string][]PeerUpdate{
-		"peers": []PeerUpdate{PeerUpdate{c.FP, c.Verified, o}}})
+	// publish the peer update
+	m, err := json.Marshal(map[string]PeerUpdate{
+		"peer_update": PeerUpdate{c.FP, c.Verified, o}})
 	key = fmt.Sprintf("peers:%s", c.User)
 	if _, err = rc.Do("PUBLISH", key, m); err != nil {
 		return err
@@ -196,14 +203,10 @@ func (c *Conn) subscribe(ctx context.Context) {
 				done <- true
 				return
 			case redis.Message:
+				Logger.Infof("%q got a message: %s", c.FP, n.Data)
 				if c.Verified {
 					c.WS.SetWriteDeadline(time.Now().Add(writeWait))
-					err := c.WS.WriteMessage(websocket.TextMessage, n.Data)
-					if err != nil {
-						Logger.Warnf("Failed to write websocket msg: %s", err)
-						done <- true
-						return
-					}
+					c.send <- n.Data
 				}
 			}
 		}
@@ -233,4 +236,67 @@ loop:
 		Logger.Errorf("Failed to unsubscribe: %s", err)
 	}
 	<-done
+}
+
+// ConnFromQ retruns a fresh Peer based on query paramets: fp, name, kind &
+// email
+func ConnFromQ(q url.Values) (*Conn, error) {
+	fp := q.Get("fp")
+	if fp == "" {
+		return nil, &PeerNotFound{}
+	}
+	peer, err := GetPeer(fp)
+	if err != nil {
+		return nil, err
+	}
+	if peer == nil {
+		return nil, &PeerNotFound{}
+	}
+	verified, err := IsVerified(fp)
+	if err != nil {
+		return nil, err
+	}
+
+	ret := Conn{FP: fp,
+		Verified: verified,
+		User:     peer.User,
+		send:     make(chan []byte, SendBufSize)}
+	return &ret, nil
+}
+
+func (c *Conn) handleMessage(m map[string]interface{}) {
+	_, offer := m["offer"]
+	_, answer := m["answer"]
+	_, candidate := m["candidate"]
+	if offer || answer || candidate {
+		v, found := m["target"]
+		if !found {
+			Logger.Warnf("Ignoring an forwarding msg with no target")
+			return
+		}
+		tfp := v.(string)
+		// verify message is not across users
+		rc := db.pool.Get()
+		defer rc.Close()
+		key := fmt.Sprintf("peer:%s", tfp)
+		targetUser, err := redis.String(rc.Do("HGET", key, "user"))
+		if err != nil {
+			Logger.Errorf("Failed to encode a clients msg: %s", err)
+			return
+		}
+		if c.User != targetUser {
+			Logger.Warnf("Refusing to forward across users: %s => %s  ",
+				c.User, targetUser)
+			c.sendStatus(http.StatusUnauthorized,
+				fmt.Errorf("Target peer belongs to user %q", targetUser))
+			return
+		}
+
+		Logger.Infof("Forwarding: %v", m)
+		delete(m, "target")
+		SendMessage(tfp, m)
+		if err != nil {
+			Logger.Errorf("Failed to encode a clients msg: %s", err)
+		}
+	}
 }

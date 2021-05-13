@@ -15,6 +15,9 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
+const ReadTimeout = time.Second * 5
+const WriteTimeout = time.Second * 1
+
 var cstDialer = websocket.Dialer{
 	ReadBufferSize:   1024,
 	WriteBufferSize:  1024,
@@ -68,40 +71,41 @@ func TestSignalingAcrossUsers(t *testing.T) {
 	wsA, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&email=j")
 	require.Nil(t, err)
 	defer wsA.Close()
+	if err = wsA.SetReadDeadline(time.Now().Add(ReadTimeout)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
 	wsB, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&email=h")
 	require.Nil(t, err)
 	defer wsB.Close()
-	// clean the pipe by reading the first three peers messages
-	var pl map[string]*PeerList
-	if err = wsA.SetReadDeadline(time.Now().Add(time.Second / 100)); err != nil {
+	if err = wsB.SetReadDeadline(time.Now().Add(ReadTimeout)); err != nil {
 		t.Fatalf("SetReadDeadline: %v", err)
 	}
+	// clean the pipe by reading the first three peers messages
+	var pl map[string]interface{}
+	time.Sleep(time.Second / 5)
 	err = wsA.ReadJSON(&pl)
 	require.Nil(t, err)
 	require.Contains(t, pl, "peers")
-	if err = wsB.SetReadDeadline(time.Now().Add(time.Second / 100)); err != nil {
-		t.Fatalf("SetReadDeadline: %v", err)
-	}
+	err = wsA.ReadJSON(&pl)
+	require.Nil(t, err)
+	require.Contains(t, pl, "peer_update")
 	err = wsB.ReadJSON(&pl)
 	require.Nil(t, err)
 	require.Contains(t, pl, "peers")
+	err = wsB.ReadJSON(&pl)
+	require.Nil(t, err)
+	require.Contains(t, pl, "peer_update")
 	err = wsA.SetWriteDeadline(time.Now().Add(time.Second))
 	require.Nil(t, err)
+	// send the offer
 	err = wsA.WriteJSON(map[string]string{"offer": "an offer", "target": "B"})
 	require.Nil(t, err)
-	if err := wsB.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
-		t.Fatalf("SetReadDeadline: %v", err)
-	}
-	var o OfferMessage
-	err = wsB.ReadJSON(&o)
-	require.NotNil(t, err, "Got message %v", o)
-	if err := wsA.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
-		t.Fatalf("SetReadDeadline: %v", err)
-	}
-	var s StatusMessage
-	err = wsA.ReadJSON(&s)
+	var m map[string]interface{}
+	err = wsA.ReadJSON(&m)
 	require.Nil(t, err)
-	require.Equal(t, 401, s.Code)
+	require.Equal(t, float64(401), m["code"].(float64), "msg: %v", m)
+	err = wsB.ReadJSON(&m)
+	require.NotNil(t, err, "Got message %v", m)
 }
 
 // TestValidSignaling runs through the following steps:
@@ -122,54 +126,48 @@ func TestValidSignaling(t *testing.T) {
 		"user", "j", "verified", "1", "online", "0")
 	// create client, connect to the hu
 	wsA, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&email=j")
+	require.Nil(t, err)
 	defer wsA.Close()
+	if err = wsA.SetReadDeadline(time.Now().Add(ReadTimeout)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
 	wsB, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&email=j")
 	require.Nil(t, err)
 	defer wsB.Close()
+	if err = wsB.SetReadDeadline(time.Now().Add(ReadTimeout)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
 	// read all the peers messages
-	var pl map[string]*PeerList
-	if err = wsA.SetReadDeadline(time.Now().Add(time.Second / 100)); err != nil {
-		t.Fatalf("SetReadDeadline: %v", err)
-	}
-	err = wsA.ReadJSON(&pl)
+	var m map[string]interface{}
+	err = wsA.ReadJSON(&m)
 	require.Nil(t, err)
-	require.Contains(t, pl, "peers")
-	if err = wsA.SetReadDeadline(time.Now().Add(time.Second / 100)); err != nil {
-		t.Fatalf("SetReadDeadline: %v", err)
-	}
-	err = wsA.ReadJSON(&pl)
+	require.Contains(t, m, "peers")
+	err = wsA.ReadJSON(&m)
 	require.Nil(t, err)
-	require.Contains(t, pl, "peers")
-	if err = wsB.SetReadDeadline(time.Now().Add(time.Second / 100)); err != nil {
-		t.Fatalf("SetReadDeadline: %v", err)
-	}
-	err = wsB.ReadJSON(&pl)
+	require.Contains(t, m, "peer_update")
+	err = wsB.ReadJSON(&m)
 	require.Nil(t, err)
-	require.Contains(t, pl, "peers")
-	Logger.Infof("Got peers: %v", *pl["peers"])
-	err = wsB.ReadJSON(&pl)
+	require.Contains(t, m, "peers")
+	err = wsB.ReadJSON(&m)
 	require.Nil(t, err)
-	Logger.Infof("Got peers: %v", *pl["peers"])
-	require.Contains(t, pl, "peers")
+	require.Contains(t, m, "peer_update")
 	// end of peers messages
-	err = wsA.SetWriteDeadline(time.Now().Add(time.Second))
+	err = wsA.SetWriteDeadline(time.Now().Add(WriteTimeout))
 	require.Nil(t, err)
 	err = wsA.WriteJSON(map[string]string{"offer": "an offer", "target": "B"})
 	require.Nil(t, err)
-	if err := wsB.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
-		t.Fatalf("SetReadDeadline: %v", err)
-	}
 	var msg map[string]interface{}
 	err = wsB.ReadJSON(&msg)
 	require.Nil(t, err)
 	require.Equal(t, "an offer", msg["offer"], "Got a msg: %v", msg)
-	err = wsB.SetWriteDeadline(time.Now().Add(time.Second))
+	err = wsB.SetWriteDeadline(time.Now().Add(WriteTimeout))
 	require.Nil(t, err)
 	err = wsB.WriteJSON(map[string]string{"answer": "B's answer", "target": "A"})
 	require.Nil(t, err)
-	if err := wsA.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
-		t.Fatalf("SetReadDeadline: %v", err)
-	}
+	time.Sleep(time.Second / 5)
+	err = wsA.ReadJSON(&m)
+	require.Nil(t, err)
+	require.Contains(t, m, "peer_update")
 	var a AnswerMessage
 	err = wsA.ReadJSON(&a)
 	require.Equal(t, "B's answer", a.Answer)
@@ -332,14 +330,17 @@ func TestValidatePeerNPublish(t *testing.T) {
 	err = wsA.ReadJSON(&s)
 	require.Nil(t, err)
 	require.Equal(t, 401, s.Code)
-	if err = wsB.SetReadDeadline(time.Now().Add(time.Second / 100)); err != nil {
+	if err = wsB.SetReadDeadline(time.Now().Add(ReadTimeout)); err != nil {
 		t.Fatalf("SetReadDeadline: %v", err)
 	}
+	err = wsB.ReadJSON(&s)
+	require.Nil(t, err)
+	require.Equal(t, 200, s.Code, "got message: %v", s)
 	var pl map[string]*PeerList
 	err = wsB.ReadJSON(&pl)
 	require.Nil(t, err)
 	require.Contains(t, pl, "peers")
-	require.Equal(t, 1, len(*pl["peers"]))
+	require.Equal(t, 2, len(*pl["peers"]))
 	resp, err := http.PostForm("http://127.0.0.1:17777/list/avalidtoken",
 		url.Values{"A": {"checked"}, "B": {"checked"}})
 	require.Nil(t, err)
@@ -347,22 +348,20 @@ func TestValidatePeerNPublish(t *testing.T) {
 	defer resp.Body.Close()
 	require.Equal(t, "1", redisDouble.HGet("peer:A", "verified"))
 	// read the upodated status
-	if err = wsA.SetReadDeadline(time.Now().Add(time.Second / 100)); err != nil {
+	if err = wsA.SetReadDeadline(time.Now().Add(ReadTimeout)); err != nil {
 		t.Fatalf("SetReadDeadline: %v", err)
 	}
+	var m map[string]interface{}
+	err = wsA.ReadJSON(&m)
+	require.Nil(t, err)
+	require.Contains(t, m, "code", "got msg %v", m)
 	err = wsA.ReadJSON(&s)
 	require.Nil(t, err)
 	require.Equal(t, 200, s.Code)
 	// and the peers
-	if err = wsA.SetReadDeadline(time.Now().Add(time.Second / 100)); err != nil {
-		t.Fatalf("SetReadDeadline: %v", err)
-	}
 	err = wsA.ReadJSON(&pl)
 	require.Nil(t, err)
 	require.Contains(t, pl, "peers")
-	if err = wsB.SetReadDeadline(time.Now().Add(time.Second / 100)); err != nil {
-		t.Fatalf("SetReadDeadline: %v", err)
-	}
 	err = wsB.ReadJSON(&pl)
 	require.Nil(t, err)
 	require.Contains(t, pl, "peers")

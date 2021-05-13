@@ -40,6 +40,8 @@ func TestPeersNotifications(t *testing.T) {
 	if err := wsB.SetReadDeadline(time.Now().Add(time.Second / 100)); err != nil {
 		t.Fatalf("SetReadDeadline: %v", err)
 	}
-	err = wsB.ReadJSON(&i)
-	require.NotNil(t, err, "Managed to read: %v", i)
+	var s StatusMessage
+	err = wsB.ReadJSON(&s)
+	require.Nil(t, err)
+	require.Equal(t, 401, s.Code)
 }

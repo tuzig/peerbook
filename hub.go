@@ -21,11 +21,11 @@ func (h *Hub) run() {
 	for {
 		select {
 		case c := <-h.register:
+			c.SendPeerList()
 			if err := c.SetOnline(true); err != nil {
 				Logger.Errorf("Failed setting a peer as online: %s", err)
 				continue
 			}
-			c.SendPeerList()
 		case c := <-h.unregister:
 			if c.WS != nil {
 				c.WS.Close()
@@ -34,30 +34,6 @@ func (h *Hub) run() {
 				Logger.Errorf("Failed setting a peer as offline: %s", err)
 				continue
 			}
-
-		case m := <-h.requests:
-			h.handleMsg(m)
-		}
-	}
-}
-func (h *Hub) handleMsg(m map[string]interface{}) {
-	_, offer := m["offer"]
-	_, answer := m["answer"]
-	_, candidate := m["candidate"]
-	if offer || answer || candidate {
-		v, found := m["target"]
-		if !found {
-			Logger.Warnf("Ignoring an forwarding msg with no target")
-			return
-		}
-		tfp := v.(string)
-		// TODO: verify message is not across users
-		Logger.Infof("Forwarding: %v", m)
-		delete(m, "user")
-		delete(m, "target")
-		err := SendMessage(tfp, m)
-		if err != nil {
-			Logger.Errorf("Failed to encode a clients msg: %s", err)
 		}
 	}
 }

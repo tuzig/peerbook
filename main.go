@@ -9,11 +9,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/rs/cors"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"gopkg.in/gomail.v2" //go get gopkg.in/gomail.v2
-	"gopkg.in/natefinch/lumberjack.v2"
 	"log"
 	"net/http"
 	"net/url"
@@ -21,6 +16,12 @@ import (
 	"os/signal"
 	"strings"
 	"sync"
+
+	"github.com/rs/cors"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"gopkg.in/gomail.v2" //go get gopkg.in/gomail.v2
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 // SendChanSize is the size of the send channel in messages
@@ -402,31 +403,6 @@ func main() {
 	}
 	// wait for goroutine started in startHTTPServer() to stop
 	httpServerExitDone.Wait()
-}
-
-// ConnFromQ retruns a fresh Peer based on query paramets: fp, name, kind &
-// email
-func ConnFromQ(q url.Values) (*Conn, error) {
-	fp := q.Get("fp")
-	if fp == "" {
-		return nil, &PeerNotFound{}
-	}
-	peer, err := GetPeer(fp)
-	if err != nil {
-		return nil, err
-	}
-	if peer == nil {
-		return nil, &PeerNotFound{}
-	}
-	verified, err := IsVerified(fp)
-	if err != nil {
-		return nil, err
-	}
-	ret := Conn{FP: fp,
-		Verified: verified,
-		User:     peer.User,
-		send:     make(chan interface{}, SendChanSize)}
-	return &ret, nil
 }
 
 // sendAuthEmail creates a short lived token and emails a message with a link
