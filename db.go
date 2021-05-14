@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
@@ -151,11 +152,22 @@ func VerifyPeer(fp string, v bool) error {
 		if online {
 			SendMessage(fp, StatusMessage{200, "peer is verified"})
 			Logger.Infof("Sent a 200 to %q - a newly verified peer", fp)
+			user, err := redis.String(rc.Do("HGET", key, "user"))
+			if err != nil {
+				return fmt.Errorf("Failed to get a peer's user: %w", err)
+			}
+			// send the peers
+			ps, err := GetUsersPeers(user)
+			if err != nil {
+				return err
+			}
+			return SendMessage(fp, map[string]interface{}{"peers": ps})
 		}
 	} else {
 		rc.Do("HSET", key, "verified", "0")
 		if online {
-			SendMessage(fp, StatusMessage{401, "peer's verification was revoked"})
+			SendMessage(fp, StatusMessage{http.StatusUnauthorized,
+				"peer's verification was revoked"})
 		}
 	}
 	user, err := redis.String(rc.Do("HGET", key, "user"))
@@ -164,7 +176,7 @@ func VerifyPeer(fp string, v bool) error {
 	}
 	// publish the peer's state
 	key = fmt.Sprintf("peers:%s", user)
-	msg := map[string]PeerUpdate{"peers": PeerUpdate{fp, v, online}}
+	msg := map[string]PeerUpdate{"peer_update": PeerUpdate{fp, v, online}}
 	m, err := json.Marshal(msg)
 	if _, err = rc.Do("PUBLISH", key, m); err != nil {
 		return fmt.Errorf("Failed to publish to %s: %w", key, err)
