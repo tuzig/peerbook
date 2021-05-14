@@ -174,7 +174,12 @@ func (c *Conn) SendPeerList() error {
 	if err != nil {
 		return err
 	}
-	return SendMessage(c.FP, map[string]interface{}{"peers": ps})
+	m, err := json.Marshal(map[string]interface{}{"peers": ps})
+	if err != nil {
+		return err
+	}
+	c.send <- m
+	return nil
 }
 
 // subscribe listens for messages on Redis pubsub channels. The
