@@ -194,16 +194,14 @@ func TestGetUsersList(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, 2, len(list))
 	require.Equal(t, map[string]interface{}{
-		"kind": "lay", "name": "foo", "user": "j", "fp": "A", "online": false},
+		"verified": false, "kind": "lay", "name": "foo", "user": "j", "fp": "A", "online": false},
 		list[0])
 	require.Equal(t, map[string]interface{}{
-		"kind": "lay", "name": "bar", "user": "j", "verified": true, "fp": "B",
+		"verified": true, "kind": "lay", "name": "bar", "user": "j", "fp": "B",
 		"online": true},
 		list[1])
 }
 func TestHTTPPeerVerification(t *testing.T) {
-	var s StatusMessage
-
 	startTest(t)
 	// setup the fixture - a user, his token and two peers
 	redisDouble.SetAdd("user:j", "A", "B")
@@ -218,20 +216,24 @@ func TestHTTPPeerVerification(t *testing.T) {
 	if err = ws.SetReadDeadline(time.Now().Add(ReadTimeout)); err != nil {
 		t.Fatalf("SetReadDeadline: %v", err)
 	}
+	var s StatusMessage
 	err = ws.ReadJSON(&s)
 	require.Nil(t, err)
 	require.Equal(t, 401, s.Code)
-	time.Sleep(time.Second / 100)
 	resp, err := http.PostForm("http://127.0.0.1:17777/list/avalidtoken",
 		url.Values{"B": {"checked"}})
 	require.Nil(t, err)
 	require.Equal(t, 200, resp.StatusCode)
-	time.Sleep(time.Second / 100)
 	require.Equal(t, "0", redisDouble.HGet("peer:A", "verified"))
 	require.Equal(t, "1", redisDouble.HGet("peer:B", "verified"))
-	err = ws.ReadJSON(&s)
+	var m map[string]interface{}
+	err = ws.ReadJSON(&m)
 	require.Nil(t, err)
-	require.Equal(t, 200, s.Code)
+	require.Contains(t, m, "peers", "got msg %v", m)
+	var s2 StatusMessage
+	err = ws.ReadJSON(&s2)
+	require.Nil(t, err)
+	require.Equal(t, 200, s2.Code)
 }
 func TestVerifyUnverified(t *testing.T) {
 	startTest(t)
@@ -310,65 +312,58 @@ func TestVerifyWrongUser(t *testing.T) {
 	require.Nil(t, err, err)
 	require.Equal(t, 409, resp.StatusCode)
 }
+
+// TestValidatePeerNPublish runs the following scenarion
 func TestValidatePeerNPublish(t *testing.T) {
 	startTest(t)
 	// setup the fixture - a user, his token and two peers
 	redisDouble.Set("token:avalidtoken", "j")
 	redisDouble.SetAdd("user:j", "A", "B")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
-		"user", "j", "verified", "0")
+		"user", "j", "verified", "0", "online", "0")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
-		"user", "j", "verified", "1")
+		"user", "j", "verified", "1", "online", "0")
 
+	// connect both peers using websockets
 	wsA, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&email=j")
 	require.Nil(t, err)
 	defer wsA.Close()
+	if err = wsA.SetReadDeadline(time.Now().Add(ReadTimeout)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
 	wsB, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&email=j")
 	require.Nil(t, err)
 	defer wsB.Close()
-	var s StatusMessage
-	if err = wsA.SetReadDeadline(time.Now().Add(time.Second / 100)); err != nil {
-		t.Fatalf("SetReadDeadline: %v", err)
-	}
-	err = wsA.ReadJSON(&s)
-	require.Nil(t, err)
-	require.Equal(t, 401, s.Code)
 	if err = wsB.SetReadDeadline(time.Now().Add(ReadTimeout)); err != nil {
 		t.Fatalf("SetReadDeadline: %v", err)
 	}
-	err = wsB.ReadJSON(&s)
+	// get the unautherized message on A
+	var s StatusMessage
+	err = wsA.ReadJSON(&s)
 	require.Nil(t, err)
-	require.Equal(t, 200, s.Code, "got message: %v", s)
+	require.Equal(t, 401, s.Code)
+	// get the peers list on B
 	var pl map[string]*PeerList
 	err = wsB.ReadJSON(&pl)
 	require.Nil(t, err)
 	require.Contains(t, pl, "peers")
 	require.Equal(t, 2, len(*pl["peers"]))
+	// authenticate both A & B
 	resp, err := http.PostForm("http://127.0.0.1:17777/list/avalidtoken",
 		url.Values{"A": {"checked"}, "B": {"checked"}})
 	require.Nil(t, err)
+	// test if A was authenticated - both in redis and a message sent over ws
 	require.Equal(t, 200, resp.StatusCode)
 	defer resp.Body.Close()
+	time.Sleep(time.Second / 2)
 	require.Equal(t, "1", redisDouble.HGet("peer:A", "verified"))
-	// read the upodated status
-	if err = wsA.SetReadDeadline(time.Now().Add(ReadTimeout)); err != nil {
-		t.Fatalf("SetReadDeadline: %v", err)
-	}
-	var m map[string]interface{}
-	err = wsA.ReadJSON(&m)
-	require.Nil(t, err)
-	require.Contains(t, m, "code", "got msg %v", m)
-	err = wsA.ReadJSON(&s)
-	require.Nil(t, err)
-	require.Equal(t, 200, s.Code)
-	// and the peers
 	err = wsA.ReadJSON(&pl)
 	require.Nil(t, err)
 	require.Contains(t, pl, "peers")
-	err = wsB.ReadJSON(&pl)
+	var s2 StatusMessage
+	err = wsA.ReadJSON(&s2)
 	require.Nil(t, err)
-	require.Contains(t, pl, "peers")
-	time.Sleep(time.Millisecond)
+	require.Equal(t, 200, s2.Code, "go msg: %s", s.Text)
 }
 func TestHTTPrmrf(t *testing.T) {
 
