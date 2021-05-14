@@ -39,7 +39,7 @@ type Peer struct {
 	Name        string `redis:"name" json:"name,omitempty"`
 	User        string `redis:"user" json:"user,omitempty"`
 	Kind        string `redis:"kind" json:"kind,omitempty"`
-	Verified    bool   `redis:"verified" json:"verified,omitempty"`
+	Verified    bool   `redis:"verified" json:"verified"`
 	CreatedOn   int64  `redis:"created_on" json:"created_on,omitempty"`
 	VerifiedOn  int64  `redis:"verified_on" json:"verified_on,omitempty"`
 	LastConnect int64  `redis:"last_connect" json:"last_connect,omitempty"`
