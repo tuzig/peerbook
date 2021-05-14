@@ -108,6 +108,7 @@ func (c *Conn) sendStatus(code int, e error) error {
 
 // SendMessage sends a message as json
 func SendMessage(tfp string, msg interface{}) error {
+	Logger.Infof("publishing message to %q: %v", tfp, msg)
 	m, err := json.Marshal(msg)
 	rc := db.pool.Get()
 	defer rc.Close()
@@ -143,7 +144,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 	})
 	// if it's an unverified peer, keep the connection open and send a status message
 	if !conn.Verified {
-		err = conn.sendStatus(401, fmt.Errorf(
+		err = conn.sendStatus(http.StatusUnauthorized, fmt.Errorf(
 			"Unverified peer, please check your inbox to verify"))
 		if err != nil {
 			Logger.Errorf("Failed to send status message: %s", err)
@@ -209,7 +210,11 @@ func (c *Conn) subscribe(ctx context.Context) {
 				return
 			case redis.Message:
 				Logger.Infof("%q got a message: %s", c.FP, n.Data)
-				if c.Verified {
+				verified, err := IsVerified(c.FP)
+				if err != nil {
+					Logger.Errorf("Got an error testing if perr verfied: %s", err)
+				}
+				if verified {
 					Logger.Infof("forwarding %q message: %s", c.FP, n.Data)
 					c.WS.SetWriteDeadline(time.Now().Add(writeWait))
 					c.send <- n.Data
