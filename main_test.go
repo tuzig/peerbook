@@ -15,8 +15,8 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
-const ReadTimeout = time.Second * 5
-const WriteTimeout = time.Second * 1
+const ReadTimeout = time.Second * 3
+const WriteTimeout = time.Second
 
 var cstDialer = websocket.Dialer{
 	ReadBufferSize:   1024,
