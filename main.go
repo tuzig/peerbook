@@ -310,7 +310,7 @@ func serveHome(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	p := fmt.Sprintf("%s/home.html", os.Getenv("PB_STATIC_ROOT"))
+	p := fmt.Sprintf("%s/index.html", os.Getenv("PB_STATIC_ROOT"))
 	http.ServeFile(w, r, p)
 }
 
