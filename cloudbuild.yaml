@@ -1,20 +1,15 @@
 steps:
+# build the image
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['build', '-t', 'gcr.io/peerbook/pb', '.']
+  args: ['build', '-t', 'gcr.io/t7-peerbook/pb', '.']
 # Push the container image to Container Registry
 - name: 'gcr.io/cloud-builders/docker'
-  args: ['push', 'gcr.io/peerbook/pb']
+  args: ['push', 'gcr.io/t7-peerbook/pb']
 # Deploy container image to Cloud Run
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
   entrypoint: gcloud
-  args: ['run', 'deploy', 'peerbook', '--image', 'gcr.io/peerbook/pb', '--region', 'europe-west6', '--platform', 'managed', '--set-env-vars',
-'PB_SMTP_USER=$$PB_SMTP_USER,PB_SMTP_PASS=$$PB_SMTP_PASS,PB_SMTP_HOST=email-smtp.eu-central-1.amazonaws.com,PB_STATIC_ROOT=/app/html']
-  secretEnv: ['PB_SMTP_USER', 'PB_SMTP_PASS']
+  args: ['run', 'deploy', 'pb', '--image', 'gcr.io/t7-peerbook/pb',
+    '--region', 'europe-west6', '--platform', 'managed',
+    '--vpc-connector', 't7'] 
 images:
-- gcr.io/peerbook/pb
-availableSecrets:
-  secretManager:
-  - versionName: projects/peerbook/secrets/smtp-user/versions/latest
-    env: PB_SMTP_USER
-  - versionName: projects/peerbook/secrets/smtp-pass/versions/latest
-    env: PB_SMTP_PASS
+- gcr.io/t7-peerbook/pb
