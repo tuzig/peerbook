@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -19,9 +18,7 @@ import (
 
 	"github.com/rs/cors"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"gopkg.in/gomail.v2" //go get gopkg.in/gomail.v2
-	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 // SendChanSize is the size of the send channel in messages
@@ -301,7 +298,7 @@ func serveVerify(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func serveHome(w http.ResponseWriter, r *http.Request) {
-	log.Println(r.URL)
+
 	if r.URL.Path != "/" {
 		http.Error(w, "Not found", http.StatusNotFound)
 		return
@@ -315,34 +312,28 @@ func serveHome(w http.ResponseWriter, r *http.Request) {
 }
 
 func initLogger() {
-	// rotate the log file
-	logWriter := &lumberjack.Logger{
-		Filename:   "peerbook.log",
-		MaxSize:    10, // megabytes
-		MaxBackups: 3,
-		MaxAge:     28, // days
-	}
-	w := zapcore.AddSync(logWriter)
+	zapConf := []byte(`{
+		  "level": "debug",
+		  "encoding": "console",
+		  "outputPaths": ["stdout"],
+		  "errorOutputPaths": ["stderr"],
+		  "encoderConfig": {
+		    "messageKey": "message",
+		    "levelKey": "level",
+		    "levelEncoder": "lowercase"
+		  }
+		}`)
 
-	// TODO: use pion's logging
-	core := zapcore.NewCore(
-		zapcore.NewConsoleEncoder(zapcore.EncoderConfig{
-			MessageKey:  "webexec",
-			LevelKey:    "level",
-			EncodeLevel: zapcore.CapitalLevelEncoder,
-			TimeKey:     "time",
-			EncodeTime:  zapcore.ISO8601TimeEncoder,
-		}),
-		w,
-		zapcore.InfoLevel,
-	)
-	logger := zap.New(core)
-	defer logger.Sync()
-	Logger = logger.Sugar()
-	// redirect stderr
-	e, _ := os.OpenFile(
-		"peerbook.err", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	Dup2(int(e.Fd()), 2)
+	var cfg zap.Config
+	if err := json.Unmarshal(zapConf, &cfg); err != nil {
+		panic(err)
+	}
+	l, err := cfg.Build()
+	Logger = l.Sugar()
+	if err != nil {
+		panic(err)
+	}
+	defer Logger.Sync()
 }
 
 func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
@@ -389,6 +380,7 @@ func main() {
 		unregister: make(chan *Conn),
 		requests:   make(chan map[string]interface{}, 16),
 	}
+	Logger.Infof("Starting peerbook")
 	go hub.run()
 
 	httpServerExitDone := &sync.WaitGroup{}
