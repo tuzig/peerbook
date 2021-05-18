@@ -373,12 +373,12 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 
 func main() {
 	addr := flag.String("addr", "0.0.0.0:17777", "address to listen for http requests")
-	redisH := flag.String("redis", "localhost:6379", "redis address")
+	redisH := os.Getenv("REDIS_HOST")
 	flag.Parse()
 	if Logger == nil {
 		initLogger()
 	}
-	err := db.Connect(*redisH)
+	err := db.Connect(redisH)
 	if err != nil {
 		Logger.Errorf("Failed to connect to redis: %s", err)
 		os.Exit(1)
