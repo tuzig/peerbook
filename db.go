@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -139,7 +138,7 @@ func GetPeer(fp string) (*Peer, error) {
 
 // VerifyPeer is a function that sets the peers verification and publishes
 // it's new state to the user's channel
-func VerifyPeer(fp string, v bool) error {
+func VerifyPeer(fp string, verified bool) error {
 	rc := db.pool.Get()
 	defer rc.Close()
 	key := fmt.Sprintf("peer:%s", fp)
@@ -147,7 +146,7 @@ func VerifyPeer(fp string, v bool) error {
 	if err != nil {
 		return fmt.Errorf("Failed to get online key: %s", err)
 	}
-	if v {
+	if verified {
 		rc.Do("HSET", key, "verified", "1")
 		if online {
 			SendMessage(fp, StatusMessage{200, "peer is verified"})
@@ -175,11 +174,5 @@ func VerifyPeer(fp string, v bool) error {
 		return fmt.Errorf("Failed to hget user from %s: %w", key, err)
 	}
 	// publish the peer's state
-	key = fmt.Sprintf("peers:%s", user)
-	msg := map[string]PeerUpdate{"peer_update": PeerUpdate{fp, v, online}}
-	m, err := json.Marshal(msg)
-	if _, err = rc.Do("PUBLISH", key, m); err != nil {
-		return fmt.Errorf("Failed to publish to %s: %w", key, err)
-	}
-	return nil
+	return SendPeerUpdate(rc, user, fp, verified, online)
 }

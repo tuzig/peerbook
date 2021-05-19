@@ -14,7 +14,7 @@ import (
 
 const (
 	// Time allowed to write a message to the peer.
-	writeWait = 10 * time.Second
+	writeWait = time.Second
 
 	// Time allowed to read the next pong message from the peer.
 	pongWait = 6 * time.Second
@@ -48,9 +48,8 @@ type Peer struct {
 type PeerList []*Peer
 
 type PeerUpdate struct {
-	FP       string `redis:"fp" json:"fp"`
-	Verified bool   `redis:"verified" json:"verified,omitempty"`
-	Online   bool   `redis:"online" json:"online"`
+	Verified bool `redis:"verified" json:"verified,omitempty"`
+	Online   bool `redis:"online" json:"online"`
 }
 
 // StatusMessage is used to update the peer to a change of state,

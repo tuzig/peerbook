@@ -53,10 +53,9 @@ func (c *Conn) readPump(onDone func()) {
 			c.sendStatus(http.StatusUnauthorized, e)
 			continue
 		}
-		// message["source_fp"] = c.FP
+		message["source_fp"] = c.FP
 		// message["user"] = c.User
 		c.handleMessage(message)
-		// hub.requests <- message
 	}
 	onDone()
 }
@@ -161,9 +160,14 @@ func (c *Conn) SetOnline(o bool) error {
 		return err
 	}
 	// publish the peer update
-	m, err := json.Marshal(map[string]PeerUpdate{
-		"peer_update": PeerUpdate{c.FP, c.Verified, o}})
-	key = fmt.Sprintf("peers:%s", c.User)
+	return SendPeerUpdate(rc, c.User, c.FP, c.Verified, o)
+}
+func SendPeerUpdate(rc redis.Conn, user string, fp string, verified bool, online bool) error {
+	m, err := json.Marshal(map[string]interface{}{
+		"source_fp":   fp,
+		"peer_update": PeerUpdate{Verified: verified, Online: online},
+	})
+	key := fmt.Sprintf("peers:%s", user)
 	if _, err = rc.Do("PUBLISH", key, m); err != nil {
 		return err
 	}
