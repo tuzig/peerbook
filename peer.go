@@ -12,21 +12,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-const (
-	// Time allowed to write a message to the peer.
-	writeWait = time.Second
-
-	// Time allowed to read the next pong message from the peer.
-	pongWait = 6 * time.Second
-
-	// Send pings to peer with this period. Must be less than pongWait.
-	pingPeriod = 5 * time.Second
-
-	// Maximum message size allowed from peer.
-	maxMessageSize = 4096
-	DefaultHomeUrl = "https://pb.terminal7.dev"
-)
-
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  maxMessageSize,
 	WriteBufferSize: maxMessageSize,

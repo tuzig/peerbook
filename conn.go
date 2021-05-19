@@ -12,7 +12,22 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-const SendBufSize = 4096
+const (
+	// Time allowed to write a message to the peer.
+	writeWait = 10 * time.Second
+
+	pingPeriod = 5 * time.Second
+	// Time allowed to read the next pong message from the peer.
+	pongWait = 6 * time.Second
+
+	// Send pings to peer with this period. Must be less than pongWait.
+
+	// Maximum message size allowed from peer.
+	maxMessageSize = 4096
+	SendBufSize    = 4096
+)
+
+
 
 type Conn struct {
 	WS       *websocket.Conn

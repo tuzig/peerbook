@@ -21,24 +21,27 @@ import (
 	"gopkg.in/gomail.v2" //go get gopkg.in/gomail.v2
 )
 
-// SendChanSize is the size of the send channel in messages
-const SendChanSize = 4
-const HTMLThankYou = `<html lang=en> <head><meta charset=utf-8>
+const (
+	// SendChanSize is the size of the send channel in messages
+	SendChanSize = 4
+	HTMLThankYou = `<html lang=en> <head><meta charset=utf-8>
 <title>Thank You</title>
 </head>
 <body><h2>Your changes have been recorded and connected peers notified</h2>`
 
-const HTMLPostrmrf = `<html lang=en> <head><meta charset=utf-8>
+	HTMLPostrmrf = `<html lang=en> <head><meta charset=utf-8>
 <title>Thank You</title>
 </head>
 <body><h2>All your peers and your email were deleted</h2>`
 
-const HTMLEmailSent = `<html lang=en> <head><meta charset=utf-8>
+	HTMLEmailSent = `<html lang=en> <head><meta charset=utf-8>
 <title>Peerbook</title>
 </head>
 <body><h2>Please check your inbox for your peerbook link</h2>
 
 `
+	DefaultHomeUrl = "https://pb.terminal7.dev"
+)
 
 // Logger is our global logger
 var (
