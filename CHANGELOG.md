@@ -9,6 +9,15 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
+## [0.3.0] 2020-5-19
+
+### Added
+
+- stateless operations using redis pubsub
+- `peer_update` message
+- gcloud support
+- REDIS_HOST env var instead of --redis
+
 ## [0.2.3] 2020-5-12
 
 ### Added 
