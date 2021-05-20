@@ -53,7 +53,7 @@ func (c *Conn) readPump(onDone func()) {
 		return nil
 	})
 	for {
-		var message map[string]interface{}
+		message := make(map[string]interface{})
 		err := c.WS.ReadJSON(&message)
 		if err != nil {
 			Logger.Errorf("ws error: %w", err)

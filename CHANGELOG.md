@@ -9,6 +9,13 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
+## Unreleased
+
+### Fixed
+
+- addinng a call to `make` to solve a rear panic
+
+
 ## [0.3.0] 2020-5-19
 
 ### Added
