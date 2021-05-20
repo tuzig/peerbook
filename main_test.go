@@ -290,10 +290,13 @@ func TestVerifyVerified(t *testing.T) {
 		bytes.NewBuffer(m))
 	require.Nil(t, err)
 	defer resp.Body.Close()
-	var ret map[string]bool
+	var ret map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&ret)
-	require.Nil(t, err)
-	require.True(t, ret["verified"])
+	require.Nil(t, err, "failed to decode: %v", ret)
+	v, found := ret["peers"]
+	require.True(t, found, "got back: %v", ret)
+	ps := v.([]interface{})
+	require.Equal(t, 2, len(ps), "got back: %v", ps)
 }
 func TestVerifyWrongUser(t *testing.T) {
 	startTest(t)

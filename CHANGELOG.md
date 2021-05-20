@@ -16,6 +16,11 @@ and the release workflow reads it to set github's release notes.
 - addinng a call to `make` to solve a rear panic
 
 
+### Added
+
+- return peerlist on reponse to a succesful post to verify
+
+
 ## [0.3.0] 2020-5-19
 
 ### Added

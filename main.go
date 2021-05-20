@@ -290,12 +290,30 @@ func serveVerify(w http.ResponseWriter, r *http.Request) {
 				sendAuthEmail(email)
 			}
 		}
-		m, err := json.Marshal(map[string]bool{"verified": peer.Verified})
-		if err != nil {
-			msg := fmt.Sprintf("Failed to marshal user's list: %s", err)
-			Logger.Errorf(msg)
-			http.Error(w, msg, http.StatusInternalServerError)
-			return
+		var m []byte
+		if peer.Verified {
+			ps, err := GetUsersPeers(peer.User)
+			if err != nil {
+				msg := fmt.Sprintf("Failed to get user peers: %s", err)
+				Logger.Errorf(msg)
+				http.Error(w, msg, http.StatusInternalServerError)
+				return
+			}
+			m, err = json.Marshal(map[string]interface{}{"peers": ps})
+			if err != nil {
+				msg := fmt.Sprintf("Failed marshel peers: %s", err)
+				Logger.Errorf(msg)
+				http.Error(w, msg, http.StatusInternalServerError)
+				return
+			}
+		} else {
+			m, err = json.Marshal(map[string]bool{"verified": peer.Verified})
+			if err != nil {
+				msg := fmt.Sprintf("Failed to marshal user's list: %s", err)
+				Logger.Errorf(msg)
+				http.Error(w, msg, http.StatusInternalServerError)
+				return
+			}
 		}
 		w.Write(m)
 	}
