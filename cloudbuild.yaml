@@ -8,8 +8,8 @@ steps:
 # Deploy container image to Cloud Run
 - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
   entrypoint: gcloud
-  args: ['run', 'deploy', 'pb', '--image', 'gcr.io/t7-peerbook/pb',
+  args: ['beta', 'run', 'deploy', 'pb', '--image', 'gcr.io/t7-peerbook/pb',
     '--region', 'europe-west6', '--platform', 'managed',
-    '--vpc-connector', 't7'] 
+    '--vpc-connector', 't7', '--timeout', '59m59s'] 
 images:
 - gcr.io/t7-peerbook/pb
