@@ -14,20 +14,14 @@ import (
 
 const (
 	// Time allowed to write a message to the peer.
-	writeWait = 10 * time.Second
-
+	writeWait  = 10 * time.Second
 	pingPeriod = 5 * time.Second
 	// Time allowed to read the next pong message from the peer.
 	pongWait = 6 * time.Second
-
-	// Send pings to peer with this period. Must be less than pongWait.
-
 	// Maximum message size allowed from peer.
 	maxMessageSize = 4096
 	SendBufSize    = 4096
 )
-
-
 
 type Conn struct {
 	WS       *websocket.Conn
@@ -93,7 +87,11 @@ func (c *Conn) pinger() {
 			c.WS.SetWriteDeadline(time.Now().Add(writeWait))
 			err := c.WS.WriteMessage(websocket.TextMessage, message)
 			if err != nil {
-				Logger.Warnf("Failed to get websocket writer: %s", err)
+				if websocket.IsUnexpectedCloseError(err,
+					websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+					Logger.Warnf("Failed to send websocket message: %s", err)
+					return
+				}
 				continue
 			}
 		case <-ticker.C:
@@ -103,7 +101,10 @@ func (c *Conn) pinger() {
 			c.WS.SetWriteDeadline(time.Now().Add(writeWait))
 			err := c.WS.WriteMessage(websocket.PingMessage, nil)
 			if err != nil {
-				Logger.Errorf("failed to send ping message: %s", err)
+				if websocket.IsUnexpectedCloseError(err,
+					websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+					Logger.Errorf("failed to send ping message: %s", err)
+				}
 				return
 			}
 		}
@@ -279,18 +280,13 @@ func ConnFromQ(q url.Values) (*Conn, error) {
 	}
 	peer, err := GetPeer(fp)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Failed to get peer: %w", err)
 	}
 	if peer == nil {
 		return nil, &PeerNotFound{}
 	}
-	verified, err := IsVerified(fp)
-	if err != nil {
-		return nil, err
-	}
-
 	ret := Conn{FP: fp,
-		Verified: verified,
+		Verified: peer.Verified,
 		User:     peer.User,
 		send:     make(chan []byte, SendBufSize)}
 	return &ret, nil
