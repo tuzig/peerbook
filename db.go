@@ -49,8 +49,8 @@ func (d *DBType) Connect(host string) error {
 		host = redisDouble.Addr()
 	}
 	d.pool = &redis.Pool{
-		MaxIdle:     3,
-		IdleTimeout: 240 * time.Second,
+		MaxIdle:     5,
+		IdleTimeout: 5 * time.Second,
 		Dial:        func() (redis.Conn, error) { return redis.Dial("tcp", host) },
 	}
 	return nil
