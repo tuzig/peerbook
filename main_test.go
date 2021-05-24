@@ -56,8 +56,12 @@ func TestBadConnectionRequest(t *testing.T) {
 func TestUnknownFingerprint(t *testing.T) {
 	startTest(t)
 	// create client, connect to the hu
-	_, err := openWS("ws://127.0.0.1:17777/ws?fp=BADWOLF&email=cracker@forbidden.com")
-	require.NotNil(t, err)
+	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=BADWOLF&email=cracker@forbidden.com")
+	require.Nil(t, err)
+	var m map[string]interface{}
+	err = ws.ReadJSON(&m)
+	require.Nil(t, err)
+	require.Equal(t, float64(401), m["code"].(float64), "msg: %v", m)
 }
 func TestSignalingAcrossUsers(t *testing.T) {
 	startTest(t)
