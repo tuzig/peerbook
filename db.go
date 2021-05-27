@@ -11,8 +11,9 @@ import (
 	"github.com/gomodule/redigo/redis"
 )
 
-const TokenLen = 30  // in Bytes, four times that in base64 and urls
-const TokenTTL = 300 // in Seconds
+const TokenLen = 30      // in Bytes, four times that in base64 and urls
+const TokenTTL = 300     // in Seconds
+const EmailInterval = 60 // in Seconds
 // DBType is the type that holds our db
 type DBType struct {
 	pool *redis.Pool
@@ -175,4 +176,19 @@ func VerifyPeer(fp string, verified bool) error {
 	}
 	// publish the peer's state
 	return SendPeerUpdate(rc, user, fp, verified, online)
+}
+func (d *DBType) canSendEmail(email string) bool {
+	key := fmt.Sprintf("dontsend:%s", email)
+	conn := d.pool.Get()
+	defer conn.Close()
+	blocked, err := redis.Bool(conn.Do("EXISTS", key))
+	if err != nil {
+		Logger.Warnf("failed to check if key %q exists", key)
+		return false
+	}
+	if blocked {
+		return false
+	}
+	_, err = conn.Do("SETEX", key, EmailInterval, "1")
+	return true
 }

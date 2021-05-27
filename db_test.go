@@ -52,7 +52,7 @@ func TestGetUserList(t *testing.T) {
 func TestVerifyPeer(t *testing.T) {
 	startTest(t)
 	redisDouble.HSet("peer:bar", "fp", "bar", "name", "behind a. recognition",
-	"user", "j", "online", "0")
+		"user", "j", "online", "0")
 	redisDouble.SAdd("user:j", "bar")
 	list, err := GetUsersPeers("j")
 	require.Nil(t, err)
@@ -71,4 +71,11 @@ func TestCreateToken(t *testing.T) {
 	exists := redisDouble.Exists(key)
 	require.Nil(t, err)
 	require.True(t, exists)
+}
+func TestCanSendEmail(t *testing.T) {
+	startTest(t)
+	can := db.canSendEmail("j")
+	require.True(t, can)
+	can2 := db.canSendEmail("j")
+	require.False(t, can2)
 }

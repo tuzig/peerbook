@@ -429,6 +429,10 @@ func sendAuthEmail(email string) {
 		Logger.Errorf("Failed to create token: %w", err)
 		return
 	}
+	if !db.canSendEmail(email) {
+		Logger.Warnf("Can't send email to %q", email)
+		return
+	}
 	m := gomail.NewMessage()
 	homeUrl := os.Getenv("PB_HOME_URL")
 	if homeUrl == "" {
