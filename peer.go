@@ -33,7 +33,7 @@ type Peer struct {
 type PeerList []*Peer
 
 type PeerUpdate struct {
-	Verified bool `redis:"verified" json:"verified,omitempty"`
+	Verified bool `redis:"verified" json:"verified"`
 	Online   bool `redis:"online" json:"online"`
 }
 

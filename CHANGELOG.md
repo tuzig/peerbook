@@ -11,6 +11,10 @@ and the release workflow reads it to set github's release notes.
 
 ## Unreleased
 
+### Fixed
+
+- `verify` field is alwats part of `peer_update` message
+
 ### Added
 
 - Send no more than one email a minute to a user
