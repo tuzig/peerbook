@@ -9,16 +9,17 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
-## Unreleased
+## [0.3.2] 2020-5-28
 
 ### Fixed
 
 - `verify` field is alwats part of `peer_update` message
+- improve texts
 
 ### Added
 
 - Send no more than one email a minute to a user
--
+
 ## [0.3.1] 2020-5-22
 
 ### Fixed

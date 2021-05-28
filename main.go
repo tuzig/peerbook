@@ -28,7 +28,7 @@ const (
 <title>Thank You</title>
 </head>
 <body><h2>Your changes have been recorded<h2>
-<h3>Please start your servers and refresh your clients</h3>`
+<h3>Please ensure your servers and started and clients refreshed</h3>`
 
 	HTMLPostrmrf = `<html lang=en> <head><meta charset=utf-8>
 <title>Thank You</title>
