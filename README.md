@@ -2,13 +2,11 @@
 
 peerbook is A WebRTC signaling server with a private address book for
 passwordless-users and their WebRTC peers.
-peerbook is based on golang and the great code from
+peerbook is written in golang and using the great code from
 gomodule/redigo and gorilla/websocket.
 
-peerbook server lets users store and retrieve a list of trusted peers.
-their fingerprints and any other properties the app wishes to store.
-For example, a terminal app can add a `kind` key with the values of `client`
-and `server` so the client can filter list and display only servers.
+peerbook server lets users store and retrieve a list of peers.
+Each peer has a name, a fingerprint, a kind, an online flag and a verified flag.
 
 Upon connection request, 
 peerbook exchanges the fingerprints so peers can ensure the peer's fingerprint
@@ -25,15 +23,17 @@ certificate in a persistent storage. In the browser it's a bit complicated
 as one has to use IndexDB. Here's a code sample for the browser and here's one
 for pion/webrtc.
 
+## Verifying a peer
+
+When a peer wishes to test whether its fingerprint is verified or no, 
+it POSTs to `/verify` with a json encoded onject in the body.
+A valid bodyd have the `fp` and `email` fields.
+
+If peerbook finds 
 ## Intiating a connection
 
 Upon launch, peers should start a websocket connection at:
-`/ws` with the following query parameters:
-
-- `fp` - the peer's fingerprint
-- `email` - the user's email
-- `name` - peer's name
-- `kind` - the peer's type
+`/ws` with the `fp` query parameter containing the peer's fingerprint
 
 Upon receiving the request peerbook compares the peer's fingerprint & name
 with user's peer list.
