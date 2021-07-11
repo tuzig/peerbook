@@ -5,10 +5,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"html/template"
+	"image/png"
 	"net/http"
 	"net/url"
 	"os"
@@ -16,6 +20,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gomodule/redigo/redis"
+	"github.com/pquerna/otp/totp"
 	"github.com/rs/cors"
 	"go.uber.org/zap"
 	"gopkg.in/gomail.v2" //go get gopkg.in/gomail.v2
@@ -96,6 +102,13 @@ func (p *PeerChanged) Error() string {
 	return "Peer exists with different properties"
 }
 
+// NoSecret is an error
+type NewSecret struct{}
+
+func (e *NewSecret) Error() string {
+	return "Couldn't find a secret, generated a new one"
+}
+
 func serveList(w http.ResponseWriter, r *http.Request) {
 	i := strings.IndexRune(r.URL.Path[1:], '/')
 	t := r.URL.Path[i+2:]
@@ -116,6 +129,21 @@ func serveList(w http.ResponseWriter, r *http.Request) {
 	if user == "" {
 		http.Error(w, `{"m": "Bad Token"}`, http.StatusBadRequest)
 		Logger.Warnf("Token not found, coauld be expired")
+		return
+	}
+	os, err := getUserSecret(user)
+	if err != nil {
+		http.Error(w, `{"m": "Failed to get user's OTP secret"}`, http.StatusBadRequest)
+		Logger.Errorf("Failed to get user's OTP secret: %s", err)
+		return
+	}
+	if os == "" {
+		handleNewUser(w, user)
+		return
+	}
+	if err != nil {
+		http.Error(w, `{"m": "Failed to read user's OTP secret token"}`, http.StatusBadRequest)
+		Logger.Errorf("Failed to get token: %s", err)
 		return
 	}
 	peers, err := GetUsersPeers(user)
@@ -141,7 +169,12 @@ func serveList(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, msg, http.StatusBadRequest)
 			return
 		}
-		verified := make(map[string]bool)
+		otp := r.Form.Get("otp")
+		if !totp.Validate(otp, os) {
+			http.Error(w, "Wrong pass code, please try again",
+				http.StatusUnauthorized)
+		}
+
 		_, rmrf := r.Form["rmrf"]
 		if rmrf {
 			Logger.Infof("Removing user %s and his peers", user)
@@ -155,6 +188,7 @@ func serveList(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(HTMLPostrmrf))
 			return
 		}
+		verified := make(map[string]bool)
 		for k, _ := range r.Form {
 			verified[k] = true
 		}
@@ -469,4 +503,54 @@ Please click <a href="`+clickL+`">here to review</a>.`)
 	} else {
 		Logger.Infof("Send email to %q", email)
 	}
+}
+
+func getUserSecret(user string) (string, error) {
+	var secret string
+	key := fmt.Sprintf("secret:%s", user)
+	conn := db.pool.Get()
+	defer conn.Close()
+	secret, err := redis.String(conn.Do("GET", key))
+	if err != nil {
+		return "", err
+	}
+	return secret, nil
+}
+func handleNewUser(w http.ResponseWriter, user string) {
+	ok, err := totp.Generate(totp.GenerateOpts{
+		Issuer:      "test",
+		AccountName: user,
+	})
+	if err != nil {
+		http.Error(w, "Failed to generate a TOTP key",
+			http.StatusInternalServerError)
+		return
+	}
+	conn := db.pool.Get()
+	defer conn.Close()
+	key := fmt.Sprintf("secret:%s", user)
+	_, err := conn.Do("SET", key, ok.Secret())
+	if err != nil {
+		http.Error(w, "Failed to save the user's secret",
+			http.StatusInternalServerError)
+		return
+	}
+	var qr bytes.Buffer
+	encoder := base64.NewEncoder(base64.StdEncoding, &qr)
+	img, err := ok.Image(400, 400)
+	if err != nil {
+		msg := fmt.Sprintf("Failed to get the QR iomage: %S", err)
+		http.Error(w, msg, http.StatusInternalServerError)
+		return
+	}
+	png.Encode(encoder, img)
+	encoder.Close()
+	p := fmt.Sprintf("%s/virgin.html", os.Getenv("PB_STATIC_ROOT"))
+	tmpl, err := template.ParseFiles(p)
+	if err != nil {
+		msg := fmt.Sprintf("Failed to parse the template: %s", err)
+		http.Error(w, msg, http.StatusInternalServerError)
+		return
+	}
+	tmpl.Execute(w, qr.String())
 }

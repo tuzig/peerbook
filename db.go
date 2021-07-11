@@ -57,7 +57,7 @@ func (d *DBType) Connect(host string) error {
 	return nil
 }
 
-// GetToken reads the value of a token
+// GetToken reads the value of a token, usually an email address
 func (d *DBType) GetToken(token string) (string, error) {
 	key := fmt.Sprintf("token:%s", token)
 	conn := d.pool.Get()

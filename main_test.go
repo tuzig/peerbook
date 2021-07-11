@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pquerna/otp/totp"
+
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
@@ -181,6 +183,7 @@ func TestGetUsersList(t *testing.T) {
 	token := "=a+valid/token="
 	// setup the fixture - a user, his token and two peers
 	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.Set("secret:j", "AVERYSECRETTOKEN")
 	redisDouble.Set(fmt.Sprintf("token:%s", token), "j")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "0")
@@ -208,6 +211,11 @@ func TestGetUsersList(t *testing.T) {
 func TestHTTPPeerVerification(t *testing.T) {
 	startTest(t)
 	// setup the fixture - a user, his token and two peers
+	otpS, err := totp.Generate(totp.GenerateOpts{
+		Issuer:      "Peerbbook",
+		AccountName: user,
+	})
+	otpS, err := totp.GenerateCode(otps.Secret(), time.Now())
 	redisDouble.SetAdd("user:j", "A", "B")
 	redisDouble.Set("token:avalidtoken", "j")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
