@@ -171,8 +171,9 @@ func serveList(w http.ResponseWriter, r *http.Request) {
 		}
 		otp := r.Form.Get("otp")
 		if !totp.Validate(otp, os) {
-			http.Error(w, "Wrong pass code, please try again",
+			http.Error(w, "Wrong one time password, please try again",
 				http.StatusUnauthorized)
+			return
 		}
 
 		_, rmrf := r.Form["rmrf"]
@@ -421,6 +422,9 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 func main() {
 	addr := flag.String("addr", "0.0.0.0:17777", "address to listen for http requests")
 	redisH := os.Getenv("REDIS_HOST")
+	if redisH == "" {
+		redisH = "127.0.0.1:6379"
+	}
 	flag.Parse()
 	if Logger == nil {
 		initLogger()
@@ -518,7 +522,7 @@ func getUserSecret(user string) (string, error) {
 }
 func handleNewUser(w http.ResponseWriter, user string) {
 	ok, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      "test",
+		Issuer:      "peerbook",
 		AccountName: user,
 	})
 	if err != nil {
@@ -529,7 +533,7 @@ func handleNewUser(w http.ResponseWriter, user string) {
 	conn := db.pool.Get()
 	defer conn.Close()
 	key := fmt.Sprintf("secret:%s", user)
-	_, err := conn.Do("SET", key, ok.Secret())
+	_, err = conn.Do("SET", key, ok.Secret())
 	if err != nil {
 		http.Error(w, "Failed to save the user's secret",
 			http.StatusInternalServerError)

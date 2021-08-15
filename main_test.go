@@ -9,12 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pquerna/otp/totp"
-
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gorilla/websocket"
+	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap/zaptest"
 )
 
 const ReadTimeout = time.Second * 3
@@ -31,7 +29,8 @@ var mainRunning bool
 func startTest(t *testing.T) {
 	if !mainRunning {
 		var err error
-		Logger = zaptest.NewLogger(t).Sugar()
+		initLogger()
+		// Logger = zaptest.NewLogger(t).Sugar()
 		redisDouble, err = miniredis.Run()
 		require.Nil(t, err)
 		go main()
@@ -210,14 +209,17 @@ func TestGetUsersList(t *testing.T) {
 }
 func TestHTTPPeerVerification(t *testing.T) {
 	startTest(t)
-	// setup the fixture - a user, his token and two peers
-	otpS, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      "Peerbbook",
-		AccountName: user,
-	})
-	otpS, err := totp.GenerateCode(otps.Secret(), time.Now())
+	// setup the fixture - a user, his token, otp secret and two peers
 	redisDouble.SetAdd("user:j", "A", "B")
 	redisDouble.Set("token:avalidtoken", "j")
+	ok, err := totp.Generate(totp.GenerateOpts{
+		Issuer:      "Peerbbook",
+		AccountName: "j",
+	})
+	require.Nil(t, err)
+	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
+	require.Nil(t, err)
+	redisDouble.Set("secret:j", ok.Secret())
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "1", "online", "0")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "foo", "kind", "lay",
@@ -233,7 +235,9 @@ func TestHTTPPeerVerification(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, 401, s.Code)
 	resp, err := http.PostForm("http://127.0.0.1:17777/list/avalidtoken",
-		url.Values{"B": {"checked"}})
+		url.Values{"B": {"checked"},
+			"otp": {otp},
+		})
 	require.Nil(t, err)
 	require.Equal(t, 200, resp.StatusCode)
 	require.Equal(t, "0", redisDouble.HGet("peer:A", "verified"))
@@ -338,7 +342,14 @@ func TestValidatePeerNPublish(t *testing.T) {
 		"user", "j", "verified", "0", "online", "0")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
 		"user", "j", "verified", "1", "online", "0")
-
+	ok, err := totp.Generate(totp.GenerateOpts{
+		Issuer:      "Peerbbook",
+		AccountName: "j",
+	})
+	require.Nil(t, err)
+	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
+	require.Nil(t, err)
+	redisDouble.Set("secret:j", ok.Secret())
 	// connect both peers using websockets
 	wsA, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&email=j")
 	require.Nil(t, err)
@@ -365,7 +376,7 @@ func TestValidatePeerNPublish(t *testing.T) {
 	require.Equal(t, 2, len(*pl["peers"]))
 	// authenticate both A & B
 	resp, err := http.PostForm("http://127.0.0.1:17777/list/avalidtoken",
-		url.Values{"A": {"checked"}, "B": {"checked"}})
+		url.Values{"A": {"checked"}, "B": {"checked"}, "otp": {otp}})
 	require.Nil(t, err)
 	// test if A was authenticated - both in redis and a message sent over ws
 	require.Equal(t, 200, resp.StatusCode)
@@ -381,7 +392,6 @@ func TestValidatePeerNPublish(t *testing.T) {
 	require.Equal(t, 200, s2.Code, "go msg: %s", s.Text)
 }
 func TestHTTPrmrf(t *testing.T) {
-
 	startTest(t)
 	// setup the fixture - a user, his token and two peers
 	redisDouble.SetAdd("user:j", "A", "B")
@@ -390,12 +400,45 @@ func TestHTTPrmrf(t *testing.T) {
 		"user", "j", "verified", "1")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "0")
+	ok, err := totp.Generate(totp.GenerateOpts{
+		Issuer:      "Peerbbook",
+		AccountName: "j",
+	})
+	require.Nil(t, err)
+	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
+	require.Nil(t, err)
+	redisDouble.Set("secret:j", ok.Secret())
 	resp, err := http.PostForm("http://127.0.0.1:17777/list/avalidtoken",
-		url.Values{"rmrf": {"checked"}})
+		url.Values{"rmrf": {"checked"}, "otp": {otp}})
 	require.Nil(t, err)
 	require.Equal(t, 200, resp.StatusCode)
 	time.Sleep(time.Second / 100)
 	require.False(t, redisDouble.Exists("peer:A"))
 	require.False(t, redisDouble.Exists("peer:B"))
 	require.False(t, redisDouble.Exists("user:j"))
+}
+func TestBadOTP(t *testing.T) {
+	startTest(t)
+	// setup the fixture - a user, his token and two peers
+	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.Set("token:avalidtoken", "j")
+	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
+		"user", "j", "verified", "1")
+	redisDouble.HSet("peer:B", "fp", "B", "name", "foo", "kind", "lay",
+		"user", "j", "verified", "0")
+	ok, err := totp.Generate(totp.GenerateOpts{
+		Issuer:      "Peerbbook",
+		AccountName: "j",
+	})
+	require.Nil(t, err)
+	require.Nil(t, err)
+	redisDouble.Set("secret:j", ok.Secret())
+	resp, err := http.PostForm("http://127.0.0.1:17777/list/avalidtoken",
+		url.Values{"rmrf": {"checked"}, "otp": {"98989898"}})
+	require.Nil(t, err)
+	require.Equal(t, 401, resp.StatusCode)
+	time.Sleep(time.Second / 100)
+	require.True(t, redisDouble.Exists("peer:A"))
+	require.True(t, redisDouble.Exists("peer:B"))
+	require.True(t, redisDouble.Exists("user:j"))
 }
