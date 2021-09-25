@@ -138,12 +138,7 @@ func serveList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if os == "" {
-		handleNewUser(w, user)
-		return
-	}
-	if err != nil {
-		http.Error(w, `{"m": "Failed to read user's OTP secret token"}`, http.StatusBadRequest)
-		Logger.Errorf("Failed to get token: %s", err)
+		http.Error(w, `{"m": "User has no OTP configured"}`, http.StatusUnauthorized)
 		return
 	}
 	peers, err := GetUsersPeers(user)
@@ -233,8 +228,34 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad Token", http.StatusBadRequest)
 		return
 	}
+	if r.Method == "POST" {
+		s, err := getUserSecret(user)
+		if err != nil {
+			http.Error(w, `{"m": "Failed to get user's OTP secret"}`, http.StatusBadRequest)
+			Logger.Errorf("Failed to get user's OTP secret: %s", err)
+			return
+		}
+		if s == "" {
+			http.Error(w, `{"m": "User has no OTP configured"}`, http.StatusUnauthorized)
+			return
+		}
+		otp := r.Form.Get("otp")
+		if !totp.Validate(otp, s) {
+			http.Error(w, "Wrong one time password, please try again",
+				http.StatusUnauthorized)
+			return
+		}
+
+		http.ServeFile(w, r, fmt.Sprintf("%s/goodotp.html", os.Getenv("PB_STATIC_ROOT")))
+		return
+	}
 	if r.Method != "GET" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	_, err = getUserSecret(user)
+	if err != nil {
+		handleNewUser(w, user)
 		return
 	}
 	p := fmt.Sprintf("%s/auth.html", os.Getenv("PB_STATIC_ROOT"))
@@ -419,44 +440,6 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 	return srv
 }
 
-func main() {
-	addr := flag.String("addr", "0.0.0.0:17777", "address to listen for http requests")
-	redisH := os.Getenv("REDIS_HOST")
-	if redisH == "" {
-		redisH = "127.0.0.1:6379"
-	}
-	flag.Parse()
-	if Logger == nil {
-		initLogger()
-	}
-	err := db.Connect(redisH)
-	if err != nil {
-		Logger.Errorf("Failed to connect to redis: %s", err)
-		os.Exit(1)
-	}
-
-	hub = Hub{
-		register:   make(chan *Conn),
-		unregister: make(chan *Conn),
-		requests:   make(chan map[string]interface{}, 16),
-	}
-	Logger.Infof("Starting peerbook")
-	go hub.run()
-
-	httpServerExitDone := &sync.WaitGroup{}
-	httpServerExitDone.Add(1)
-	srv := startHTTPServer(*addr, httpServerExitDone)
-	// Setting up signal capturing
-	stop = make(chan os.Signal, 1)
-	signal.Notify(stop, os.Interrupt)
-	<-stop
-	if err = srv.Shutdown(context.Background()); err != nil {
-		Logger.Error("failure/timeout shutting down the http server gracefully")
-	}
-	// wait for goroutine started in startHTTPServer() to stop
-	httpServerExitDone.Wait()
-}
-
 // sendAuthEmail creates a short lived token and emails a message with a link
 // to `/auth/<token>` so the javascript at /auth can read the list of peers and
 // use checkboxes to enable/disable
@@ -522,7 +505,7 @@ func getUserSecret(user string) (string, error) {
 }
 func handleNewUser(w http.ResponseWriter, user string) {
 	ok, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      "peerbook",
+		Issuer:      "Peerbook",
 		AccountName: user,
 	})
 	if err != nil {
@@ -556,5 +539,48 @@ func handleNewUser(w http.ResponseWriter, user string) {
 		http.Error(w, msg, http.StatusInternalServerError)
 		return
 	}
-	tmpl.Execute(w, qr.String())
+	err = tmpl.Execute(w, qr.String())
+	if err != nil {
+		msg := fmt.Sprintf("Failed to execute the virgin template: %s", err)
+		Logger.Error(msg)
+		http.Error(w, msg, http.StatusInternalServerError)
+	}
+}
+
+func main() {
+	addr := flag.String("addr", "0.0.0.0:17777", "address to listen for http requests")
+	redisH := os.Getenv("REDIS_HOST")
+	if redisH == "" {
+		redisH = "127.0.0.1:6379"
+	}
+	flag.Parse()
+	if Logger == nil {
+		initLogger()
+	}
+	err := db.Connect(redisH)
+	if err != nil {
+		Logger.Errorf("Failed to connect to redis: %s", err)
+		os.Exit(1)
+	}
+
+	hub = Hub{
+		register:   make(chan *Conn),
+		unregister: make(chan *Conn),
+		requests:   make(chan map[string]interface{}, 16),
+	}
+	Logger.Infof("Starting peerbook")
+	go hub.run()
+
+	httpServerExitDone := &sync.WaitGroup{}
+	httpServerExitDone.Add(1)
+	srv := startHTTPServer(*addr, httpServerExitDone)
+	// Setting up signal capturing
+	stop = make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt)
+	<-stop
+	if err = srv.Shutdown(context.Background()); err != nil {
+		Logger.Error("failure/timeout shutting down the http server gracefully")
+	}
+	// wait for goroutine started in startHTTPServer() to stop
+	httpServerExitDone.Wait()
 }

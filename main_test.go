@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 )
 
 const ReadTimeout = time.Second * 3
@@ -29,8 +32,7 @@ var mainRunning bool
 func startTest(t *testing.T) {
 	if !mainRunning {
 		var err error
-		initLogger()
-		// Logger = zaptest.NewLogger(t).Sugar()
+		Logger = zaptest.NewLogger(t).Sugar()
 		redisDouble, err = miniredis.Run()
 		require.Nil(t, err)
 		go main()
@@ -212,6 +214,10 @@ func TestHTTPPeerVerification(t *testing.T) {
 	// setup the fixture - a user, his token, otp secret and two peers
 	redisDouble.SetAdd("user:j", "A", "B")
 	redisDouble.Set("token:avalidtoken", "j")
+	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
+		"user", "j", "verified", "1", "online", "0")
+	redisDouble.HSet("peer:B", "fp", "B", "name", "foo", "kind", "lay",
+		"user", "j", "verified", "0", "online", "0")
 	ok, err := totp.Generate(totp.GenerateOpts{
 		Issuer:      "Peerbbook",
 		AccountName: "j",
@@ -220,10 +226,7 @@ func TestHTTPPeerVerification(t *testing.T) {
 	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
 	require.Nil(t, err)
 	redisDouble.Set("secret:j", ok.Secret())
-	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
-		"user", "j", "verified", "1", "online", "0")
-	redisDouble.HSet("peer:B", "fp", "B", "name", "foo", "kind", "lay",
-		"user", "j", "verified", "0", "online", "0")
+	// connect using websockets
 	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar")
 	require.Nil(t, err)
 	defer ws.Close()
@@ -431,7 +434,6 @@ func TestBadOTP(t *testing.T) {
 		AccountName: "j",
 	})
 	require.Nil(t, err)
-	require.Nil(t, err)
 	redisDouble.Set("secret:j", ok.Secret())
 	resp, err := http.PostForm("http://127.0.0.1:17777/list/avalidtoken",
 		url.Values{"rmrf": {"checked"}, "otp": {"98989898"}})
@@ -441,4 +443,24 @@ func TestBadOTP(t *testing.T) {
 	require.True(t, redisDouble.Exists("peer:A"))
 	require.True(t, redisDouble.Exists("peer:B"))
 	require.True(t, redisDouble.Exists("user:j"))
+}
+func TestGetAuthPageNoSecret(t *testing.T) {
+	startTest(t)
+	token := "=a+valid/token="
+	// setup the fixture - a user, his token and two peers
+	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.Set(fmt.Sprintf("token:%s", token), "j")
+	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
+		"user", "j", "verified", "0", "online", "0")
+	listU := fmt.Sprintf("http://127.0.0.1:17777/auth/%s", url.PathEscape(token))
+	resp, err := http.Get(listU)
+	require.Nil(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, 200, resp.StatusCode)
+	bb, err := io.ReadAll(resp.Body)
+	require.Nil(t, err)
+	bs := string(bb)
+	require.True(t, strings.Contains(bs, "QR Code for otp"))
+	time.Sleep(time.Second / 100)
+	require.True(t, redisDouble.Exists("secret:j"))
 }
