@@ -444,7 +444,7 @@ func main() {
 	go hub.run()
 
 	httpServerExitDone := &sync.WaitGroup{}
-	httpServerExitDone.Add(3)
+	httpServerExitDone.Add(1)
 	srv := startHTTPServer(*addr, httpServerExitDone)
 	// Setting up signal capturing
 	stop = make(chan os.Signal, 1)
