@@ -109,6 +109,9 @@ func (e *NewSecret) Error() string {
 	return "Couldn't find a secret, generated a new one"
 }
 
+// serveList is a handler for the user's list of peers @ '/list/<token>'
+// the handler first ensure the token is valid and then extracts the
+// user's email, his OTP secret
 func serveList(w http.ResponseWriter, r *http.Request) {
 	i := strings.IndexRune(r.URL.Path[1:], '/')
 	t := r.URL.Path[i+2:]
@@ -255,7 +258,7 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 	}
 	_, err = getUserSecret(user)
 	if err != nil {
-		handleNewUser(w, user)
+		setupOTP(w, user, "auth")
 		return
 	}
 	p := fmt.Sprintf("%s/auth.html", os.Getenv("PB_STATIC_ROOT"))
@@ -424,6 +427,7 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 	http.HandleFunc("/verify", serveVerify)
 	http.HandleFunc("/hitme", serveHitMe)
 	http.HandleFunc("/ws", serveWs)
+	http.HandleFunc("/validate_otp", serveValidateOTP)
 
 	go func() {
 		defer wg.Done() // let main know we are done cleaning up
@@ -440,26 +444,33 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 	return srv
 }
 
+func createAuthURL(email string) (string, error) {
+	// TODO: send an email in the background
+	token, err := db.CreateToken(email)
+	if err != nil {
+		return "", fmt.Errorf("Failed to create token: %w", err)
+	}
+	homeUrl := os.Getenv("PB_HOME_URL")
+	if homeUrl == "" {
+		homeUrl = DefaultHomeUrl
+	}
+	return fmt.Sprintf("%s/auth/%s", homeUrl, url.PathEscape(token)), nil
+}
+
 // sendAuthEmail creates a short lived token and emails a message with a link
 // to `/auth/<token>` so the javascript at /auth can read the list of peers and
 // use checkboxes to enable/disable
 func sendAuthEmail(email string) {
-	// TODO: send an email in the background
-	token, err := db.CreateToken(email)
-	if err != nil {
-		Logger.Errorf("Failed to create token: %w", err)
-		return
-	}
 	if !db.canSendEmail(email) {
 		Logger.Warnf("Can't send email to %q", email)
 		return
 	}
 	m := gomail.NewMessage()
-	homeUrl := os.Getenv("PB_HOME_URL")
-	if homeUrl == "" {
-		homeUrl = DefaultHomeUrl
+	clickL, err := createAuthURL(email)
+	if err != nil {
+		Logger.Errorf("Failed to sendte temp URL: %s", err)
+		return
 	}
-	clickL := fmt.Sprintf("%s/auth/%s", homeUrl, url.PathEscape(token))
 	m.SetBody("text/html", `<html lang=en> <head><meta charset=utf-8>
 <title>Peerbook updates for your approval</title>
 </head>
@@ -503,22 +514,14 @@ func getUserSecret(user string) (string, error) {
 	}
 	return secret, nil
 }
-func handleNewUser(w http.ResponseWriter, user string) {
+
+func setupOTP(w http.ResponseWriter, user string, next string) {
 	ok, err := totp.Generate(totp.GenerateOpts{
 		Issuer:      "Peerbook",
 		AccountName: user,
 	})
 	if err != nil {
 		http.Error(w, "Failed to generate a TOTP key",
-			http.StatusInternalServerError)
-		return
-	}
-	conn := db.pool.Get()
-	defer conn.Close()
-	key := fmt.Sprintf("secret:%s", user)
-	_, err = conn.Do("SET", key, ok.Secret())
-	if err != nil {
-		http.Error(w, "Failed to save the user's secret",
 			http.StatusInternalServerError)
 		return
 	}
@@ -539,11 +542,60 @@ func handleNewUser(w http.ResponseWriter, user string) {
 		http.Error(w, msg, http.StatusInternalServerError)
 		return
 	}
-	err = tmpl.Execute(w, qr.String())
+	// and return the html
+	var d struct {
+		Image string
+		Next  string
+		Email string
+	}
+	d.Image = qr.String()
+	d.Next = next
+	d.Email = user
+	err = tmpl.Execute(w, d)
 	if err != nil {
 		msg := fmt.Sprintf("Failed to execute the virgin template: %s", err)
 		Logger.Error(msg)
 		http.Error(w, msg, http.StatusInternalServerError)
+	}
+	// all is well, save the secret
+	conn := db.pool.Get()
+	defer conn.Close()
+	key := fmt.Sprintf("secret:%s", user)
+	_, err = conn.Do("SET", key, ok.Secret())
+	if err != nil {
+		http.Error(w, "Failed to save the user's secret",
+			http.StatusInternalServerError)
+		return
+	}
+}
+
+func serveValidateOTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	user := r.Form.Get("email")
+	s, err := getUserSecret(user)
+	if err != nil {
+		http.Error(w, "Failed to get user's secret",
+			http.StatusInternalServerError)
+		return
+	}
+	otp := r.Form.Get("otp")
+	if !totp.Validate(otp, s) {
+		http.Error(w, "Wrong one time password, please try again",
+			http.StatusUnauthorized)
+		return
+	}
+	next := r.Form.Get("next")
+	if next == "auth" {
+		a, err := createAuthURL(user)
+		if err != nil {
+			http.Error(w, "Failed to create temp url",
+				http.StatusInternalServerError)
+			return
+		}
+		http.Redirect(w, r, a, http.StatusSeeOther)
 	}
 }
 

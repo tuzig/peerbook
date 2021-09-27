@@ -440,6 +440,7 @@ func TestBadOTP(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, 401, resp.StatusCode)
 	time.Sleep(time.Second / 100)
+	// ensure nothing was removed
 	require.True(t, redisDouble.Exists("peer:A"))
 	require.True(t, redisDouble.Exists("peer:B"))
 	require.True(t, redisDouble.Exists("user:j"))
@@ -463,4 +464,19 @@ func TestGetAuthPageNoSecret(t *testing.T) {
 	require.True(t, strings.Contains(bs, "QR Code for otp"))
 	time.Sleep(time.Second / 100)
 	require.True(t, redisDouble.Exists("secret:j"))
+	s, err := getUserSecret("j")
+	require.Nil(t, err)
+}
+func TestValidValidateOTP(t *testing.T) {
+	token := "=a+valid/token="
+	// setup the fixture - a user, his token and two peers
+	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.Set(fmt.Sprintf("token:%s", token), "j")
+	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
+		"user", "j", "verified", "0", "online", "0")
+
+	// TODO: fill body with the email, OTP & next
+	d := url.Values{"email": j
+	resp, err := http.PostForm("http://127.0.0.1:17777/validate_otp", body)
+
 }
