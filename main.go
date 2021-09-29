@@ -21,6 +21,7 @@ import (
 	"sync"
 
 	"github.com/gomodule/redigo/redis"
+	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 	"github.com/rs/cors"
 	"go.uber.org/zap"
@@ -134,16 +135,6 @@ func serveList(w http.ResponseWriter, r *http.Request) {
 		Logger.Warnf("Token not found, coauld be expired")
 		return
 	}
-	os, err := getUserSecret(user)
-	if err != nil {
-		http.Error(w, `{"m": "Failed to get user's OTP secret"}`, http.StatusBadRequest)
-		Logger.Errorf("Failed to get user's OTP secret: %s", err)
-		return
-	}
-	if os == "" {
-		http.Error(w, `{"m": "User has no OTP configured"}`, http.StatusUnauthorized)
-		return
-	}
 	peers, err := GetUsersPeers(user)
 	if err != nil {
 		http.Error(w, `{"m": "Failed to get user"}`, http.StatusBadRequest)
@@ -168,7 +159,18 @@ func serveList(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		otp := r.Form.Get("otp")
-		if !totp.Validate(otp, os) {
+		// validate otp based on user's secret
+		s, err := getUserSecret(user)
+		if err != nil {
+			http.Error(w, `{"m": "Failed to get user's OTP secret"}`, http.StatusBadRequest)
+			Logger.Errorf("Failed to get user's OTP secret: %s", err)
+			return
+		}
+		if s == "" {
+			http.Error(w, `{"m": "User has no OTP configured"}`, http.StatusUnauthorized)
+			return
+		}
+		if !totp.Validate(otp, s) {
 			http.Error(w, "Wrong one time password, please try again",
 				http.StatusUnauthorized)
 			return
@@ -256,9 +258,9 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	_, err = getUserSecret(user)
-	if err != nil {
-		setupOTP(w, user, "auth")
+	verified := db.IsQRVerified(user)
+	if !verified {
+		serveQRCode(w, user)
 		return
 	}
 	p := fmt.Sprintf("%s/auth.html", os.Getenv("PB_STATIC_ROOT"))
@@ -461,8 +463,13 @@ func createAuthURL(email string) (string, error) {
 // to `/auth/<token>` so the javascript at /auth can read the list of peers and
 // use checkboxes to enable/disable
 func sendAuthEmail(email string) {
+	err := generateOTPKey(email)
+	if err != nil {
+		Logger.Errorf("Failed to generate TOTP key: %s", err)
+		return
+	}
 	if !db.canSendEmail(email) {
-		Logger.Warnf("Can't send email to %q", email)
+		Logger.Warnf("Throttling prevented sending email to %q", email)
 		return
 	}
 	m := gomail.NewMessage()
@@ -503,6 +510,15 @@ Please click <a href="`+clickL+`">here to review</a>.`)
 	}
 }
 
+func getUserKey(user string) (*otp.Key, error) {
+	s, err := getUserSecret(user)
+	if err != nil {
+		return nil, err
+	}
+	u := fmt.Sprintf("otpauth://totp/tuzig.com:%s?secret=%s&issuer=PeerBook", user, s)
+	return otp.NewKeyFromURL(u)
+
+}
 func getUserSecret(user string) (string, error) {
 	var secret string
 	key := fmt.Sprintf("secret:%s", user)
@@ -515,17 +531,35 @@ func getUserSecret(user string) (string, error) {
 	return secret, nil
 }
 
-func setupOTP(w http.ResponseWriter, user string, next string) {
+func generateOTPKey(user string) error {
 	ok, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      "Peerbook",
+		Issuer:      "PeerBook",
 		AccountName: user,
 	})
 	if err != nil {
-		http.Error(w, "Failed to generate a TOTP key",
-			http.StatusInternalServerError)
+		return fmt.Errorf("Failed to generate a TOTP key")
+	}
+	// all is well, save the secret
+	secret := ok.Secret()
+	conn := db.pool.Get()
+	defer conn.Close()
+	key := fmt.Sprintf("secret:%s", user)
+	_, err = conn.Do("SET", key, secret)
+	if err != nil {
+		return fmt.Errorf("Failed to save the user's secret")
+	}
+	return nil
+}
+
+func serveQRCode(w http.ResponseWriter, user string) {
+	var qr bytes.Buffer
+
+	ok, err := getUserKey(user)
+	if err != nil {
+		msg := fmt.Sprintf("Failed to get users secret key QR iomage: %S", err)
+		http.Error(w, msg, http.StatusInternalServerError)
 		return
 	}
-	var qr bytes.Buffer
 	encoder := base64.NewEncoder(base64.StdEncoding, &qr)
 	img, err := ok.Image(400, 400)
 	if err != nil {
@@ -545,27 +579,15 @@ func setupOTP(w http.ResponseWriter, user string, next string) {
 	// and return the html
 	var d struct {
 		Image string
-		Next  string
 		Email string
 	}
 	d.Image = qr.String()
-	d.Next = next
 	d.Email = user
 	err = tmpl.Execute(w, d)
 	if err != nil {
 		msg := fmt.Sprintf("Failed to execute the virgin template: %s", err)
 		Logger.Error(msg)
 		http.Error(w, msg, http.StatusInternalServerError)
-	}
-	// all is well, save the secret
-	conn := db.pool.Get()
-	defer conn.Close()
-	key := fmt.Sprintf("secret:%s", user)
-	_, err = conn.Do("SET", key, ok.Secret())
-	if err != nil {
-		http.Error(w, "Failed to save the user's secret",
-			http.StatusInternalServerError)
-		return
 	}
 }
 
@@ -574,7 +596,8 @@ func serveValidateOTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	user := r.Form.Get("email")
+	token := r.Form.Get("token")
+	user, err := db.GetToken(token)
 	s, err := getUserSecret(user)
 	if err != nil {
 		http.Error(w, "Failed to get user's secret",
@@ -583,20 +606,22 @@ func serveValidateOTP(w http.ResponseWriter, r *http.Request) {
 	}
 	otp := r.Form.Get("otp")
 	if !totp.Validate(otp, s) {
-		http.Error(w, "Wrong one time password, please try again",
+		http.Error(w, "Wrong one time password, please go back and try again",
 			http.StatusUnauthorized)
 		return
 	}
-	next := r.Form.Get("next")
-	if next == "auth" {
-		a, err := createAuthURL(user)
-		if err != nil {
-			http.Error(w, "Failed to create temp url",
-				http.StatusInternalServerError)
-			return
-		}
-		http.Redirect(w, r, a, http.StatusSeeOther)
+	a, err := createAuthURL(user)
+	if err != nil {
+		http.Error(w, "Failed to create temp url",
+			http.StatusInternalServerError)
+		return
 	}
+	err = db.SetQRVerified(user)
+	if err != nil {
+		Logger.Errorf("failed to save QRVerified: %s", err)
+		return
+	}
+	http.Redirect(w, r, a, http.StatusSeeOther)
 }
 
 func main() {

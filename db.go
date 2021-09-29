@@ -192,3 +192,24 @@ func (d *DBType) canSendEmail(email string) bool {
 	_, err = conn.Do("SETEX", key, EmailInterval, "1")
 	return true
 }
+func (d *DBType) SetQRVerified(email string) error {
+	key := fmt.Sprintf("QRVerified:%s", email)
+	conn := d.pool.Get()
+	defer conn.Close()
+	_, err := conn.Do("SET", key, "1")
+	return err
+}
+func (d *DBType) IsQRVerified(email string) bool {
+	key := fmt.Sprintf("QRVerified:%s", email)
+	conn := d.pool.Get()
+	defer conn.Close()
+	seen, err := redis.Bool(conn.Do("EXISTS", key))
+	if err != nil {
+		Logger.Warnf("failed to check if key %q exists", key)
+		return false
+	}
+	if seen {
+		return true
+	}
+	return false
+}
