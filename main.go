@@ -464,7 +464,7 @@ func createAuthURL(email string) (string, error) {
 // to `/auth/<token>` so the javascript at /auth can read the list of peers and
 // use checkboxes to enable/disable
 func sendAuthEmail(email string) {
-	err := generateOTPKey(email)
+	err := initUser(email)
 	if err != nil {
 		Logger.Errorf("Failed to generate TOTP key: %s", err)
 		return
@@ -516,7 +516,7 @@ func getUserKey(user string) (*otp.Key, error) {
 	if err != nil {
 		return nil, err
 	}
-	u := fmt.Sprintf("otpauth://totp/tuzig.com:%s?secret=%s&issuer=PeerBook", user, s)
+	u := fmt.Sprintf("otpauth://totp/PeerBook:%s?algorithm=SHA1&digits=6&secret=%s&issuer=PeerBook&period=30", user, s)
 	return otp.NewKeyFromURL(u)
 
 }
@@ -532,22 +532,29 @@ func getUserSecret(user string) (string, error) {
 	return secret, nil
 }
 
-func generateOTPKey(user string) error {
-	ok, err := totp.Generate(totp.GenerateOpts{
-		Issuer:      "PeerBook",
-		AccountName: user,
-	})
-	if err != nil {
-		return fmt.Errorf("Failed to generate a TOTP key")
-	}
-	// all is well, save the secret
-	secret := ok.Secret()
+func initUser(user string) error {
 	conn := db.pool.Get()
 	defer conn.Close()
 	key := fmt.Sprintf("secret:%s", user)
-	_, err = conn.Do("SET", key, secret)
+	exists, err := redis.Bool(conn.Do("EXISTS", key))
 	if err != nil {
-		return fmt.Errorf("Failed to save the user's secret")
+		return err
+	}
+	if !exists {
+		ok, err := totp.Generate(totp.GenerateOpts{
+			Issuer:      "PeerBook",
+			AccountName: user,
+		})
+		if err != nil {
+			return fmt.Errorf("Failed to generate a TOTP key")
+		}
+		// all is well, save the secret
+		secret := ok.Secret()
+		key := fmt.Sprintf("secret:%s", user)
+		_, err = conn.Do("SET", key, secret)
+		if err != nil {
+			return fmt.Errorf("Failed to save the user's secret")
+		}
 	}
 	return nil
 }
@@ -562,9 +569,9 @@ func serveQRCode(w http.ResponseWriter, user string) {
 		return
 	}
 	encoder := base64.NewEncoder(base64.StdEncoding, &qr)
-	img, err := ok.Image(400, 400)
+	img, err := ok.Image(200, 200)
 	if err != nil {
-		msg := fmt.Sprintf("Failed to get the QR iomage: %S", err)
+		msg := fmt.Sprintf("Failed to get the QR image: %S", err)
 		http.Error(w, msg, http.StatusInternalServerError)
 		return
 	}
@@ -584,7 +591,7 @@ func serveQRCode(w http.ResponseWriter, user string) {
 	}
 	d.Image = qr.String()
 	// create a new URL to reset the timer
-	d.Token, err = createAuthURL(user)
+	d.Token, err = db.CreateToken(user)
 	if err != nil {
 		http.Error(w, "Failed to create temp url",
 			http.StatusInternalServerError)
@@ -608,7 +615,7 @@ func serveValidateOTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad Form", http.StatusBadRequest)
 		return
 	}
-
+	Logger.Info("validating OTP. form: %v", r.Form)
 	token := r.Form.Get("token")
 	if token == "" {
 		http.Error(w, "Request must have a token", http.StatusBadRequest)
@@ -632,6 +639,7 @@ func serveValidateOTP(w http.ResponseWriter, r *http.Request) {
 	if !totp.Validate(otp, s) {
 		http.Error(w, "Wrong one time password, please go back and try again",
 			http.StatusUnauthorized)
+		Logger.Infof("orp validation failed otp: %s s: %s", otp, s)
 		return
 	}
 	a, err := createAuthURL(user)
