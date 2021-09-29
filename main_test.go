@@ -252,7 +252,7 @@ func TestHTTPPeerVerification(t *testing.T) {
 	var s2 StatusMessage
 	err = ws.ReadJSON(&s2)
 	require.Nil(t, err)
-	require.Equal(t, 200, s2.Code)
+	require.Equal(t, 200, s2.Code, s2.Text)
 }
 func TestVerifyUnverified(t *testing.T) {
 	startTest(t)
@@ -394,7 +394,7 @@ func TestValidatePeerNPublish(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, 200, s2.Code, "go msg: %s", s.Text)
 }
-func TestHTTPrmrf(t *testing.T) {
+func TestGoodOTP2(t *testing.T) {
 	startTest(t)
 	// setup the fixture - a user, his token and two peers
 	redisDouble.SetAdd("user:j", "A", "B")
@@ -413,6 +413,30 @@ func TestHTTPrmrf(t *testing.T) {
 	redisDouble.Set("secret:j", ok.Secret())
 	resp, err := http.PostForm("http://127.0.0.1:17777/list/avalidtoken",
 		url.Values{"rmrf": {"checked"}, "otp": {otp}})
+	require.Nil(t, err)
+	require.Equal(t, 200, resp.StatusCode)
+	time.Sleep(time.Second / 100)
+	require.False(t, redisDouble.Exists("peer:A"))
+	require.False(t, redisDouble.Exists("peer:B"))
+	require.False(t, redisDouble.Exists("user:j"))
+}
+func TestGoodOTP(t *testing.T) {
+	startTest(t)
+	generateOTPKey("j")
+	// setup the fixture - a user, his token and two peers
+	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.Set("token:avalidtoken", "j")
+	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
+		"user", "j", "verified", "1")
+	redisDouble.HSet("peer:B", "fp", "B", "name", "foo", "kind", "lay",
+		"user", "j", "verified", "0")
+	ok, err := getUserKey("j")
+	require.Nil(t, err)
+	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
+	require.Nil(t, err)
+	resp, err := http.PostForm("http://127.0.0.1:17777/list/avalidtoken",
+		url.Values{"rmrf": {"checked"},
+			"otp": {otp}})
 	require.Nil(t, err)
 	require.Equal(t, 200, resp.StatusCode)
 	time.Sleep(time.Second / 100)
@@ -470,17 +494,41 @@ func TestGetAuthPageNoSecret(t *testing.T) {
 	// s, err := getUserSecret("j")
 	// require.Nil(t, err)
 }
-func TestValidValidateOTP(t *testing.T) {
-	token := "=a+valid/token="
+func TestGoodValidateOTP(t *testing.T) {
+	startTest(t)
+	token := "=b+valid/token="
 	// setup the fixture - a user, his token and two peers
 	redisDouble.SetAdd("user:j", "A", "B")
 	redisDouble.Set(fmt.Sprintf("token:%s", token), "j")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "0", "online", "0")
 
-	// TODO: fill body with the email, OTP & next
-	d := url.Values{}
-	d.Set("token", token)
-	d.Set("otp", "123")
-	// resp, err := http.PostForm("http://127.0.0.1:17777/validate_otp", d)
+	generateOTPKey("j")
+	require.False(t, db.IsQRVerified("j"))
+	ok, err := getUserKey("j")
+	p, err := totp.GenerateCode(ok.Secret(), time.Now())
+	resp, err := http.PostForm("http://127.0.0.1:17777/validate_otp",
+		url.Values{"token": {token}, "otp": {p}})
+	require.Nil(t, err)
+	defer resp.Body.Close()
+	bb, err := io.ReadAll(resp.Body)
+	bs := string(bb)
+	require.Equal(t, 200, resp.StatusCode, "Status code %d, body: %s",
+		resp.StatusCode, bs)
+	require.True(t, db.IsQRVerified("j"))
+}
+func TestBadValidateOTP(t *testing.T) {
+	startTest(t)
+	token := "=b+valid/token="
+	// setup the fixture - a user, his token and two peers
+	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.Set(fmt.Sprintf("token:%s", token), "j")
+	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
+		"user", "j", "verified", "0", "online", "0")
+
+	generateOTPKey("j")
+	resp, err := http.PostForm("http://127.0.0.1:17777/validate_otp",
+		url.Values{"token": {token}, "otp": {"123456"}})
+	require.Nil(t, err)
+	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 }

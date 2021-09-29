@@ -162,8 +162,9 @@ func serveList(w http.ResponseWriter, r *http.Request) {
 		// validate otp based on user's secret
 		s, err := getUserSecret(user)
 		if err != nil {
-			http.Error(w, `{"m": "Failed to get user's OTP secret"}`, http.StatusBadRequest)
-			Logger.Errorf("Failed to get user's OTP secret: %s", err)
+			msg := fmt.Sprintf("Failed to get user's OTP secret: %s", err)
+			http.Error(w, msg, http.StatusBadRequest)
+			Logger.Errorf(msg)
 			return
 		}
 		if s == "" {
@@ -579,10 +580,16 @@ func serveQRCode(w http.ResponseWriter, user string) {
 	// and return the html
 	var d struct {
 		Image string
-		Email string
+		Token string
 	}
 	d.Image = qr.String()
-	d.Email = user
+	// create a new URL to reset the timer
+	d.Token, err = createAuthURL(user)
+	if err != nil {
+		http.Error(w, "Failed to create temp url",
+			http.StatusInternalServerError)
+		return
+	}
 	err = tmpl.Execute(w, d)
 	if err != nil {
 		msg := fmt.Sprintf("Failed to execute the virgin template: %s", err)
@@ -596,12 +603,29 @@ func serveValidateOTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	err := r.ParseForm()
+	if err != nil {
+		http.Error(w, "Bad Form", http.StatusBadRequest)
+		return
+	}
+
 	token := r.Form.Get("token")
+	if token == "" {
+		http.Error(w, "Request must have a token", http.StatusBadRequest)
+		return
+	}
 	user, err := db.GetToken(token)
+	if err != nil {
+		msg := fmt.Sprintf("Failed to read : %s", err)
+		http.Error(w, msg, http.StatusInternalServerError)
+		Logger.Warn(msg)
+		return
+	}
 	s, err := getUserSecret(user)
 	if err != nil {
-		http.Error(w, "Failed to get user's secret",
-			http.StatusInternalServerError)
+		msg := fmt.Sprintf("Failed to get user's secret: %s", err)
+		http.Error(w, msg, http.StatusInternalServerError)
+		Logger.Warn(msg)
 		return
 	}
 	otp := r.Form.Get("otp")
