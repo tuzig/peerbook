@@ -577,7 +577,7 @@ func serveQRCode(w http.ResponseWriter, user string) {
 	}
 	png.Encode(encoder, img)
 	encoder.Close()
-	p := fmt.Sprintf("%s/virgin.html", os.Getenv("PB_STATIC_ROOT"))
+	p := fmt.Sprintf("%s/verifyQR.html", os.Getenv("PB_STATIC_ROOT"))
 	tmpl, err := template.ParseFiles(p)
 	if err != nil {
 		msg := fmt.Sprintf("Failed to parse the template: %s", err)
@@ -599,7 +599,7 @@ func serveQRCode(w http.ResponseWriter, user string) {
 	}
 	err = tmpl.Execute(w, d)
 	if err != nil {
-		msg := fmt.Sprintf("Failed to execute the virgin template: %s", err)
+		msg := fmt.Sprintf("Failed to execute the verifyQR template: %s", err)
 		Logger.Error(msg)
 		http.Error(w, msg, http.StatusInternalServerError)
 	}

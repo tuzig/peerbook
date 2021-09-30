@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to peerbook!</title>
+<style>
+    body {
+        max-width: 35em;
+        padding: 0.5em;
+        margin: 0 auto;
+        font-family: Tahoma, Verdana, Arial, sans-serif;
+    }
+</style>
+</head>
+<body>
+<h1>Welcome!</h1>
+<p>
+Peerbook protects your peer list using two factor authentication.
+As this is your first login, you need to set up OTP using an app such as FreeOTP.
+</p>
+<img src="data:image/png;base64,{{.Image}}" alt="QR Code for otp">
+<form method="post" action="/validate_otp">
+
+Please use your "Peerbook" key to generate a one time password and enter it
+below:
+	<input type="text" name="otp" maxlength="6" minlength="6"
+        placeholder="pass code" />
+    <input type="hidden" name="token" value="{{.Token}}">
+	<button type="submit" value="submit">Validate</button>
+</form>
+</body>
+</html>
