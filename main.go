@@ -442,7 +442,7 @@ Please click <a href="`+clickL+`">here to review</a>.`)
 	m.AddAlternative("text/plain", text)
 
 	m.SetHeaders(map[string][]string{
-		"From":               {m.FormatAddress("support@terminal7.dev", "Terminal7")},
+		"From":               {m.FormatAddress("support@tuzig.com", "Terminal7")},
 		"To":                 {email},
 		"Subject":            {"Pending changes to your peerbook"},
 		"X-SES-MESSAGE-TAGS": {"genre=auth_email"},

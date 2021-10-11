@@ -9,7 +9,14 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
-## [0.3.2] 2020-5-28
+## [0.3.3] 2021-9-23
+
+### Fixed
+
+- email is now sent from support@tuzig.com
+
+
+## [0.3.2] 2021-5-28
 
 ### Fixed
 
@@ -20,7 +27,7 @@ and the release workflow reads it to set github's release notes.
 
 - Send no more than one email a minute to a user
 
-## [0.3.1] 2020-5-22
+## [0.3.1] 2021-5-22
 
 ### Fixed
 
@@ -33,7 +40,7 @@ and the release workflow reads it to set github's release notes.
 - return peerlist on reponse to a succesful post to verify
 
 
-## [0.3.0] 2020-5-19
+## [0.3.0] 2021-5-19
 
 ### Added
 
@@ -42,7 +49,7 @@ and the release workflow reads it to set github's release notes.
 - gcloud support
 - REDIS_HOST env var instead of --redis
 
-## [0.2.3] 2020-5-12
+## [0.2.3] 2021-5-12
 
 ### Added 
 
@@ -53,20 +60,20 @@ and the release workflow reads it to set github's release notes.
 - peer list to include only verified peers
 - improved notifications
 
-## [0.2.2] 2020-4-29
+## [0.2.2] 2021-4-29
 
 ### Fixed
 
 - refactoring connection management for stability & optimization
 - returning 409 on mismatched email
 
-## [0.2.1] 2020-4-26
+## [0.2.1] 2021-4-26
 
 ### Fixed
 
 - notifying unverified peers on authorization
 
-## [0.2.0] 2020-4-26
+## [0.2.0] 2021-4-26
 
 ### Added 
 
@@ -77,7 +84,7 @@ and the release workflow reads it to set github's release notes.
 - `online` fieldon peers
 - time fields on peers
 
-## 0.1.0 - 2020-3-22
+## 0.1.0 - 2021-3-22
 
 ### Added 
 
