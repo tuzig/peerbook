@@ -16,6 +16,7 @@ import (
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
+	"golang.org/x/net/html"
 )
 
 const ReadTimeout = time.Second * 3
@@ -185,29 +186,98 @@ func TestGetUsersList(t *testing.T) {
 	// setup the fixture - a user, his token and two peers
 	redisDouble.SetAdd("user:j", "A", "B")
 	redisDouble.Set("secret:j", "AVERYSECRETTOKEN")
+	redisDouble.Set("QRVerified:j", "1")
 	redisDouble.Set(fmt.Sprintf("token:%s", token), "j")
-	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
+	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "zulu",
 		"user", "j", "verified", "0")
-	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
+	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "alpha",
 		"user", "j", "verified", "1")
 	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&email=j&kind=lay")
 	require.Nil(t, err)
 	defer ws.Close()
-	listU := fmt.Sprintf("http://127.0.0.1:17777/list/%s", url.PathEscape(token))
-	resp, err := http.Get(listU)
+	authU := fmt.Sprintf("http://127.0.0.1:17777/auth/%s", url.PathEscape(token))
+	time.Sleep(time.Second / 100)
+	resp, err := http.Get(authU)
 	require.Nil(t, err)
+	require.Equal(t, 200, resp.StatusCode)
 	defer resp.Body.Close()
-	list := make([]map[string]interface{}, 2)
-	err = json.NewDecoder(resp.Body).Decode(&list)
+	doc, err := html.Parse(resp.Body)
 	require.Nil(t, err)
-	require.Equal(t, 2, len(list))
-	require.Equal(t, map[string]interface{}{
-		"verified": false, "kind": "lay", "name": "foo", "user": "j", "fp": "A", "online": false},
-		list[0])
-	require.Equal(t, map[string]interface{}{
-		"verified": true, "kind": "lay", "name": "bar", "user": "j", "fp": "B",
-		"online": true},
-		list[1])
+	var f func(*html.Node)
+	var firstRow bool
+	validatedRows := 0
+	f = func(n *html.Node) {
+		if n.Type == html.ElementNode && n.Data == "tr" {
+			// ignore the header row
+			if validatedRows == 0 {
+				validatedRows = 1
+				return
+			}
+			// the first child is the input field for the checkbox
+			var td = n.FirstChild
+			for td.Type != html.ElementNode {
+				td = td.NextSibling
+			}
+			require.Equal(t, "td", td.Data)
+			input := td.FirstChild
+			count := 0
+			for _, a := range input.Attr {
+				if a.Key == "name" {
+					count += 1
+					if a.Val == "A" {
+						firstRow = true
+					} else {
+						require.Equal(t, "B", a.Val)
+						firstRow = false
+					}
+				} else if a.Key == "type" {
+					count += 1
+					require.Equal(t, "checkbox", a.Val)
+				} else if a.Key == "checked" {
+					count += 1
+				}
+			}
+			if firstRow {
+				require.Equal(t, 2, count, "Couldn't find all Attrs in input elemnet: %v", input.Attr)
+			} else {
+				require.Equal(t, 3, count, "Couldn't find all Attrs in input elemnet: %v", input.Attr)
+			}
+			td = td.NextSibling
+			for td.Type != html.ElementNode {
+				td = td.NextSibling
+			}
+			if firstRow {
+				require.Equal(t, "foo", td.FirstChild.Data)
+			} else {
+				require.Equal(t, "bar", td.FirstChild.Data)
+			}
+			td = td.NextSibling
+			for td.Type != html.ElementNode {
+				td = td.NextSibling
+			}
+			if firstRow {
+				require.Equal(t, "zulu", td.FirstChild.Data)
+			} else {
+				require.Equal(t, "alpha", td.FirstChild.Data)
+			}
+			td = td.NextSibling
+			for td.Type != html.ElementNode {
+				td = td.NextSibling
+			}
+			if firstRow {
+				require.Equal(t, "A", td.FirstChild.Data)
+			} else {
+				require.Equal(t, "B", td.FirstChild.Data)
+			}
+			validatedRows += 1
+			return
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			f(c)
+		}
+	}
+	f(doc)
+	require.Equal(t, 3, validatedRows, "Should have validated header + two table rows")
 }
 func TestHTTPPeerVerification(t *testing.T) {
 	startTest(t)
@@ -226,6 +296,7 @@ func TestHTTPPeerVerification(t *testing.T) {
 	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
 	require.Nil(t, err)
 	redisDouble.Set("secret:j", ok.Secret())
+	redisDouble.Set("QRVerified:j", "1")
 	// connect using websockets
 	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar")
 	require.Nil(t, err)
@@ -237,22 +308,21 @@ func TestHTTPPeerVerification(t *testing.T) {
 	err = ws.ReadJSON(&s)
 	require.Nil(t, err)
 	require.Equal(t, 401, s.Code)
-	resp, err := http.PostForm("http://127.0.0.1:17777/list/avalidtoken",
+	resp, err := http.PostForm("http://127.0.0.1:17777/auth/avalidtoken",
 		url.Values{"B": {"checked"},
 			"otp": {otp},
 		})
 	require.Nil(t, err)
 	require.Equal(t, 200, resp.StatusCode)
+	time.Sleep(time.Second / 100)
 	require.Equal(t, "0", redisDouble.HGet("peer:A", "verified"))
 	require.Equal(t, "1", redisDouble.HGet("peer:B", "verified"))
 	var m map[string]interface{}
 	err = ws.ReadJSON(&m)
 	require.Nil(t, err)
 	require.Contains(t, m, "peers", "got msg %v", m)
-	var s2 StatusMessage
-	err = ws.ReadJSON(&s2)
 	require.Nil(t, err)
-	require.Equal(t, 200, s2.Code, s2.Text)
+	require.Equal(t, 200, resp.StatusCode)
 }
 func TestVerifyUnverified(t *testing.T) {
 	startTest(t)
@@ -353,6 +423,7 @@ func TestValidatePeerNPublish(t *testing.T) {
 	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
 	require.Nil(t, err)
 	redisDouble.Set("secret:j", ok.Secret())
+	redisDouble.Set("QRVerified:j", "1")
 	// connect both peers using websockets
 	wsA, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&email=j")
 	require.Nil(t, err)
@@ -378,13 +449,13 @@ func TestValidatePeerNPublish(t *testing.T) {
 	require.Contains(t, pl, "peers")
 	require.Equal(t, 2, len(*pl["peers"]))
 	// authenticate both A & B
-	resp, err := http.PostForm("http://127.0.0.1:17777/list/avalidtoken",
+	resp, err := http.PostForm("http://127.0.0.1:17777/auth/avalidtoken",
 		url.Values{"A": {"checked"}, "B": {"checked"}, "otp": {otp}})
 	require.Nil(t, err)
 	// test if A was authenticated - both in redis and a message sent over ws
 	require.Equal(t, 200, resp.StatusCode)
 	defer resp.Body.Close()
-	time.Sleep(time.Second / 2)
+	time.Sleep(time.Second / 100)
 	require.Equal(t, "1", redisDouble.HGet("peer:A", "verified"))
 	err = wsA.ReadJSON(&pl)
 	require.Nil(t, err)
@@ -411,7 +482,8 @@ func TestGoodOTP2(t *testing.T) {
 	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
 	require.Nil(t, err)
 	redisDouble.Set("secret:j", ok.Secret())
-	resp, err := http.PostForm("http://127.0.0.1:17777/list/avalidtoken",
+	redisDouble.Set("QRVerified:j", "1")
+	resp, err := http.PostForm("http://127.0.0.1:17777/auth/avalidtoken",
 		url.Values{"rmrf": {"checked"}, "otp": {otp}})
 	require.Nil(t, err)
 	require.Equal(t, 200, resp.StatusCode)
@@ -434,7 +506,8 @@ func TestGoodOTP(t *testing.T) {
 	require.Nil(t, err)
 	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
 	require.Nil(t, err)
-	resp, err := http.PostForm("http://127.0.0.1:17777/list/avalidtoken",
+	redisDouble.Set("QRVerified:j", "1")
+	resp, err := http.PostForm("http://127.0.0.1:17777/auth/avalidtoken",
 		url.Values{"rmrf": {"checked"},
 			"otp": {otp}})
 	require.Nil(t, err)
@@ -459,7 +532,8 @@ func TestBadOTP(t *testing.T) {
 	})
 	require.Nil(t, err)
 	redisDouble.Set("secret:j", ok.Secret())
-	resp, err := http.PostForm("http://127.0.0.1:17777/list/avalidtoken",
+	redisDouble.Set("QRVerified:j", "1")
+	resp, err := http.PostForm("http://127.0.0.1:17777/auth/avalidtoken",
 		url.Values{"rmrf": {"checked"}, "otp": {"98989898"}})
 	require.Nil(t, err)
 	require.Equal(t, 401, resp.StatusCode)

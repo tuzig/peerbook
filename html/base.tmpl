@@ -1,0 +1,18 @@
+{{define "base"}}   
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>{{template "title" .}} - PeerBook</title>
+</head>
+<body>
+    <header>
+        <h1><a href="/">PeerBook.io</a></h1>
+    </header>
+    <nav>
+    </nav>
+    <main>
+        {{template "main" .}}
+    </main>
+</body>
+</html>
+{{end}}

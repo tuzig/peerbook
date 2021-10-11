@@ -110,10 +110,7 @@ func (e *NewSecret) Error() string {
 	return "Couldn't find a secret, generated a new one"
 }
 
-// serveList is a handler for the user's list of peers @ '/list/<token>'
-// the handler first ensure the token is valid and then extracts the
-// user's email, his OTP secret
-func serveList(w http.ResponseWriter, r *http.Request) {
+func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 	i := strings.IndexRune(r.URL.Path[1:], '/')
 	t := r.URL.Path[i+2:]
 	token, err := url.PathUnescape(t)
@@ -125,30 +122,16 @@ func serveList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user, err := db.GetToken(token)
-	if err != nil {
-		http.Error(w, `{"m": "Bad Token"}`, http.StatusBadRequest)
-		Logger.Errorf("Failed to get token: %s", err)
-		return
-	}
-	if user == "" {
-		http.Error(w, `{"m": "Bad Token"}`, http.StatusBadRequest)
-		Logger.Warnf("Token not found, coauld be expired")
+	if err != nil || user == "" {
+		Logger.Warnf("Failed to get token: err: %s, token: %s", err, token)
+		http.Error(w, "Bad Token", http.StatusBadRequest)
 		return
 	}
 	peers, err := GetUsersPeers(user)
 	if err != nil {
-		http.Error(w, `{"m": "Failed to get user"}`, http.StatusBadRequest)
-		Logger.Errorf("Failed to get user %q peers: %w", user, err)
-		return
-	}
-	if r.Method == "GET" {
-		m, err := json.Marshal(peers)
-		if err != nil {
-			Logger.Errorf("Failed to marshal user's list: %w", err)
-			return
-		}
-		w.Write(m)
-		return
+		msg := fmt.Sprintf("Failed to get user peers: %s", err)
+		Logger.Error(msg)
+		http.Error(w, msg, http.StatusInternalServerError)
 	}
 	if r.Method == "POST" {
 		err := r.ParseForm()
@@ -213,46 +196,6 @@ func serveList(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		w.Write([]byte(HTMLThankYou))
-	}
-}
-
-func serveAuthPage(w http.ResponseWriter, r *http.Request) {
-	i := strings.IndexRune(r.URL.Path[1:], '/')
-	// TODO: rinse. The next 10 line also appear a few lines back
-	t := r.URL.Path[i+2:]
-	token, err := url.PathUnescape(t)
-	if err != nil {
-		Logger.Warnf(
-			"Failed to unescape token: err: %s, token: %s", err, token)
-		http.Error(w, "Bad Token", http.StatusBadRequest)
-		return
-	}
-
-	user, err := db.GetToken(token)
-	if err != nil || user == "" {
-		Logger.Warnf("Failed to get token: err: %s, token: %s", err, token)
-		http.Error(w, "Bad Token", http.StatusBadRequest)
-		return
-	}
-	if r.Method == "POST" {
-		s, err := getUserSecret(user)
-		if err != nil {
-			http.Error(w, `{"m": "Failed to get user's OTP secret"}`, http.StatusBadRequest)
-			Logger.Errorf("Failed to get user's OTP secret: %s", err)
-			return
-		}
-		if s == "" {
-			http.Error(w, `{"m": "User has no OTP configured"}`, http.StatusUnauthorized)
-			return
-		}
-		otp := r.Form.Get("otp")
-		if !totp.Validate(otp, s) {
-			http.Error(w, "Wrong one time password, please try again",
-				http.StatusUnauthorized)
-			return
-		}
-
-		http.ServeFile(w, r, fmt.Sprintf("%s/goodotp.html", os.Getenv("PB_STATIC_ROOT")))
 		return
 	}
 	if r.Method != "GET" {
@@ -264,8 +207,20 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 		serveQRCode(w, user)
 		return
 	}
-	p := fmt.Sprintf("%s/auth.html", os.Getenv("PB_STATIC_ROOT"))
-	http.ServeFile(w, r, p)
+	base := fmt.Sprintf("%s/base.tmpl", os.Getenv("PB_STATIC_ROOT"))
+	main := fmt.Sprintf("%s/main.tmpl", os.Getenv("PB_STATIC_ROOT"))
+	tmpl, err := template.ParseFiles(main, base)
+	if err != nil {
+		msg := fmt.Sprintf("Failed to parse the template: %s", err)
+		http.Error(w, msg, http.StatusInternalServerError)
+		return
+	}
+	err = tmpl.Execute(w, peers)
+	if err != nil {
+		msg := fmt.Sprintf("Failed to execute the main template: %s", err)
+		Logger.Error(msg)
+		http.Error(w, msg, http.StatusInternalServerError)
+	}
 }
 func serveHitMe(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
@@ -425,7 +380,6 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 		Addr: addr, Handler: cors.Default().Handler(http.DefaultServeMux)}
 
 	http.HandleFunc("/", serveHome)
-	http.HandleFunc("/list/", serveList)
 	http.HandleFunc("/auth/", serveAuthPage)
 	http.HandleFunc("/verify", serveVerify)
 	http.HandleFunc("/hitme", serveHitMe)
@@ -591,12 +545,13 @@ func serveQRCode(w http.ResponseWriter, user string) {
 	}
 	d.Image = qr.String()
 	// create a new URL to reset the timer
-	d.Token, err = db.CreateToken(user)
+	token, err := db.CreateToken(user)
 	if err != nil {
 		http.Error(w, "Failed to create temp url",
 			http.StatusInternalServerError)
 		return
 	}
+	d.Token = url.PathEscape(token)
 	err = tmpl.Execute(w, d)
 	if err != nil {
 		msg := fmt.Sprintf("Failed to execute the verifyQR template: %s", err)

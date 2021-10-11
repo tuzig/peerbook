@@ -1,0 +1,34 @@
+{{template "base" .}}
+{{define "title"}}Your{{end}}
+
+{{define "main"}}
+
+    <form id="form" method="post">
+        <table>
+            <thead>
+            <tr>
+                <th>Verified</th>
+                <th>Name</th>
+                <th>Kind</th>
+                <th>FingerPrint</th>
+            </tr>
+            </thead>
+            <tbody>
+            {{range .}}
+                <tr>
+                    <td><input name="{{.FP}}" type="checkbox" {{if .Verified}}checked{{end}}></td>
+                    <td>{{.Name}}</td>
+                    <td>{{.Kind}}</td>
+                    <td>{{.FP}}</td>
+                </tr>
+            {{end}}
+            </tbody>
+        </table>
+        <input name="rmrf" value="checked" type="checkbox" id="rmrf">
+        <label for="rmrf">Delete all peers</label>
+        <br/><br/>
+        <input type="text" name="otp" maxlength="6" minlength="6"
+            placeholder="passcode" />
+        <input type="submit" value="Update">
+    </form>
+{{end}}
