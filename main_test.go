@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 	"testing"
 	"time"
 
@@ -179,6 +178,76 @@ func TestValidSignaling(t *testing.T) {
 	var a AnswerMessage
 	err = wsA.ReadJSON(&a)
 	require.Equal(t, "B's answer", a.Answer)
+}
+func TestVerifyQR(t *testing.T) {
+	startTest(t)
+	token := "=a+valid/token="
+	// setup the fixture - a user, his token and two peers
+	initUser("j")
+	redisDouble.SetAdd("user:j", "A", "B")
+	ok, err := getUserKey("j")
+	require.Nil(t, err)
+	redisDouble.Set(fmt.Sprintf("token:%s", token), "j")
+	authU := fmt.Sprintf("http://127.0.0.1:17777/auth/%s", url.PathEscape(token))
+	resp, err := http.Get(authU)
+	require.Nil(t, err)
+	require.Equal(t, 200, resp.StatusCode)
+	defer resp.Body.Close()
+	doc, err := html.Parse(resp.Body)
+	require.Nil(t, err)
+	var f func(*html.Node)
+	validImg := false
+	f = func(n *html.Node) {
+		if n.Type == html.ElementNode && n.Data == "input" {
+			var val string
+			var name string
+			validAttrs := 0
+			for _, a := range n.Attr {
+				if a.Key == "value" {
+					val = string(a.Val)
+					validAttrs++
+				} else if a.Key == "name" {
+					name = string(a.Val)
+					validAttrs++
+				}
+			}
+			if name == "token" {
+				token = val
+				require.Equal(t, 2, validAttrs, "Bad input elmement attrs: %v", n.Attr)
+			} else if name == "otp" {
+				require.Equal(t, 1, validAttrs, "Bad input elmement attrs: %v", n.Attr)
+			}
+			return
+		}
+		if n.Type == html.ElementNode && n.Data == "img" {
+			// ignore the header row
+			// the first child is the input field for the checkbox
+			count := 0
+			for _, a := range n.Attr {
+				if a.Key == "alt" {
+					count += 1
+					require.Equal(t, "QR code for otp", a.Val)
+				} else if a.Key == "src" {
+					count += 1
+					require.Less(t, 100, len(a.Val))
+				}
+			}
+			require.Equal(t, 2, count, "Bad img elmement")
+			validImg = true
+			return
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			f(c)
+		}
+	}
+	f(doc)
+	require.True(t, validImg, "Image elment is not valise")
+	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
+	require.Nil(t, err)
+	respP, err := http.PostForm("http://127.0.0.1:17777/validate_otp",
+		url.Values{"token": {token}, "otp": {otp}})
+	require.Nil(t, err)
+	require.Equal(t, 200, respP.StatusCode)
 }
 func TestGetUsersList(t *testing.T) {
 	startTest(t)
@@ -487,12 +556,21 @@ func TestGoodOTP2(t *testing.T) {
 		url.Values{"rmrf": {"checked"}, "otp": {otp}})
 	require.Nil(t, err)
 	require.Equal(t, 200, resp.StatusCode)
-	time.Sleep(time.Second / 100)
+	time.Sleep(time.Second / 50)
 	require.False(t, redisDouble.Exists("peer:A"))
 	require.False(t, redisDouble.Exists("peer:B"))
 	require.False(t, redisDouble.Exists("user:j"))
 }
-func TestGoodOTP(t *testing.T) {
+func TestMiniRedis(t *testing.T) {
+	startTest(t)
+	conn := db.pool.Get()
+	defer conn.Close()
+	_, err := conn.Do("SET", "peer:A", "1")
+	require.Nil(t, err)
+
+	require.True(t, redisDouble.Exists("peer:A"))
+}
+func TestRemoveAll(t *testing.T) {
 	startTest(t)
 	initUser("j")
 	// setup the fixture - a user, his token and two peers
@@ -542,31 +620,6 @@ func TestBadOTP(t *testing.T) {
 	require.True(t, redisDouble.Exists("peer:A"))
 	require.True(t, redisDouble.Exists("peer:B"))
 	require.True(t, redisDouble.Exists("user:j"))
-}
-func TestGetAuthPageNoSecret(t *testing.T) {
-	startTest(t)
-	token := "=a+valid/token="
-	// setup the fixture - a user, his token and two peers
-	initUser("j")
-	redisDouble.SetAdd("user:j", "A", "B")
-	redisDouble.Set(fmt.Sprintf("token:%s", token), "j")
-	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
-		"user", "j", "verified", "0", "online", "0")
-	listU := fmt.Sprintf("http://127.0.0.1:17777/auth/%s", url.PathEscape(token))
-	resp, err := http.Get(listU)
-	require.Nil(t, err)
-	defer resp.Body.Close()
-	bb, err := io.ReadAll(resp.Body)
-	require.Nil(t, err)
-	bs := string(bb)
-	require.Equal(t, 200, resp.StatusCode, "Status code %d, body: %s",
-		resp.StatusCode, bs)
-	require.True(t, strings.Contains(bs, "QR Code for otp"))
-
-	// time.Sleep(time.Second / 100)
-	// require.True(t, redisDouble.Exists("secret:j"))
-	// s, err := getUserSecret("j")
-	// require.Nil(t, err)
 }
 func TestGoodValidateOTP(t *testing.T) {
 	startTest(t)

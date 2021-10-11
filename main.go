@@ -551,7 +551,7 @@ func serveQRCode(w http.ResponseWriter, user string) {
 			http.StatusInternalServerError)
 		return
 	}
-	d.Token = url.PathEscape(token)
+	d.Token = token
 	err = tmpl.Execute(w, d)
 	if err != nil {
 		msg := fmt.Sprintf("Failed to execute the verifyQR template: %s", err)
