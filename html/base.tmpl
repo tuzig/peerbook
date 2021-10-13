@@ -3,16 +3,310 @@
 <html lang="en">
 <head>
     <title>{{template "title" .}} - PeerBook</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com"> 
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin> 
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@600&family=Fira+Sans+Condensed:wght@200&display=swap" rel="stylesheet">
+<style>
+/*
+ * yellow - #D9F505
+ * dark yellow - #373702
+ * magenta - #F952F9
+ * light blue - #00FAFA
+ * green - #00FA00
+ * background - #271D30
+ */
+html,
+body {
+  height: 100%;
+  margin: 0;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  font-family: 'Fira Sans Condensed', sans-serif;
+  color: #00FAFA;
+  overflow-x: hidden;
+  background-color: #271D30;
+}
+body { padding: 10px; }
+a {
+    text-decoration: none;
+    color: #00FAFA;
+}
+
+#frame { 
+    background-color: #12071B; 
+    max-width: 1000px;
+    margin: 0 auto;
+}
+        #header { max-width: 44em; }
+        #buttons { width: 100%; }
+        #header, #buttons {
+            display:flex;
+            align-items: flex-end;
+            font-family: 'Fira Code', monospace;
+            justify-content: space-between;
+            padding: 2em 1em 1em;
+            margin: 0 auto;
+        }
+        #header h1 {
+            font-size: 150%;
+        }
+        #header h2 {
+            font-size: 120%;
+            color: #D9F505;
+        }
+        main {
+            padding: 3em;
+            max-width: 40em;
+            margin: 0 auto;
+        }
+        footer {
+            margin: 0 auto;
+            background-color: #12071B; 
+            padding-bottom: 1em;
+            max-width: 1000px;
+        }
+        input {
+            background-color:inherit;
+            border: 1px solid #F952F9;
+            color: inherit;
+            border-raius: 0 px;
+        }
+        .button {
+            border: 2px solid #F952F9;
+            color: #F952F9;
+            padding: 0.2em 0.8em;
+            background-color:inherit;
+            border-radius: 0.5em;
+        }
+        .msg {
+            height: 2em;
+            border: 1px solid #F952F9;
+            border-radius: 5px;
+            padding: 0.5em auto;
+            background-color: #231B2A;
+            text-align: center;
+        }
+        th {
+            border-bottom: 1px solid #F952F9;
+            font-size: 20px;
+            color: #D9F505;
+            text-transform: capitalize;
+            padding:0 0.8em 0.2em 0.8em ;
+        }
+        th div {
+            display: flex;
+            justify-content: flex-start;
+        }
+        td:first-child, td:last-child {
+            border-left: 1px double #F952F9;
+            justify-content: center;
+        }
+        table {
+            border-bottom: 1px solid #F952F9;
+            border-collapse: collapse;
+        }
+        th, td {
+            margin: 0;
+        }
+        td {
+            text-align: left;
+            padding:0.5em;
+        }
+        table {
+            margin: 0.5em auto;
+        }
+        .checkbox-container { display:flex; justify-content:center;}
+
+    input[type=checkbox]{
+        display: grid;
+        width: 1.2em; height: 1.2em;
+        line-height: 1.2em;
+        border: 1px solid #F952F9;
+        text-align: center;
+        cursor: pointer;
+        appearance: none; -webkit-appearance: none;
+        border-radius: 0;
+    }
+
+    input[type=checkbox]::before,
+    input[type=checkbox]::after{
+        grid-area: 1/1;
+        border-radius: 2px;
+        mix-blend-mode: hard-light;
+        pointer-events: none;
+    }
+
+    input[type=checkbox]:checked::before{
+        text-indent: 0em;
+        font-size: 120%;
+        color: #D9F505;
+        content: '✓';
+    }
+
+    input[type=checkbox]:checked::after{
+        mix-blend-mode: unset;
+        color: transparent;
+    }
+
+    label{
+        cursor: pointer;
+    }
+    #submit input { width: 4em; }
+    footer p { text-align: right; }
+
+    @media 
+    only screen and (max-width: 760px),
+    (min-device-width: 768px) and (max-device-width: 1024px)  {
+
+        /* Force table to not be like tables anymore */
+        table {
+            border-bottom: none;
+        }
+        table, thead, tbody, th, td, tr { 
+            display: block; 
+        }
+        
+        /* Hide table headers (but not display: none;, for accessibility) */
+        thead tr { 
+            position: absolute;
+            top: -9999px;
+            left: -9999px;
+        }
+        
+        tr { border: 1px solid #F952F9; margin-bottom: 1em; }
+        
+        td { 
+            /* Behave  like a "row" */
+            border: none;
+            border-bottom: 1px solid #271D30; 
+            position: relative;
+            padding-left: 50%; 
+        }
+        
+        td:before { 
+            /* Now like a table header */
+            position: absolute;
+            /* Top/left values mimic padding */
+            top: 6px;
+            left: 6px;
+            width: 45%; 
+            padding-right: 10px; 
+            white-space: nowrap;
+            color: #D9F505;
+        }
+        
+        /*
+        Label the data
+        */
+        td:nth-of-type(1):before { content: "Host Verified"; }
+        td:nth-of-type(2):before { content: "Name"; }
+        td:nth-of-type(3):before { content: "Kind"; }
+        td:nth-of-type(4):before { content: "Time since login"; }
+        td:nth-of-type(5):before { content: "Time since boot"; }
+        td:nth-of-type(6):before { content: "Delete"; }
+        .checkbox-container {justify-content: flex-start;}
+        #buttons { padding: 1em 0; }
+    }
+</style>
 </head>
 <body>
-    <header>
-        <h1><a href="/">PeerBook.io</a></h1>
-    </header>
-    <nav>
-    </nav>
-    <main>
-        {{template "main" .}}
-    </main>
+    <div id="frame">
+        <div id="header">
+            <h1><a href="/">PeerBook.io</a></h1>
+            <h2>{{.User}}</h2>
+        </div>
+        <main>
+            {{template "main" .}}
+        </main>
+        <footer>
+    </div>
+<footer>
+    <div style="float:right;">
+<svg
+   height="20"
+   viewBox="0 0 122.92548 9.6849966"
+   >
+  <g
+     inkscape:label="Layer 1"
+     inkscape:groupmode="layer"
+     id="layer1"
+     transform="translate(35.76036,-305.09798)">
+    <line
+       class="cls-17"
+       x1="61.458389"
+       y1="309.89548"
+       x2="-35.760094"
+       y2="309.79761"
+       id="line295"
+       style="fill:none;stroke:#f952f9;stroke-width:0.529167px;stroke-miterlimit:10" />
+    <line
+       class="cls-17"
+       x1="72.454491"
+       y1="309.75528"
+       x2="87.165123"
+       y2="309.75528"
+       id="line299"
+       style="fill:none;stroke:#f952f9;stroke-width:0.529167;stroke-miterlimit:10;stroke-dasharray:none" />
+    <polygon
+       class="cls-17"
+       points="1310.4,846.59 1281.71,863.16 1281.71,830.02 "
+       id="polygon303"
+       style="fill:none;stroke:#f952f9;stroke-width:2px;stroke-miterlimit:10"
+       transform="matrix(0.26458333,0,0,0.26458333,-277.6951,85.946875)" />
+    <circle
+       class="cls-17"
+       cx="70.864342"
+       cy="309.94049"
+       r="1.5901459"
+       id="circle307"
+       style="fill:none;stroke:#f952f9;stroke-width:0.529167px;stroke-miterlimit:10" />
+  </g>
+</svg>
+    </div>
+    <p style="clear:both; padding-right:60px;">
+            copyright &copy; 2021 Tuzig LTD
+    </p>
+            <div style="float:right; padding-right:60px;">
+                <a href="https://github.com/tuzig/terminal7">
+<svg viewBox="0 0 32.591717 31.84717" width="20">
+  <path
+     class="cls-5"
+     d="m 16.306557,0.07 a 16.29,16.29 0 0 0 -5.15,31.75 c 0.82,0.15 1.11,-0.35 1.11,-0.79 0,-0.44 0,-1.41 0,-2.77 -4.5300002,1 -5.4900004,-2.18 -5.4900004,-2.18 A 4.3199999,4.32 0 0 0 4.9765568,23.7 c -1.48,-1 0.11,-1 0.11,-1 a 3.3999999,3.4 0 0 1 2.4899997,1.68 3.46,3.46 0 0 0 4.7400005,1.35 3.49,3.49 0 0 1 1,-2.18 C 9.6965565,23.14 5.8965568,21.74 5.8965568,15.5 A 6.2999999,6.3 0 0 1 7.5665567,11.13 5.9299998,5.93 0 0 1 7.7465565,6.82 c 0,0 1.3700001,-0.44 4.4800005,1.67 a 15.41,15.41 0 0 1 8.16,0 c 3.11,-2.1 4.48,-1.67 4.48,-1.67 a 5.9299998,5.93 0 0 1 0.16,4.31 6.2999999,6.3 0 0 1 1.67,4.37 c 0,6.26 -3.81,7.64 -7.44,8 a 3.8699999,3.87 0 0 1 1.11,3 c 0,2.17 0,3.93 0,4.46 0,0.53 0.29,0.95 1.12,0.79 A 16.3,16.3 0 0 0 16.326557,0 Z"
+     style="stroke-width:1" />
+</svg></a>&nbsp;
+                <a href="https://twitter.com/7terminal">
+<svg
+   viewBox="0 0 32.951237 32.9991"
+   width="20">
+  <path
+     class="cls-5"
+     d="m 16.8,32.998889 h -0.61 a 13.16,13.16 0 0 1 -1.77,-0.12 16.54,16.54 0 0 1 -8.4899999,-3.67 l -0.06,-0.06 v 0 0 A 0.24,0.24 0 0 0 5.72,29.018889 v 0 c 0,0 0,0 0,0 v 0 c 0,0 0,0 0,0 v 0 a 0.43000001,0.43 0 0 0 -0.2099999,-0.19 v 0 0 0 0 0 0 0 c 0,0 0,-0.06 -0.05,-0.08 L 4.64,27.928889 a 0.18,0.18 0 0 0 -0.07,-0.05 v 0 c 0,0 0,0 0,0 v 0 0 a 0.56999999,0.57 0 0 0 -0.24,-0.27 v 0 a 0.34,0.34 0 0 0 -0.1799998,-0.21 v 0 c 0,-0.09 -0.08,-0.14 -0.1500003,-0.19 v 0 a 0.68999998,0.69 0 0 0 -0.2499997,-0.31 v 0 a 0.06,0.06 0 0 0 0,-0.07 L 3,25.998889 c 0,0 0,0 0,0 v 0 c 0,0 0,-0.08 -0.05,-0.11 -0.28,-0.43 -0.56,-0.86 -0.81,-1.31 a 15.33,15.33 0 0 1 -0.86,-1.78 16.24,16.24 0 0 1 -0.57,-1.61 c -0.12,-0.41 -0.22999999,-0.83 -0.31000002,-1.25 -0.08,-0.42 -0.14999998,-0.77 -0.20999998,-1.16 0,-0.21 0,-0.43 -0.07,-0.64 -0.07,-0.21 0,-0.32 0,-0.48 -0.05,-0.33 0,-0.66 -0.05,-1 a 5,5 0 0 1 -0.07,-0.66 c 0,-0.35 0,-0.69 0.06,-1 0.06,-0.31 0.09,-0.81 0.15,-1.21 a 17.61,17.61 0 0 1 0.47999998,-2 A 16.62,16.62 0 0 1 3.16,6.8488889 a 16.82,16.82 0 0 1 1.43,-1.71 c 0.1900001,-0.2 0.3899999,-0.39 0.5900001,-0.58 0.3599998,-0.33 0.73,-0.65 1.1099999,-0.95 a 15.24,15.24 0 0 1 1.7599999,-1.21 15,15 0 0 1 1.5900002,-0.84 c 0.4499999,-0.2 0.9099999,-0.39 1.3699999,-0.55 A 16.15,16.15 0 0 1 13,0.36888889 c 0.34,-0.07 0.69,-0.14 1,-0.18 l 0.71,-0.1 c 0.31,0 0.62,-0.06 0.92,-0.08 0.3,-0.02 0.74,0 1.1,0 0.36,0 0.59,0 0.88,0 0.29,0 0.81,0.07 1.21,0.13 a 13.54,13.54 0 0 1 1.44,0.26 17.12,17.12 0 0 1 1.73,0.5 14.33,14.33 0 0 1 1.36,0.55000001 16.47,16.47 0 0 1 2.84,1.66 19,19 0 0 1 1.55,1.27 15,15 0 0 1 1.4,1.48 c 0.31,0.37 0.61,0.76 0.89,1.16 a 16.69,16.69 0 0 1 1.7,3.0700001 18.13,18.13 0 0 1 0.82,2.49 14.84,14.84 0 0 1 0.28,1.48 c 0,0.3 0.08,0.59 0.11,0.88 a 5,5 0 0 1 0,0.67 c 0,0 0,0.08 0,0.11 v 1.13 a 11.42,11.42 0 0 1 -0.1,1.65 17.35,17.35 0 0 1 -0.56,2.67 16.42,16.42 0 0 1 -4.63,7.42 16.21,16.21 0 0 1 -7.51,4 14.82,14.82 0 0 1 -2.2,0.35 9.6499998,9.65 0 0 1 -1.14,0.06 z m 11.9,-25.0000001 -0.49,0.23 a 5.8300001,5.83 0 0 1 -1.2,0.46 2.93,2.93 0 0 1 -1,0.09 c 0,0 -0.1,0 -0.1,0 0,0 0.06,-0.05 0.09,-0.07 v 0 a 2.92,2.92 0 0 0 1.14,-0.83 5,5 0 0 0 0.71,-1.25 1.13,1.13 0 0 0 0.08,-0.63 1,1 0 0 0 -0.18,0.07 c -0.45,0.23 -0.9,0.47 -1.37,0.68 a 8.32,8.32 0 0 1 -1.3,0.45 0.19,0.19 0 0 1 -0.21,-0.06 l -0.42,-0.39 a 4.5400001,4.54 0 0 0 -4,-1.13 4.7200002,4.72 0 0 0 -3.29,2.25 4.8099999,4.81 0 0 0 -0.74,2.2600001 4.0600001,4.06 0 0 0 0.08,1.3 l 0.09,0.44 c 0,0.12 0,0.12 -0.1,0.12 h -0.38 a 8.9100001,8.91 0 0 1 -2.52,-0.28 13.36,13.36 0 0 1 -3.7700001,-1.7100001 11.7,11.7 0 0 1 -2.49,-2 5.8500002,5.85 0 0 1 -0.9999998,-1.4 c 0,0 0,-0.05 0,-0.05 a 0.32,0.32 0 0 0 -0.08,0.12 A 5.5,5.5 0 0 0 5.65,10.088889 a 3,3 0 0 0 0.1800001,0.78 7.2200001,7.22 0 0 0 0.4399998,0.88 5.0599999,5.06 0 0 0 2.0700002,2 c 0,0 0.05,0 0,0 -0.05,0 -0.06,0 -0.1000001,0 -0.33,0 -0.6700001,0 -1.0000001,-0.07 A 3.3499998,3.35 0 0 1 5.66,13.118889 c 0,0 -0.05,-0.05 -0.1,0 a 5.1399999,5.14 0 0 0 0.06,0.55 6.0000001,6 0 0 0 1.0900001,2.63 4.28,4.28 0 0 0 0.6899999,0.78 8.5000001,8.5 0 0 0 0.9400002,0.67 4.7399999,4.74 0 0 0 1.45,0.65 l 0.4299998,0.08 a 3.3300001,3.33 0 0 1 -0.5099998,0.16 3.4100001,3.41 0 0 1 -1.62,0.08 c -0.23,-0.05 -0.4600003,-0.13 -0.6800002,-0.2 0,0 -0.07,0 -0.1000001,0 -0.03,0 0,0.07 0,0.11 a 5.4300001,5.43 0 0 0 1.13,2 4.59,4.59 0 0 0 2.9500001,1.61 l 0.58,0.07 a 0.24,0.24 0 0 1 -0.1,0.08 c -0.36,0.25 -0.73,0.49 -1.1,0.72 a 12.92,12.92 0 0 1 -2.2999999,1.13 11.67,11.67 0 0 1 -3.0000001,0.63 c 0,0 -0.1000001,0 -0.1399999,0 0.1999998,0.15 0.4,0.29 0.6099999,0.42 a 12.52,12.52 0 0 0 6.23,1.89 9.4800001,9.48 0 0 0 1.6,0 11.47,11.47 0 0 0 2.23,-0.39 13.36,13.36 0 0 0 6.3,-4.13 15.57,15.57 0 0 0 2.88,-4.95 16.54,16.54 0 0 0 0.82,-3.33 c 0.06,-0.43 0.11,-0.87 0.14,-1.31 a 12.89,12.89 0 0 0 0,-1.39 c 0,-0.26 0,-0.52 0,-0.77 a 0.15,0.15 0 0 1 0.09,-0.16 9.3499999,9.35 0 0 0 1.86,-1.6400001 2.79,2.79 0 0 0 0.61,-1.11 z"
+     style="stroke-width:1" />
+</svg></a>&nbsp;
+                <a href="https://discord.com/invite/rDBj8k4tUE">
+<svg
+   viewBox="0 0 33 33"
+   version="1.1"
+   width="20">
+  <defs><style>.cls-5{fill:#00fafa;}</style>
+  </defs>
+  <path
+     class="cls-5"
+     d="m 14.43,17.54 a 2.62,2.62 0 0 1 -2.44,2.78 2.8,2.8 0 0 1 0,-5.55 2.59,2.59 0 0 1 2.44,2.77 z"
+     />
+  <path
+     class="cls-5"
+     d="m 23.45,17.54 a 2.46,2.46 0 1 1 -2.44,-2.77 2.62,2.62 0 0 1 2.44,2.77 z"
+     />
+  <path
+     class="cls-5"
+     d="M 16.5,0 A 16.5,16.5 0 1 0 33,16.5 16.5,16.5 0 0 0 16.5,0 Z m 6.58,27 a 17,17 0 0 1 -1.49,-2.42 14.64,14.64 0 0 0 2.32,-1.13 Q 23.62,23.24 23.34,23 A 15.79,15.79 0 0 1 9.62,23 Q 9.3299999,23.24 9.0499999,23.45 A 14.64,14.64 0 0 0 11.37,24.58 17.93,17.93 0 0 1 9.9,27 22.56,22.56 0 0 1 3.03,23.48 23.51,23.51 0 0 1 7.0299999,7.76 22.27,22.27 0 0 1 12.63,6 a 13.69,13.69 0 0 1 0.73,1.49 20.14,20.14 0 0 1 6.2,0 c 0.2,-0.47 0.48,-1 0.72,-1.49 a 22.27,22.27 0 0 1 5.6,1.76 23.46,23.46 0 0 1 4,15.72 22.33,22.33 0 0 1 -6.8,3.52 z"
+     style="stroke-width:1" />
+</svg></a> 
+            </div>
+            <div style="clear:both;"></div>
+</footer>
 </body>
 </html>
 {{end}}

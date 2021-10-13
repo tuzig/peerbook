@@ -215,7 +215,13 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, msg, http.StatusInternalServerError)
 		return
 	}
-	err = tmpl.Execute(w, peers)
+	var data struct {
+		User  string
+		Peers *PeerList
+	}
+	data.Peers = peers
+	data.User = user
+	err = tmpl.Execute(w, data)
 	if err != nil {
 		msg := fmt.Sprintf("Failed to execute the main template: %s", err)
 		Logger.Error(msg)

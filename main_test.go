@@ -272,81 +272,73 @@ func TestGetUsersList(t *testing.T) {
 	defer resp.Body.Close()
 	doc, err := html.Parse(resp.Body)
 	require.Nil(t, err)
-	var f func(*html.Node)
-	var firstRow bool
-	validatedRows := 0
-	f = func(n *html.Node) {
-		if n.Type == html.ElementNode && n.Data == "tr" {
-			// ignore the header row
-			if validatedRows == 0 {
-				validatedRows = 1
-				return
-			}
-			// the first child is the input field for the checkbox
-			var td = n.FirstChild
-			for td.Type != html.ElementNode {
-				td = td.NextSibling
-			}
-			require.Equal(t, "td", td.Data)
-			input := td.FirstChild
-			count := 0
-			for _, a := range input.Attr {
-				if a.Key == "name" {
-					count += 1
-					if a.Val == "A" {
-						firstRow = true
+	var crawl func(*testing.T, *html.Node)
+	row := 0
+	col := 0
+	namesVerified := 0
+	crawl = func(t *testing.T, n *html.Node) {
+		if n.Type == html.ElementNode {
+			switch n.Data {
+			case "tr":
+				col = 0
+				row++
+			case "td":
+				switch col {
+				case 1:
+					if row == 2 {
+						require.Equal(t, "foo", n.FirstChild.Data)
+					} else if row == 3 {
+						require.Equal(t, "bar", n.FirstChild.Data)
 					} else {
-						require.Equal(t, "B", a.Val)
-						firstRow = false
+						t.Fail()
 					}
-				} else if a.Key == "type" {
-					count += 1
-					require.Equal(t, "checkbox", a.Val)
-				} else if a.Key == "checked" {
-					count += 1
+					namesVerified++
+				}
+				col++
+			case "input":
+				var (
+					typ     string
+					id      string
+					checked bool
+				)
+				for _, a := range n.Attr {
+					switch a.Key {
+					case "id":
+						id = a.Val
+					case "type":
+						typ = a.Val
+					case "checked":
+						checked = true
+						require.Equal(t, 3, row, "Only the third row should be checked")
+					}
+				}
+				if typ == "checkbox" && id != "rmrf" {
+					if row == 2 {
+						if col == 1 {
+							require.Equal(t, "A", id)
+						} else {
+							require.Equal(t, "del-A", id)
+						}
+						require.False(t, checked)
+					} else if row == 3 {
+						if col == 1 {
+							require.Equal(t, "B", id)
+							require.True(t, checked)
+						} else {
+							require.Equal(t, "del-B", id)
+						}
+					} else {
+						t.Fail()
+					}
 				}
 			}
-			if firstRow {
-				require.Equal(t, 2, count, "Couldn't find all Attrs in input elemnet: %v", input.Attr)
-			} else {
-				require.Equal(t, 3, count, "Couldn't find all Attrs in input elemnet: %v", input.Attr)
-			}
-			td = td.NextSibling
-			for td.Type != html.ElementNode {
-				td = td.NextSibling
-			}
-			if firstRow {
-				require.Equal(t, "foo", td.FirstChild.Data)
-			} else {
-				require.Equal(t, "bar", td.FirstChild.Data)
-			}
-			td = td.NextSibling
-			for td.Type != html.ElementNode {
-				td = td.NextSibling
-			}
-			if firstRow {
-				require.Equal(t, "zulu", td.FirstChild.Data)
-			} else {
-				require.Equal(t, "alpha", td.FirstChild.Data)
-			}
-			td = td.NextSibling
-			for td.Type != html.ElementNode {
-				td = td.NextSibling
-			}
-			if firstRow {
-				require.Equal(t, "A", td.FirstChild.Data)
-			} else {
-				require.Equal(t, "B", td.FirstChild.Data)
-			}
-			validatedRows += 1
-			return
 		}
 		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			f(c)
+			crawl(t, c)
 		}
 	}
-	f(doc)
-	require.Equal(t, 3, validatedRows, "Should have validated header + two table rows")
+	crawl(t, doc)
+	require.Equal(t, 2, namesVerified, "Should have validated two table rows' names")
 }
 func TestHTTPPeerVerification(t *testing.T) {
 	startTest(t)

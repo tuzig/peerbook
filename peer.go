@@ -101,3 +101,12 @@ func NewPeer(fp string, name string, user string, kind string) *Peer {
 	return &Peer{FP: fp, Name: name, Kind: kind, CreatedOn: time.Now().Unix(),
 		User: user, Verified: false, Online: false}
 }
+func (p *Peer) SinceBoot() string {
+	return time.Now().Sub(time.Unix(p.CreatedOn, 0)).Truncate(time.Second).String()
+}
+func (p *Peer) SinceConnect() string {
+	if p.LastConnect == 0 {
+		return "-"
+	}
+	return time.Now().Sub(time.Unix(p.LastConnect, 0)).Truncate(time.Second).String()
+}
