@@ -37,185 +37,189 @@ a {
     background-color: #12071B; 
     max-width: 1000px;
     margin: 0 auto;
+    }
+#header { max-width: 44em; }
+#buttons { width: 100%; }
+#header, #buttons {
+    display:flex;
+    align-items: flex-end;
+    font-family: 'Fira Code', monospace;
+    justify-content: space-between;
+    padding: 2em 1em 1em;
+    margin: 0 auto;
 }
-        #header { max-width: 44em; }
-        #buttons { width: 100%; }
-        #header, #buttons {
-            display:flex;
-            align-items: flex-end;
-            font-family: 'Fira Code', monospace;
-            justify-content: space-between;
-            padding: 2em 1em 1em;
-            margin: 0 auto;
-        }
-        #header h1 {
-            font-size: 150%;
-        }
-        #header h2 {
-            font-size: 120%;
-            color: #D9F505;
-        }
-        main {
-            padding: 3em;
-            max-width: 40em;
-            margin: 0 auto;
-        }
-        footer {
-            margin: 0 auto;
-            background-color: #12071B; 
-            padding-bottom: 1em;
-            max-width: 1000px;
-        }
-        input {
-            background-color:inherit;
-            border: 1px solid #F952F9;
-            color: inherit;
-            border-raius: 0 px;
-        }
-        .button {
-            border: 2px solid #F952F9;
-            color: #F952F9;
-            padding: 0.2em 0.8em;
-            background-color:inherit;
-            border-radius: 0.5em;
-        }
-        .msg {
-            height: 2em;
-            border: 1px solid #F952F9;
-            border-radius: 5px;
-            padding: 0.5em auto;
-            background-color: #231B2A;
-            text-align: center;
-        }
-        th {
-            border-bottom: 1px solid #F952F9;
-            font-size: 20px;
-            color: #D9F505;
-            text-transform: capitalize;
-            padding:0 0.8em 0.2em 0.8em ;
-        }
-        th div {
-            display: flex;
-            justify-content: flex-start;
-        }
-        td:first-child, td:last-child {
-            border-left: 1px double #F952F9;
-            justify-content: center;
-        }
-        table {
-            border-bottom: 1px solid #F952F9;
-            border-collapse: collapse;
-        }
-        th, td {
-            margin: 0;
-        }
-        td {
-            text-align: left;
-            padding:0.5em;
-        }
-        table {
-            margin: 0.5em auto;
-        }
-        .checkbox-container { display:flex; justify-content:center;}
+#header h1 {
+    font-size: 150%;
+}
+#header h2 {
+    font-size: 120%;
+    color: #D9F505;
+}
+main {
+    padding: 3em;
+    max-width: 40em;
+    margin: 0 auto;
+}
+footer {
+    margin: 0 auto;
+    background-color: #12071B; 
+    padding-bottom: 1em;
+    max-width: 1000px;
+}
+input {
+    background-color:inherit;
+    border: 1px solid #F952F9;
+    color: inherit;
+    border-raius: 0 px;
+}
+.button {
+    border: 2px solid #F952F9;
+    color: #F952F9;
+    padding: 0.2em 0.8em;
+    background-color:inherit;
+    border-radius: 0.5em;
+}
+.msg {
+    height: 2em;
+    border: 1px solid #F952F9;
+    border-radius: 5px;
+    padding: 0.5em auto;
+    background-color: #231B2A;
+    text-align: center;
+}
+th {
+    border-bottom: 1px solid #F952F9;
+    font-size: 20px;
+    color: #D9F505;
+    text-transform: capitalize;
+    padding:0 0.8em 0.2em 0.8em ;
+}
+th div {
+    display: flex;
+    justify-content: flex-start;
+}
+td:first-child, td:last-child {
+    border-left: 1px double #F952F9;
+    justify-content: center;
+}
+table {
+    border-bottom: 1px solid #F952F9;
+    border-collapse: collapse;
+}
+th, td {
+    margin: 0;
+}
+td {
+    text-align: left;
+    padding:0.5em;
+}
+table {
+    margin: 0.5em auto;
+}
+.checkbox-container { display:flex; justify-content:center;}
+.func-n-args { display:flex; align-items: flex-end; }
+.function { font-size: 80%; }
+.func-n-args svg { padding-bottom: 3px; }
 
-    input[type=checkbox]{
-        display: grid;
-        width: 1.2em; height: 1.2em;
-        line-height: 1.2em;
-        border: 1px solid #F952F9;
-        text-align: center;
-        cursor: pointer;
-        appearance: none; -webkit-appearance: none;
-        border-radius: 0;
+input[type=checkbox]{
+    display: grid;
+    width: 1.2em; height: 1.2em;
+    line-height: 1.2em;
+    border: 1px solid #F952F9;
+    text-align: center;
+    cursor: pointer;
+    appearance: none; -webkit-appearance: none;
+    border-radius: 0;
+}
+
+input[type=checkbox]::before,
+input[type=checkbox]::after{
+    grid-area: 1/1;
+    border-radius: 2px;
+    mix-blend-mode: hard-light;
+    pointer-events: none;
+}
+
+input[type=checkbox]:checked::before{
+    text-indent: 0em;
+    font-size: 120%;
+    color: #D9F505;
+    content: '✓';
+}
+
+input[type=checkbox]:checked::after{
+    mix-blend-mode: unset;
+    color: transparent;
+}
+
+label{
+    cursor: pointer;
+}
+#submit input { width: 4em; }
+footer p { text-align: right; }
+#message {
+    border: 1px solid #F952F9;
+    background-color:#271D30;
+    color: #D9F505;
+    padding 0.4em 2em;
+    margin: 0 auto;
+    max-width: 30em;
+}
+
+@media 
+only screen and (max-width: 760px),
+(min-device-width: 768px) and (max-device-width: 1024px)  {
+
+    /* Force table to not be like tables anymore */
+    table {
+        border-bottom: none;
     }
-
-    input[type=checkbox]::before,
-    input[type=checkbox]::after{
-        grid-area: 1/1;
-        border-radius: 2px;
-        mix-blend-mode: hard-light;
-        pointer-events: none;
+    table, thead, tbody, th, td, tr { 
+        display: block; 
     }
-
-    input[type=checkbox]:checked::before{
-        text-indent: 0em;
-        font-size: 120%;
+    
+    /* Hide table headers (but not display: none;, for accessibility) */
+    thead tr { 
+        position: absolute;
+        top: -9999px;
+        left: -9999px;
+    }
+    
+    tr { border: 1px solid #F952F9; margin-bottom: 1em; }
+    
+    td { 
+        /* Behave  like a "row" */
+        border: none;
+        border-bottom: 1px solid #271D30; 
+        position: relative;
+        padding-left: 50%; 
+    }
+    
+    td:before { 
+        /* Now like a table header */
+        position: absolute;
+        /* Top/left values mimic padding */
+        top: 6px;
+        left: 6px;
+        width: 45%; 
+        padding-right: 10px; 
+        white-space: nowrap;
         color: #D9F505;
-        content: '✓';
-    }
-
-    input[type=checkbox]:checked::after{
-        mix-blend-mode: unset;
-        color: transparent;
-    }
-
-    label{
-        cursor: pointer;
-    }
-    #submit input { width: 4em; }
-    footer p { text-align: right; }
-    #message {
-        border: 1px solid #F952F9;
-        background-color:#271D30;
-        color: #D9F505;
-        padding 0.4em 2em;
-        margin: 0 2em;
-    }
-
-    @media 
-    only screen and (max-width: 760px),
-    (min-device-width: 768px) and (max-device-width: 1024px)  {
-
-        /* Force table to not be like tables anymore */
-        table {
-            border-bottom: none;
         }
-        table, thead, tbody, th, td, tr { 
-            display: block; 
-        }
-        
-        /* Hide table headers (but not display: none;, for accessibility) */
-        thead tr { 
-            position: absolute;
-            top: -9999px;
-            left: -9999px;
-        }
-        
-        tr { border: 1px solid #F952F9; margin-bottom: 1em; }
-        
-        td { 
-            /* Behave  like a "row" */
-            border: none;
-            border-bottom: 1px solid #271D30; 
-            position: relative;
-            padding-left: 50%; 
-        }
-        
-        td:before { 
-            /* Now like a table header */
-            position: absolute;
-            /* Top/left values mimic padding */
-            top: 6px;
-            left: 6px;
-            width: 45%; 
-            padding-right: 10px; 
-            white-space: nowrap;
-            color: #D9F505;
-        }
-        
-        /*
-        Label the data
-        */
-        td:nth-of-type(1):before { content: "Host Verified"; }
-        td:nth-of-type(2):before { content: "Name"; }
-        td:nth-of-type(3):before { content: "Kind"; }
-        td:nth-of-type(4):before { content: "Time since login"; }
-        td:nth-of-type(5):before { content: "Time since boot"; }
-        td:nth-of-type(6):before { content: "Delete"; }
-        td:first-child, td:last-child { border: 0; }
-        .checkbox-container {justify-content: flex-start;}
-        #buttons { padding: 1em 0; }
-    }
+    
+    /*
+    Label the data
+    */
+    td:nth-of-type(1):before { content: "Host Verified"; }
+    td:nth-of-type(2):before { content: "Name"; }
+    td:nth-of-type(3):before { content: "Kind"; }
+    td:nth-of-type(4):before { content: "Time since login"; }
+    td:nth-of-type(5):before { content: "Time since boot"; }
+    td:nth-of-type(6):before { content: "Delete"; }
+    td:first-child, td:last-child { border: 0; }
+    .checkbox-container {justify-content: flex-start;}
+    #buttons { padding: 1em 0; }
+}
 </style>
 </head>
 <body>

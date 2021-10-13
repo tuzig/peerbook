@@ -606,12 +606,13 @@ func TestBadOTP(t *testing.T) {
 	resp, err := http.PostForm("http://127.0.0.1:17777/auth/avalidtoken",
 		url.Values{"rmrf": {"checked"}, "otp": {"98989898"}})
 	require.Nil(t, err)
-	require.Equal(t, 401, resp.StatusCode)
+	require.Equal(t, 200, resp.StatusCode)
 	time.Sleep(time.Second / 100)
 	// ensure nothing was removed
 	require.True(t, redisDouble.Exists("peer:A"))
 	require.True(t, redisDouble.Exists("peer:B"))
 	require.True(t, redisDouble.Exists("user:j"))
+	// TODO: ensure the OTP error message is the resp.Body
 }
 func TestGoodValidateOTP(t *testing.T) {
 	startTest(t)
