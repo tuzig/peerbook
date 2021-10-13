@@ -154,6 +154,13 @@ a {
     }
     #submit input { width: 4em; }
     footer p { text-align: right; }
+    #message {
+        border: 1px solid #F952F9;
+        background-color:#271D30;
+        color: #D9F505;
+        padding 0.4em 2em;
+        margin: 0 2em;
+    }
 
     @media 
     only screen and (max-width: 760px),
@@ -217,6 +224,11 @@ a {
             <h1><a href="/">PeerBook.io</a></h1>
             <h2>{{.User}}</h2>
         </div>
+        {{if .Message}}
+            <p id="message">
+                {{.Message}}
+            </p>
+        {{end}}
         <main>
             {{template "main" .}}
         </main>

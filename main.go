@@ -133,6 +133,18 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 		Logger.Error(msg)
 		http.Error(w, msg, http.StatusInternalServerError)
 	}
+	var data struct {
+		Message string
+		User    string
+		Peers   *PeerList
+	}
+	data.Peers = peers
+	data.User = user
+	verified := db.IsQRVerified(user)
+	if !verified {
+		serveQRCode(w, user)
+		return
+	}
 	if r.Method == "POST" {
 		err := r.ParseForm()
 		if err != nil {
@@ -155,56 +167,47 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !totp.Validate(otp, s) {
-			http.Error(w, "Wrong one time password, please try again",
-				http.StatusUnauthorized)
-			return
-		}
-
-		_, rmrf := r.Form["rmrf"]
-		if rmrf {
-			Logger.Infof("Removing user %s and his peers", user)
-			conn := db.pool.Get()
-			defer conn.Close()
-			for _, p := range *peers {
-				conn.Do("DEL", p.Key())
-			}
-			key := fmt.Sprintf("user:%s", user)
-			conn.Do("DEL", key)
-			w.Write([]byte(HTMLPostrmrf))
-			return
-		}
-		verified := make(map[string]bool)
-		for k, _ := range r.Form {
-			verified[k] = true
-		}
-		for _, p := range *peers {
-			var err error
-			_, toBeV := verified[p.FP]
-			if p.Verified && !toBeV {
-				p.Verified = false
-				err = VerifyPeer(p.FP, false)
-			}
-			if !p.Verified && toBeV {
-				p.Verified = true
-				err = VerifyPeer(p.FP, true)
-			}
-			if err != nil {
-				msg := fmt.Sprintf("Failed to verify peer: %s", err)
-				Logger.Errorf(msg)
-				http.Error(w, msg, http.StatusInternalServerError)
+			data.Message = "Wrong one time password, please try again"
+		} else {
+			_, rmrf := r.Form["rmrf"]
+			if rmrf {
+				Logger.Infof("Removing user %s and his peers", user)
+				conn := db.pool.Get()
+				defer conn.Close()
+				for _, p := range *peers {
+					conn.Do("DEL", p.Key())
+				}
+				key := fmt.Sprintf("user:%s", user)
+				conn.Do("DEL", key)
+				w.Write([]byte(HTMLPostrmrf))
 				return
 			}
+			verified := make(map[string]bool)
+			for k, _ := range r.Form {
+				verified[k] = true
+			}
+			for _, p := range *peers {
+				var err error
+				_, toBeV := verified[p.FP]
+				if p.Verified && !toBeV {
+					p.Verified = false
+					err = VerifyPeer(p.FP, false)
+				}
+				if !p.Verified && toBeV {
+					p.Verified = true
+					err = VerifyPeer(p.FP, true)
+				}
+				if err != nil {
+					msg := fmt.Sprintf("Failed to verify peer: %s", err)
+					Logger.Errorf(msg)
+					http.Error(w, msg, http.StatusInternalServerError)
+					return
+				}
+			}
+			data.Message = "Your PeerBook was updated"
 		}
-		w.Write([]byte(HTMLThankYou))
-		return
-	}
-	if r.Method != "GET" {
+	} else if r.Method != "GET" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	verified := db.IsQRVerified(user)
-	if !verified {
-		serveQRCode(w, user)
 		return
 	}
 	base := fmt.Sprintf("%s/base.tmpl", os.Getenv("PB_STATIC_ROOT"))
@@ -215,12 +218,6 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, msg, http.StatusInternalServerError)
 		return
 	}
-	var data struct {
-		User  string
-		Peers *PeerList
-	}
-	data.Peers = peers
-	data.User = user
 	err = tmpl.Execute(w, data)
 	if err != nil {
 		msg := fmt.Sprintf("Failed to execute the main template: %s", err)
