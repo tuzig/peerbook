@@ -53,10 +53,11 @@ const (
 
 // Logger is our global logger
 var (
-	Logger *zap.SugaredLogger
-	stop   chan os.Signal
-	db     DBType
-	hub    Hub
+	Logger       *zap.SugaredLogger
+	stop         chan os.Signal
+	db           DBType
+	hub          Hub
+	baseTemplate string
 )
 
 // PeerIsForeign is an error for the time when a peer asks to connect to a peer
@@ -210,9 +211,8 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	base := fmt.Sprintf("%s/base.tmpl", os.Getenv("PB_STATIC_ROOT"))
 	main := fmt.Sprintf("%s/main.tmpl", os.Getenv("PB_STATIC_ROOT"))
-	tmpl, err := template.ParseFiles(main, base)
+	tmpl, err := template.ParseFiles(main, baseTemplate)
 	if err != nil {
 		msg := fmt.Sprintf("Failed to parse the template: %s", err)
 		http.Error(w, msg, http.StatusInternalServerError)
@@ -242,7 +242,25 @@ func serveHitMe(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		sendAuthEmail(email)
-		w.Write([]byte(HTMLEmailSent))
+		var data struct {
+			Message string
+			User    string
+		}
+		data.User = email
+		data.Message = "You've been hit with the email stick"
+		index := fmt.Sprintf("%s/index.tmpl", os.Getenv("PB_STATIC_ROOT"))
+		tmpl, err := template.ParseFiles(index, baseTemplate)
+		if err != nil {
+			msg := fmt.Sprintf("Failed to parse the template: %s", err)
+			http.Error(w, msg, http.StatusInternalServerError)
+			return
+		}
+		err = tmpl.Execute(w, data)
+		if err != nil {
+			msg := fmt.Sprintf("Failed to execute the main template: %s", err)
+			Logger.Error(msg)
+			http.Error(w, msg, http.StatusInternalServerError)
+		}
 	}
 }
 func serveVerify(w http.ResponseWriter, r *http.Request) {
@@ -349,8 +367,19 @@ func serveHome(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	p := fmt.Sprintf("%s/index.html", os.Getenv("PB_STATIC_ROOT"))
-	http.ServeFile(w, r, p)
+	index := fmt.Sprintf("%s/index.tmpl", os.Getenv("PB_STATIC_ROOT"))
+	tmpl, err := template.ParseFiles(index, baseTemplate)
+	if err != nil {
+		msg := fmt.Sprintf("Failed to parse the template: %s", err)
+		http.Error(w, msg, http.StatusInternalServerError)
+		return
+	}
+	err = tmpl.Execute(w, nil)
+	if err != nil {
+		msg := fmt.Sprintf("Failed to execute template: %s", err)
+		http.Error(w, msg, http.StatusInternalServerError)
+		return
+	}
 }
 
 func initLogger() {
@@ -622,6 +651,7 @@ func serveValidateOTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	baseTemplate = fmt.Sprintf("%s/base.tmpl", os.Getenv("PB_STATIC_ROOT"))
 	addr := flag.String("addr", "0.0.0.0:17777", "address to listen for http requests")
 	redisH := os.Getenv("REDIS_HOST")
 	if redisH == "" {

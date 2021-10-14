@@ -1,17 +1,9 @@
-<!DOCTYPE html>
-<html>
-<head>
-<title>Welcome to peerbook!</title>
-<style>
-    body {
-        max-width: 35em;
-        padding: 0.5em;
-        margin: 0 auto;
-        font-family: Tahoma, Verdana, Arial, sans-serif;
-    }
-</style>
-</head>
-<body>
+{{template "base" .}}
+{{define "title"}}Your{{end}}
+
+{{define "main"}}
+
+<div id="home-container">
 <h1>Greetings & Salutations!</h1>
 <p>Welcome to peerbook a service devleoped for  
 <a http="https://terminal7.dev">Termainl7</a> users. 
@@ -24,13 +16,14 @@ Changes to the address book are authorzied on a webpage with an "Update" button
 at the bottom. Above it, there's a list of peers name, fingerprint, kind and a
 checkbox to [un]verify. This page works only when the url ends with a valid token.
 Redis helps us ensure, tokens live for just 5 minute. A link with the token is 
-emailed to the user whenever a new peer wants to authenticate [TODO: 2FA].
+emailed to the user whenever a new peer wants to authenticate.
 </p>
 <p>
 To review your peer list, please enter your email and we will forge and send a token.
 <form action="/hitme" method="post">
 	<input type="text" name="email" placeholder="email" />
-	<button type="submit" value="submit">Hit Me</button>
+	<button class="button" type="submit" value="submit">Hit Me</button>
 </form>
-</body>
-</html>
+
+</div>
+{{end}}
