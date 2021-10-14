@@ -110,7 +110,7 @@
                 <tr>
                     <td>
                         <div class="checkbox-container">
-                            <input id="{{.FP}}" type="checkbox"
+                            <input name="{{.FP}}" type="checkbox"
                                   {{if .Verified}}checked{{end}}>
                             <label for="{{.FP}}"></label>
                         </div>
@@ -121,7 +121,7 @@
                     <td>{{.SinceConnect}}</td>
                     <td>
                         <div class="checkbox-container">
-                            <input id="del-{{.FP}}" type="checkbox">
+                            <input name="del-{{.FP}}" type="checkbox">
                             <label for="del-{{.FP}}"></label>
                         </div>
                     </td>
@@ -135,7 +135,7 @@
                 <label for="rmrf">&nbsp;Delete all peers</label>
             </div>
             <div id="submit">
-                <input type="text" pattern="\d*" maxlength="6" placeholder="OTP" >
+                <input name="otp" type="text" pattern="\d*" maxlength="6" placeholder="OTP" >
                 <button class="button" type="submit">
                     Update
                     </Button>

@@ -167,7 +167,7 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !totp.Validate(otp, s) {
-			data.Message = "Wrong one time password, please try again"
+			data.Message = "Wrong One Time Password, please try again"
 		} else {
 			_, rmrf := r.Form["rmrf"]
 			if rmrf {
@@ -519,19 +519,26 @@ func initUser(user string) error {
 func serveQRCode(w http.ResponseWriter, user string) {
 	var qr bytes.Buffer
 
+	if db.IsQRVerified(user) {
+		/* TODO: make it nicer */
+		http.Error(w, `Your QR was already scanned and verified.
+If you lost your device please contact the account-recovery channel on our community server`,
+			http.StatusNotImplemented)
+		return
+	}
 	ok, err := getUserKey(user)
 	if err != nil {
 		msg := fmt.Sprintf("Failed to get users secret key QR iomage: %S", err)
 		http.Error(w, msg, http.StatusInternalServerError)
 		return
 	}
-	encoder := base64.NewEncoder(base64.StdEncoding, &qr)
 	img, err := ok.Image(200, 200)
 	if err != nil {
 		msg := fmt.Sprintf("Failed to get the QR image: %S", err)
 		http.Error(w, msg, http.StatusInternalServerError)
 		return
 	}
+	encoder := base64.NewEncoder(base64.StdEncoding, &qr)
 	png.Encode(encoder, img)
 	encoder.Close()
 	p := fmt.Sprintf("%s/verifyQR.html", os.Getenv("PB_STATIC_ROOT"))
@@ -597,7 +604,7 @@ func serveValidateOTP(w http.ResponseWriter, r *http.Request) {
 	if !totp.Validate(otp, s) {
 		http.Error(w, "Wrong one time password, please go back and try again",
 			http.StatusUnauthorized)
-		Logger.Infof("orp validation failed otp: %s s: %s", otp, s)
+		Logger.Infof("OTP validation failed otp: %s s: %s", otp, s)
 		return
 	}
 	a, err := createAuthURL(user)

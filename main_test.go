@@ -298,13 +298,13 @@ func TestGetUsersList(t *testing.T) {
 			case "input":
 				var (
 					typ     string
-					id      string
+					name    string
 					checked bool
 				)
 				for _, a := range n.Attr {
 					switch a.Key {
-					case "id":
-						id = a.Val
+					case "name":
+						name = a.Val
 					case "type":
 						typ = a.Val
 					case "checked":
@@ -312,20 +312,20 @@ func TestGetUsersList(t *testing.T) {
 						require.Equal(t, 3, row, "Only the third row should be checked")
 					}
 				}
-				if typ == "checkbox" && id != "rmrf" {
+				if typ == "checkbox" && name != "rmrf" {
 					if row == 2 {
 						if col == 1 {
-							require.Equal(t, "A", id)
+							require.Equal(t, "A", name)
 						} else {
-							require.Equal(t, "del-A", id)
+							require.Equal(t, "del-A", name)
 						}
 						require.False(t, checked)
 					} else if row == 3 {
 						if col == 1 {
-							require.Equal(t, "B", id)
+							require.Equal(t, "B", name)
 							require.True(t, checked)
 						} else {
-							require.Equal(t, "del-B", id)
+							require.Equal(t, "del-B", name)
 						}
 					} else {
 						t.Fail()
@@ -651,4 +651,14 @@ func TestBadValidateOTP(t *testing.T) {
 		url.Values{"token": {token}, "otp": {"123456"}})
 	require.Nil(t, err)
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+}
+func TestUserSecret(t *testing.T) {
+	startTest(t)
+	initUser("j")
+	time.Sleep(time.Second / 100)
+	s, err := getUserSecret("j")
+	otp, err := totp.GenerateCode(s, time.Now())
+	require.Nil(t, err)
+	v := totp.Validate(otp, s)
+	require.True(t, v)
 }
