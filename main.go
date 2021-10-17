@@ -111,21 +111,29 @@ func (e *NewSecret) Error() string {
 	return "Couldn't find a secret, generated a new one"
 }
 
-func serveAuthPage(w http.ResponseWriter, r *http.Request) {
+// getUserFromRequest It workis assuming a valid token is the second
+// url part
+func getUserFromRequest(r *http.Request) (string, error) {
 	i := strings.IndexRune(r.URL.Path[1:], '/')
 	t := r.URL.Path[i+2:]
 	token, err := url.PathUnescape(t)
 	if err != nil {
-		Logger.Warnf(
-			"Failed to unescape token: err: %s, token: %s", err, token)
-		http.Error(w, "Bad Token", http.StatusBadRequest)
-		return
+		return " ", fmt.Errorf("Failed to unescape token: err: %w", err)
 	}
 
 	user, err := db.GetToken(token)
 	if err != nil || user == "" {
-		Logger.Warnf("Failed to get token: err: %s, token: %s", err, token)
-		http.Error(w, "Bad Token", http.StatusBadRequest)
+		return " ", fmt.Errorf("Failed to get token: err: %w", err)
+	}
+	return user, nil
+}
+
+func serveAuthPage(w http.ResponseWriter, r *http.Request) {
+	user, err := getUserFromRequest(r)
+	if err != nil {
+		msg := fmt.Sprintf("Failed to parse url: %s", err)
+		Logger.Error(msg)
+		http.Error(w, msg, http.StatusInternalServerError)
 		return
 	}
 	peers, err := GetUsersPeers(user)
@@ -133,6 +141,7 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 		msg := fmt.Sprintf("Failed to get user peers: %s", err)
 		Logger.Error(msg)
 		http.Error(w, msg, http.StatusInternalServerError)
+		return
 	}
 	var data struct {
 		Message string
@@ -143,7 +152,15 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 	data.User = user
 	verified := db.IsQRVerified(user)
 	if !verified {
-		serveQRCode(w, user)
+		// show the QR code
+		a, err := createTempURL(user, "qr")
+		if err != nil {
+			msg := fmt.Sprintf("Got an error creating temp url: %s", err)
+			Logger.Warnf(msg)
+			http.Error(w, msg, http.StatusInternalServerError)
+			return
+		}
+		http.Redirect(w, r, a, http.StatusSeeOther)
 		return
 	}
 	if r.Method == "POST" {
@@ -207,7 +224,9 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 			}
 			data.Message = "Your PeerBook was updated"
 		}
-	} else if r.Method != "GET" {
+	} else if r.Method == "GET" {
+		data.Message = r.URL.Query().Get("m")
+	} else {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -416,7 +435,7 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 	http.HandleFunc("/verify", serveVerify)
 	http.HandleFunc("/hitme", serveHitMe)
 	http.HandleFunc("/ws", serveWs)
-	http.HandleFunc("/validate_otp", serveValidateOTP)
+	http.HandleFunc("/qr/", serveQR)
 
 	go func() {
 		defer wg.Done() // let main know we are done cleaning up
@@ -433,7 +452,7 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 	return srv
 }
 
-func createAuthURL(email string) (string, error) {
+func createTempURL(email string, prefix string) (string, error) {
 	// TODO: send an email in the background
 	token, err := db.CreateToken(email)
 	if err != nil {
@@ -443,7 +462,8 @@ func createAuthURL(email string) (string, error) {
 	if homeUrl == "" {
 		homeUrl = DefaultHomeUrl
 	}
-	return fmt.Sprintf("%s/auth/%s", homeUrl, url.PathEscape(token)), nil
+	parts := []string{homeUrl, prefix, url.PathEscape(token)}
+	return strings.Join(parts, "/"), nil
 }
 
 // sendAuthEmail creates a short lived token and emails a message with a link
@@ -460,7 +480,7 @@ func sendAuthEmail(email string) {
 		return
 	}
 	m := gomail.NewMessage()
-	clickL, err := createAuthURL(email)
+	clickL, err := createTempURL(email, "auth")
 	if err != nil {
 		Logger.Errorf("Failed to sendte temp URL: %s", err)
 		return
@@ -545,16 +565,59 @@ func initUser(user string) error {
 	return nil
 }
 
-func serveQRCode(w http.ResponseWriter, user string) {
+func serveQR(w http.ResponseWriter, r *http.Request) {
 	var qr bytes.Buffer
+	var msg string
 
+	user, err := getUserFromRequest(r)
+	if err != nil {
+		msg := fmt.Sprintf("Failed to parse url: %s", err)
+		Logger.Error(msg)
+		http.Error(w, msg, http.StatusInternalServerError)
+		return
+	}
 	if db.IsQRVerified(user) {
 		/* TODO: make it nicer */
 		http.Error(w, `Your QR was already scanned and verified.
-If you lost your device please contact the account-recovery channel on our community server`,
+If you lost your device please use the account-recovery channel on our discord server`,
 			http.StatusNotImplemented)
 		return
 	}
+	if r.Method == "POST" {
+		err := r.ParseForm()
+		if err != nil {
+			msg = fmt.Sprintf("Bad Form: %s", err)
+			goto render
+		}
+		s, err := getUserSecret(user)
+		if err != nil {
+			msg = fmt.Sprintf("Failed to get user's secret: %s", err)
+			goto render
+		}
+		otp := r.Form.Get("otp")
+		if !totp.Validate(otp, s) {
+			msg = "One Time Password validation failed, please try again"
+			goto render
+		}
+		a, err := createTempURL(user, "auth")
+		if err != nil {
+			msg = fmt.Sprintf("Failed to create temp url: %s", err)
+			goto render
+		}
+		a = fmt.Sprintf("%s?m=%s", a, url.PathEscape("One Time Password verified"))
+		err = db.SetQRVerified(user)
+		if err != nil {
+			msg = fmt.Sprintf("failed to save QRVerified: %s", err)
+			goto render
+		}
+		http.Redirect(w, r, a, http.StatusSeeOther)
+		return
+	} else if r.Method != "GET" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+render:
+	// getting the required data and rendering the html page
 	ok, err := getUserKey(user)
 	if err != nil {
 		msg := fmt.Sprintf("Failed to get users secret key QR iomage: %S", err)
@@ -570,8 +633,8 @@ If you lost your device please contact the account-recovery channel on our commu
 	encoder := base64.NewEncoder(base64.StdEncoding, &qr)
 	png.Encode(encoder, img)
 	encoder.Close()
-	p := fmt.Sprintf("%s/verifyQR.html", os.Getenv("PB_STATIC_ROOT"))
-	tmpl, err := template.ParseFiles(p)
+	p := fmt.Sprintf("%s/qr.tmpl", os.Getenv("PB_STATIC_ROOT"))
+	tmpl, err := template.ParseFiles(p, baseTemplate)
 	if err != nil {
 		msg := fmt.Sprintf("Failed to parse the template: %s", err)
 		http.Error(w, msg, http.StatusInternalServerError)
@@ -579,75 +642,27 @@ If you lost your device please contact the account-recovery channel on our commu
 	}
 	// and return the html
 	var d struct {
-		Image string
-		Token string
+		Message string
+		User    string
+		Image   string
+		Token   string
 	}
 	d.Image = qr.String()
+	d.User = user
+	d.Message = msg
 	// create a new URL to reset the timer
 	token, err := db.CreateToken(user)
 	if err != nil {
-		http.Error(w, "Failed to create temp url",
-			http.StatusInternalServerError)
-		return
+		d.Message = fmt.Sprintf("Failed to create temp url: %s", err)
+	} else {
+		d.Token = token
 	}
-	d.Token = token
 	err = tmpl.Execute(w, d)
 	if err != nil {
-		msg := fmt.Sprintf("Failed to execute the verifyQR template: %s", err)
+		msg := fmt.Sprintf("Failed to execute the QR template: %s", err)
 		Logger.Error(msg)
 		http.Error(w, msg, http.StatusInternalServerError)
 	}
-}
-
-func serveValidateOTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
-		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	err := r.ParseForm()
-	if err != nil {
-		http.Error(w, "Bad Form", http.StatusBadRequest)
-		return
-	}
-	Logger.Info("validating OTP. form: %v", r.Form)
-	token := r.Form.Get("token")
-	if token == "" {
-		http.Error(w, "Request must have a token", http.StatusBadRequest)
-		return
-	}
-	user, err := db.GetToken(token)
-	if err != nil {
-		msg := fmt.Sprintf("Failed to read : %s", err)
-		http.Error(w, msg, http.StatusInternalServerError)
-		Logger.Warn(msg)
-		return
-	}
-	s, err := getUserSecret(user)
-	if err != nil {
-		msg := fmt.Sprintf("Failed to get user's secret: %s", err)
-		http.Error(w, msg, http.StatusInternalServerError)
-		Logger.Warn(msg)
-		return
-	}
-	otp := r.Form.Get("otp")
-	if !totp.Validate(otp, s) {
-		http.Error(w, "Wrong one time password, please go back and try again",
-			http.StatusUnauthorized)
-		Logger.Infof("OTP validation failed otp: %s s: %s", otp, s)
-		return
-	}
-	a, err := createAuthURL(user)
-	if err != nil {
-		http.Error(w, "Failed to create temp url",
-			http.StatusInternalServerError)
-		return
-	}
-	err = db.SetQRVerified(user)
-	if err != nil {
-		Logger.Errorf("failed to save QRVerified: %s", err)
-		return
-	}
-	http.Redirect(w, r, a, http.StatusSeeOther)
 }
 
 func main() {

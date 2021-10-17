@@ -244,8 +244,8 @@ func TestVerifyQR(t *testing.T) {
 	require.True(t, validImg, "Image elment is not valise")
 	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
 	require.Nil(t, err)
-	respP, err := http.PostForm("http://127.0.0.1:17777/validate_otp",
-		url.Values{"token": {token}, "otp": {otp}})
+	u := fmt.Sprintf("http://127.0.0.1:17777/qr/%s", token)
+	respP, err := http.PostForm(u, url.Values{"otp": {otp}})
 	require.Nil(t, err)
 	require.Equal(t, 200, respP.StatusCode)
 }
@@ -626,9 +626,9 @@ func TestGoodValidateOTP(t *testing.T) {
 	initUser("j")
 	require.False(t, db.IsQRVerified("j"))
 	ok, err := getUserKey("j")
-	p, err := totp.GenerateCode(ok.Secret(), time.Now())
-	resp, err := http.PostForm("http://127.0.0.1:17777/validate_otp",
-		url.Values{"token": {token}, "otp": {p}})
+	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
+	u := fmt.Sprintf("http://127.0.0.1:17777/qr/%s", token)
+	resp, err := http.PostForm(u, url.Values{"otp": {otp}})
 	require.Nil(t, err)
 	defer resp.Body.Close()
 	bb, err := io.ReadAll(resp.Body)
@@ -647,10 +647,15 @@ func TestBadValidateOTP(t *testing.T) {
 		"user", "j", "verified", "0", "online", "0")
 
 	initUser("j")
-	resp, err := http.PostForm("http://127.0.0.1:17777/validate_otp",
-		url.Values{"token": {token}, "otp": {"123456"}})
+	u := fmt.Sprintf("http://127.0.0.1:17777/qr/%s", token)
+	resp, err := http.PostForm(u, url.Values{"otp": {"123456"}})
 	require.Nil(t, err)
-	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	require.Equal(t, 200, resp.StatusCode)
+	defer resp.Body.Close()
+	bb, err := io.ReadAll(resp.Body)
+	bs := string(bb)
+	require.Contains(t, bs, "One Time Password validation failed")
+
 }
 func TestUserSecret(t *testing.T) {
 	startTest(t)

@@ -1,0 +1,23 @@
+{{template "base" .}}
+{{define "title"}}Scan QR{{end}}
+
+{{define "main"}}
+
+<div id="qr-container">
+<h1>Welcome!</h1>
+<p>
+Peerbook protects your peer list using two factor authentication.
+As this is your first login, you need to set up OTP using an app such as FreeOTP.
+</p>
+<div class="qr-image">
+<img src="data:image/png;base64,{{.Image}}" alt="QR code for otp">
+</div>
+<p>Please use your new key to generate a one time password and enter it
+below:</p>
+<form method="post">
+	<input type="text" name="otp" maxlength="6" minlength="6"
+        title="Six digits please" placeholder="OTP" />
+	<button class="button" type="submit" value="submit">Validate</button>
+</form>
+</div>
+{{end}}

@@ -155,7 +155,7 @@ input[type=checkbox]:checked::after{
 label{
     cursor: pointer;
 }
-#submit input { width: 4em; }
+input[name=otp] { width: 4em; }
 footer p { text-align: right; }
 #message {
     border: 1px solid #F952F9;
@@ -167,6 +167,16 @@ footer p { text-align: right; }
     padding: 0.5em;
 }
 
+#home-container > p { padding-left: 1.4em; }
+#home-container > form > * { font-size: 140%; }
+#home-container > :not(form) { text-align: left; }
+#qr-container > p { padding-left: 1.4em; 
+    }
+#qr-container > form { text-align: right; }
+#qr-container > form * { font-size: 140%; }
+#qr-container > p { text-align: left; }
+#qr-container > h1 { text-align: left; }
+.qr-image { margin: 1em auto; }
 @media 
     only screen and (max-width: 1024px) {
 
@@ -219,9 +229,7 @@ footer p { text-align: right; }
     td:first-child, td:last-child { border: 0; }
     .checkbox-container {justify-content: flex-start;}
     #buttons { padding: 1em 0; }
-    #home-container > p { padding-left: 1.4em; }
-    #home-container > form > * { font-size: 140%; }
-    #home-container > :not(form) { text-align: left; }
+}
 </style>
 </head>
 <body>
