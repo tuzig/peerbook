@@ -188,7 +188,7 @@ func TestVerifyQR(t *testing.T) {
 	ok, err := getUserKey("j")
 	require.Nil(t, err)
 	redisDouble.Set(fmt.Sprintf("token:%s", token), "j")
-	authU := fmt.Sprintf("http://127.0.0.1:17777/auth/%s", url.PathEscape(token))
+	authU := fmt.Sprintf("http://127.0.0.1:17777/pb/%s", url.PathEscape(token))
 	resp, err := http.Get(authU)
 	require.Nil(t, err)
 	require.Equal(t, 200, resp.StatusCode)
@@ -264,7 +264,7 @@ func TestGetUsersList(t *testing.T) {
 	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&email=j&kind=lay")
 	require.Nil(t, err)
 	defer ws.Close()
-	authU := fmt.Sprintf("http://127.0.0.1:17777/auth/%s", url.PathEscape(token))
+	authU := fmt.Sprintf("http://127.0.0.1:17777/pb/%s", url.PathEscape(token))
 	time.Sleep(time.Second / 100)
 	resp, err := http.Get(authU)
 	require.Nil(t, err)
@@ -369,7 +369,7 @@ func TestHTTPPeerVerification(t *testing.T) {
 	err = ws.ReadJSON(&s)
 	require.Nil(t, err)
 	require.Equal(t, 401, s.Code)
-	resp, err := http.PostForm("http://127.0.0.1:17777/auth/avalidtoken",
+	resp, err := http.PostForm("http://127.0.0.1:17777/pb/avalidtoken",
 		url.Values{"B": {"checked"},
 			"otp": {otp},
 		})
@@ -510,7 +510,7 @@ func TestValidatePeerNPublish(t *testing.T) {
 	require.Contains(t, pl, "peers")
 	require.Equal(t, 2, len(*pl["peers"]))
 	// authenticate both A & B
-	resp, err := http.PostForm("http://127.0.0.1:17777/auth/avalidtoken",
+	resp, err := http.PostForm("http://127.0.0.1:17777/pb/avalidtoken",
 		url.Values{"A": {"checked"}, "B": {"checked"}, "otp": {otp}})
 	require.Nil(t, err)
 	// test if A was authenticated - both in redis and a message sent over ws
@@ -544,7 +544,7 @@ func TestGoodOTP2(t *testing.T) {
 	require.Nil(t, err)
 	redisDouble.Set("secret:j", ok.Secret())
 	redisDouble.Set("QRVerified:j", "1")
-	resp, err := http.PostForm("http://127.0.0.1:17777/auth/avalidtoken",
+	resp, err := http.PostForm("http://127.0.0.1:17777/pb/avalidtoken",
 		url.Values{"rmrf": {"checked"}, "otp": {otp}})
 	require.Nil(t, err)
 	require.Equal(t, 200, resp.StatusCode)
@@ -577,7 +577,7 @@ func TestRemoveAll(t *testing.T) {
 	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
 	require.Nil(t, err)
 	redisDouble.Set("QRVerified:j", "1")
-	resp, err := http.PostForm("http://127.0.0.1:17777/auth/avalidtoken",
+	resp, err := http.PostForm("http://127.0.0.1:17777/pb/avalidtoken",
 		url.Values{"rmrf": {"checked"},
 			"otp": {otp}})
 	require.Nil(t, err)
@@ -603,7 +603,7 @@ func TestBadOTP(t *testing.T) {
 	require.Nil(t, err)
 	redisDouble.Set("secret:j", ok.Secret())
 	redisDouble.Set("QRVerified:j", "1")
-	resp, err := http.PostForm("http://127.0.0.1:17777/auth/avalidtoken",
+	resp, err := http.PostForm("http://127.0.0.1:17777/pb/avalidtoken",
 		url.Values{"rmrf": {"checked"}, "otp": {"98989898"}})
 	require.Nil(t, err)
 	require.Equal(t, 200, resp.StatusCode)

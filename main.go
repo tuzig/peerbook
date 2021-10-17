@@ -230,7 +230,7 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	main := fmt.Sprintf("%s/main.tmpl", os.Getenv("PB_STATIC_ROOT"))
+	main := fmt.Sprintf("%s/pb.tmpl", os.Getenv("PB_STATIC_ROOT"))
 	tmpl, err := template.ParseFiles(main, baseTemplate)
 	if err != nil {
 		msg := fmt.Sprintf("Failed to parse the template: %s", err)
@@ -431,7 +431,7 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 		Addr: addr, Handler: cors.Default().Handler(http.DefaultServeMux)}
 
 	http.HandleFunc("/", serveHome)
-	http.HandleFunc("/auth/", serveAuthPage)
+	http.HandleFunc("/pb/", serveAuthPage)
 	http.HandleFunc("/verify", serveVerify)
 	http.HandleFunc("/hitme", serveHitMe)
 	http.HandleFunc("/ws", serveWs)
@@ -480,7 +480,7 @@ func sendAuthEmail(email string) {
 		return
 	}
 	m := gomail.NewMessage()
-	clickL, err := createTempURL(email, "auth")
+	clickL, err := createTempURL(email, "pb")
 	if err != nil {
 		Logger.Errorf("Failed to sendte temp URL: %s", err)
 		return
@@ -599,7 +599,7 @@ If you lost your device please use the account-recovery channel on our discord s
 			msg = "One Time Password validation failed, please try again"
 			goto render
 		}
-		a, err := createTempURL(user, "auth")
+		a, err := createTempURL(user, "pb")
 		if err != nil {
 			msg = fmt.Sprintf("Failed to create temp url: %s", err)
 			goto render
