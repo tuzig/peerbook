@@ -14,6 +14,8 @@ import (
 const TokenLen = 30      // in Bytes, four times that in base64 and urls
 const TokenTTL = 300     // in Seconds
 const EmailInterval = 60 // in Seconds
+const MaxPeersPerUser = 10
+
 // DBType is the type that holds our db
 type DBType struct {
 	pool *redis.Pool
@@ -108,12 +110,18 @@ func (d *DBType) Close() error {
 func (d *DBType) AddPeer(peer *Peer) error {
 	conn := d.pool.Get()
 	defer conn.Close()
-	_, err := conn.Do("HSET", redis.Args{}.Add(peer.Key()).AddFlat(peer)...)
+	key := fmt.Sprintf("user:%s", peer.User)
+	values, err := redis.Values(conn.Do("SMEMBERS", key))
+	if err != nil {
+		return fmt.Errorf("Failed to read user %q list: %w", peer.User, err)
+	}
+	if len(values) == MaxPeersPerUser {
+		return fmt.Errorf("User has too many peers")
+	}
+	_, err = conn.Do("HSET", redis.Args{}.Add(peer.Key()).AddFlat(peer)...)
 	if err != nil {
 		return err
 	}
-	// add to the user's list
-	key := fmt.Sprintf("user:%s", peer.User)
 	conn.Do("SADD", key, peer.FP)
 	return nil
 }
