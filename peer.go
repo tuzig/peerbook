@@ -89,11 +89,6 @@ func (p *Peer) setName(name string) {
 	conn.Do("HSET", p.Key(), "name", name)
 }
 
-// SetOnline sets the peer's online redis cache and notifies peers
-func (p *Peer) SetOnline(o bool) {
-	temp := Conn{FP: p.FP, User: p.User}
-	temp.SetOnline(o)
-}
 func (p *Peer) Key() string {
 	return fmt.Sprintf("peer:%s", p.FP)
 }
