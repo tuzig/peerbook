@@ -470,11 +470,6 @@ func createTempURL(email string, prefix string) (string, error) {
 // to `/auth/<token>` so the javascript at /auth can read the list of peers and
 // use checkboxes to enable/disable
 func sendAuthEmail(email string) {
-	err := initUser(email)
-	if err != nil {
-		Logger.Errorf("Failed to generate TOTP key: %s", err)
-		return
-	}
 	if !db.canSendEmail(email) {
 		Logger.Warnf("Throttling prevented sending email to %q", email)
 		return
@@ -528,41 +523,28 @@ func getUserKey(user string) (*otp.Key, error) {
 }
 func getUserSecret(user string) (string, error) {
 	var secret string
-	key := fmt.Sprintf("secret:%s", user)
-	conn := db.pool.Get()
-	defer conn.Close()
-	secret, err := redis.String(conn.Do("GET", key))
-	if err != nil {
-		return "", err
-	}
-	return secret, nil
-}
-
-func initUser(user string) error {
 	conn := db.pool.Get()
 	defer conn.Close()
 	key := fmt.Sprintf("secret:%s", user)
-	exists, err := redis.Bool(conn.Do("EXISTS", key))
-	if err != nil {
-		return err
-	}
-	if !exists {
+	secret, err := redis.String(conn.Do("Get", key))
+	if err == redis.ErrNil {
 		ok, err := totp.Generate(totp.GenerateOpts{
 			Issuer:      "PeerBook",
 			AccountName: user,
 		})
 		if err != nil {
-			return fmt.Errorf("Failed to generate a TOTP key")
+			return "", fmt.Errorf("Failed to generate a TOTP key")
 		}
 		// all is well, save the secret
-		secret := ok.Secret()
-		key := fmt.Sprintf("secret:%s", user)
+		secret = ok.Secret()
 		_, err = conn.Do("SET", key, secret)
 		if err != nil {
-			return fmt.Errorf("Failed to save the user's secret")
+			return "", fmt.Errorf("Failed to save the user's secret")
 		}
+	} else if err != nil {
+		return "", err
 	}
-	return nil
+	return secret, nil
 }
 
 func serveQR(w http.ResponseWriter, r *http.Request) {

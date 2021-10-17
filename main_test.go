@@ -183,7 +183,6 @@ func TestVerifyQR(t *testing.T) {
 	startTest(t)
 	token := "=a+valid/token="
 	// setup the fixture - a user, his token and two peers
-	initUser("j")
 	redisDouble.SetAdd("user:j", "A", "B")
 	ok, err := getUserKey("j")
 	require.Nil(t, err)
@@ -564,7 +563,6 @@ func TestMiniRedis(t *testing.T) {
 }
 func TestRemoveAll(t *testing.T) {
 	startTest(t)
-	initUser("j")
 	// setup the fixture - a user, his token and two peers
 	redisDouble.SetAdd("user:j", "A", "B")
 	redisDouble.Set("token:avalidtoken", "j")
@@ -623,7 +621,6 @@ func TestGoodValidateOTP(t *testing.T) {
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "0", "online", "0")
 
-	initUser("j")
 	require.False(t, db.IsQRVerified("j"))
 	ok, err := getUserKey("j")
 	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
@@ -646,7 +643,6 @@ func TestBadValidateOTP(t *testing.T) {
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "0", "online", "0")
 
-	initUser("j")
 	u := fmt.Sprintf("http://127.0.0.1:17777/qr/%s", token)
 	resp, err := http.PostForm(u, url.Values{"otp": {"123456"}})
 	require.Nil(t, err)
@@ -659,7 +655,6 @@ func TestBadValidateOTP(t *testing.T) {
 }
 func TestUserSecret(t *testing.T) {
 	startTest(t)
-	initUser("j")
 	time.Sleep(time.Second / 100)
 	s, err := getUserSecret("j")
 	otp, err := totp.GenerateCode(s, time.Now())
