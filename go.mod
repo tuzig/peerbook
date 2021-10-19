@@ -3,7 +3,7 @@ module github.com/tuzig/peerbook
 go 1.16
 
 require (
-	github.com/alicebob/miniredis/v2 v2.14.3
+	github.com/alicebob/miniredis/v2 v2.15.1
 	github.com/gomodule/redigo v2.0.0+incompatible
 	github.com/gorilla/websocket v1.4.2
 	github.com/pkg/errors v0.9.1 // indirect

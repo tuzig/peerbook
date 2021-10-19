@@ -31,16 +31,6 @@ import (
 const (
 	// SendChanSize is the size of the send channel in messages
 	SendChanSize = 4
-	HTMLThankYou = `<html lang=en> <head><meta charset=utf-8>
-<title>Thank You</title>
-</head>
-<body><h2>Your changes have been recorded<h2>
-<h3>Please ensure your servers and started and clients refreshed</h3>`
-
-	HTMLPostrmrf = `<html lang=en> <head><meta charset=utf-8>
-<title>Thank You</title>
-</head>
-<body><h2>All your peers and your email were deleted</h2>`
 
 	HTMLEmailSent = `<html lang=en> <head><meta charset=utf-8>
 <title>Peerbook</title>
@@ -197,8 +187,9 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 				}
 				key := fmt.Sprintf("user:%s", user)
 				conn.Do("DEL", key)
-				w.Write([]byte(HTMLPostrmrf))
-				return
+				data.Peers = nil
+				data.Message = "Your peers were removed"
+				goto render
 			}
 			verified := make(map[string]bool)
 			for k, _ := range r.Form {
@@ -230,6 +221,7 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+render:
 	main := fmt.Sprintf("%s/pb.tmpl", os.Getenv("PB_STATIC_ROOT"))
 	tmpl, err := template.ParseFiles(main, baseTemplate)
 	if err != nil {
