@@ -9,10 +9,11 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
-## [0.3.4] 2021-10-19
+## [1.0.0] 2021-10-20
 
 ### Added
 
+- 2FA using one time password
 - graphics design
 - limitting peerbook to 10 entries
 
