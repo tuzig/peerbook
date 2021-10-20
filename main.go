@@ -479,14 +479,12 @@ func sendAuthEmail(email string) error {
 		return fmt.Errorf("Failed to execute template: %s", err)
 	}
 	m.SetBody("text/html", h.String())
-	Logger.Info(h.String())
 	var p bytes.Buffer
 	err = plainT.Execute(&p, clickL)
 	if err != nil {
 		return fmt.Errorf("Failed to execute template: %s", err)
 	}
 	m.AddAlternative("text/plain", p.String())
-	Logger.Info(p.String())
 
 	m.SetHeaders(map[string][]string{
 		"From":               {m.FormatAddress("support@tuzig.com", "PeerBook Support")},
@@ -505,7 +503,7 @@ func sendAuthEmail(email string) error {
 	if err := d.DialAndSend(m); err != nil {
 		Logger.Errorf("Failed to send email: %s", err)
 	} else {
-		Logger.Infof("Send email to %q", email)
+		Logger.Infof("Sent email to %q", email)
 	}
 	return nil
 }
