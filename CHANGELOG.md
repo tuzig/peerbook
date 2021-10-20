@@ -9,6 +9,12 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
+## Unreleased
+
+### Fixed 
+
+- plain text email signature link
+
 ## [1.0.0] 2021-10-20
 
 ### Added
