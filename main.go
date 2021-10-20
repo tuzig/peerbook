@@ -475,18 +475,18 @@ func sendAuthEmail(email string) error {
 	if err != nil {
 		return fmt.Errorf("Failed to parse the plain template: %s", err)
 	}
-	var h bytes.Buffer
-	err = htmlT.Execute(&h, clickL)
-	if err != nil {
-		return fmt.Errorf("Failed to execute template: %s", err)
-	}
-	m.SetBody("text/html", h.String())
 	var p bytes.Buffer
 	err = plainT.Execute(&p, clickL)
 	if err != nil {
 		return fmt.Errorf("Failed to execute template: %s", err)
 	}
-	m.AddAlternative("text/plain", p.String())
+	m.SetBody("text/plain", p.String())
+	var h bytes.Buffer
+	err = htmlT.Execute(&h, clickL)
+	if err != nil {
+		return fmt.Errorf("Failed to execute template: %s", err)
+	}
+	m.AddAlternative("text/html", h.String())
 
 	m.SetHeaders(map[string][]string{
 		"From":               {m.FormatAddress("support@tuzig.com", "PeerBook Support")},
