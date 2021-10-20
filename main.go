@@ -33,24 +33,17 @@ const (
 	// SendChanSize is the size of the send channel in messages
 	SendChanSize = 4
 
-	HTMLEmailSent = `<html lang=en> <head><meta charset=utf-8>
-<title>Peerbook</title>
-</head>
-<body><h2>Please check your inbox for your peerbook link</h2>
-
-`
 	DefaultHomeUrl = "https://pb.terminal7.dev"
 )
 
 // Logger is our global logger
 var (
-	Logger       *zap.SugaredLogger
-	stop         chan os.Signal
-	db           DBType
-	hub          Hub
-	baseTemplate string
-	//go:embed html
-	htmlFS embed.FS
+	Logger *zap.SugaredLogger
+	stop   chan os.Signal
+	db     DBType
+	hub    Hub
+	//go:embed templates
+	tFS embed.FS
 )
 
 // PeerIsForeign is an error for the time when a peer asks to connect to a peer
@@ -225,8 +218,7 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 render:
-	main := fmt.Sprintf("%s/pb.tmpl", os.Getenv("PB_STATIC_ROOT"))
-	tmpl, err := template.ParseFiles(main, baseTemplate)
+	tmpl, err := template.ParseFS(tFS, "templates/pb.tmpl", "templates/base.tmpl")
 	if err != nil {
 		msg := fmt.Sprintf("Failed to parse the template: %s", err)
 		http.Error(w, msg, http.StatusInternalServerError)
@@ -264,8 +256,7 @@ func serveHitMe(w http.ResponseWriter, r *http.Request) {
 		}
 		data.Message = "You've been hit with the email stick"
 	render:
-		index := fmt.Sprintf("%s/index.tmpl", os.Getenv("PB_STATIC_ROOT"))
-		tmpl, err := template.ParseFiles(index, baseTemplate)
+		tmpl, err := template.ParseFS(tFS, "templates/index.tmpl", "templates/base.tmpl")
 		if err != nil {
 			msg := fmt.Sprintf("Failed to parse the template: %s", err)
 			http.Error(w, msg, http.StatusInternalServerError)
@@ -383,8 +374,7 @@ func serveHome(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	index := fmt.Sprintf("%s/index.tmpl", os.Getenv("PB_STATIC_ROOT"))
-	tmpl, err := template.ParseFiles(index, baseTemplate)
+	tmpl, err := template.ParseFS(tFS, "templates/index.tmpl", "templates/base.tmpl")
 	if err != nil {
 		msg := fmt.Sprintf("Failed to parse the template: %s", err)
 		http.Error(w, msg, http.StatusInternalServerError)
@@ -475,11 +465,11 @@ func sendAuthEmail(email string) error {
 	if err != nil {
 		return fmt.Errorf("Failed to sendte temp URL: %s", err)
 	}
-	htmlT, err := template.ParseFS(htmlFS, "html/email.html.tmpl")
+	htmlT, err := template.ParseFS(tFS, "templates/email.html.tmpl")
 	if err != nil {
 		return fmt.Errorf("Failed to parse the html template: %s", err)
 	}
-	plainT, err := template.ParseFS(htmlFS, "html/email.plain.tmpl")
+	plainT, err := template.ParseFS(tFS, "templates/email.plain.tmpl")
 	if err != nil {
 		return fmt.Errorf("Failed to parse the plain template: %s", err)
 	}
@@ -623,8 +613,8 @@ render:
 	encoder := base64.NewEncoder(base64.StdEncoding, &qr)
 	png.Encode(encoder, img)
 	encoder.Close()
-	p := fmt.Sprintf("%s/qr.tmpl", os.Getenv("PB_STATIC_ROOT"))
-	tmpl, err := template.ParseFiles(p, baseTemplate)
+	tmpl, err := template.ParseFS(tFS, "templates/qr.tmpl",
+		"templates/base.tmpl")
 	if err != nil {
 		msg := fmt.Sprintf("Failed to parse the template: %s", err)
 		http.Error(w, msg, http.StatusInternalServerError)
@@ -656,7 +646,6 @@ render:
 }
 
 func main() {
-	baseTemplate = fmt.Sprintf("%s/base.tmpl", os.Getenv("PB_STATIC_ROOT"))
 	addr := flag.String("addr", "0.0.0.0:17777", "address to listen for http requests")
 	redisH := os.Getenv("REDIS_HOST")
 	if redisH == "" {

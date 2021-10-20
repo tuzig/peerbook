@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"testing"
 	"time"
 
@@ -126,6 +127,7 @@ func TestSignalingAcrossUsers(t *testing.T) {
 // - peer A recieves the answer
 func TestValidSignaling(t *testing.T) {
 	startTest(t)
+	startTime := time.Now().Unix()
 	redisDouble.SetAdd("user:j", "A", "B")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "1", "online", "0")
@@ -178,6 +180,12 @@ func TestValidSignaling(t *testing.T) {
 	var a AnswerMessage
 	err = wsA.ReadJSON(&a)
 	require.Equal(t, "B's answer", a.Answer)
+	lA, err := strconv.ParseInt(redisDouble.HGet("peer:A", "last_connect"), 10, 64)
+	require.Nil(t, err)
+	lB, err := strconv.ParseInt(redisDouble.HGet("peer:B", "last_connect"), 10, 64)
+	require.Nil(t, err)
+	require.LessOrEqual(t, startTime, lA)
+	require.LessOrEqual(t, startTime, lB)
 }
 func TestVerifyQR(t *testing.T) {
 	startTest(t)
