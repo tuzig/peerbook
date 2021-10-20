@@ -33,7 +33,7 @@ const (
 	// SendChanSize is the size of the send channel in messages
 	SendChanSize = 4
 
-	DefaultHomeUrl = "https://pb.terminal7.dev"
+	DefaultHomeURL = "https://pb.terminal7.dev"
 )
 
 // Logger is our global logger
@@ -139,7 +139,7 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 	verified := db.IsQRVerified(user)
 	if !verified {
 		// show the QR code
-		a, err := createTempURL(user, "qr")
+		a, err := createTempURL(user, "qr", true)
 		if err != nil {
 			msg := fmt.Sprintf("Got an error creating temp url: %s", err)
 			Logger.Warnf(msg)
@@ -439,17 +439,19 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 	return srv
 }
 
-func createTempURL(email string, prefix string) (string, error) {
-	// TODO: send an email in the background
+func createTempURL(email string, prefix string, rel bool) (string, error) {
+	var s string
 	token, err := db.CreateToken(email)
 	if err != nil {
 		return "", fmt.Errorf("Failed to create token: %w", err)
 	}
-	homeUrl := os.Getenv("PB_HOME_URL")
-	if homeUrl == "" {
-		homeUrl = DefaultHomeUrl
+	if !rel {
+		s = os.Getenv("PB_HOME_URL")
+		if s == "" {
+			s = DefaultHomeURL
+		}
 	}
-	parts := []string{homeUrl, prefix, url.PathEscape(token)}
+	parts := []string{s, prefix, url.PathEscape(token)}
 	return strings.Join(parts, "/"), nil
 }
 
@@ -461,7 +463,7 @@ func sendAuthEmail(email string) error {
 		return fmt.Errorf("Throttling prevented sending email to %q", email)
 	}
 	m := gomail.NewMessage()
-	clickL, err := createTempURL(email, "pb")
+	clickL, err := createTempURL(email, "pb", false)
 	if err != nil {
 		return fmt.Errorf("Failed to sendte temp URL: %s", err)
 	}
@@ -577,7 +579,7 @@ If you lost your device please use the account-recovery channel on our discord s
 			msg = "One Time Password validation failed, please try again"
 			goto render
 		}
-		a, err := createTempURL(user, "pb")
+		a, err := createTempURL(user, "pb", true)
 		if err != nil {
 			msg = fmt.Sprintf("Failed to create temp url: %s", err)
 			goto render
