@@ -5,25 +5,29 @@
 
 <div id="home-container">
 <h1>Greetings & Salutations!</h1>
-<p>Welcome to peerbook a service devleoped for  
-<a http="https://terminal7.dev">Termainl7</a> users. 
-Each Peerbook user controls a private address book of servers and clients.
-peerbook started as yet-another-WebRTC-signaling-server and grew to a protocol and a
-system that lets you never key another IP address or copy a key ever again.
-</p>
 <p>
-Changes to the address book are authorzied on a webpage with an "Update" button
-at the bottom. Above it, there's a list of peers name, fingerprint, kind and a
-checkbox to [un]verify. This page works only when the url ends with a valid token.
-Redis helps us ensure, tokens live for just 5 minute. A link with the token is 
-emailed to the user whenever a new peer wants to authenticate.
+PeerBook is an open source address book and WebRTC signaling service.
+Each Peerbook user controls a private address book of servers, clients and
+their fingerprints. Developed for use by
+<a href="https://terminal7.dev">Termainl7</a>, PeerBook is open to all WebRTC
+peers with persistent fingerprints.
 </p>
-<p>
-To review your peer list, please enter your email and we will forge and send a token.
+<h2>PeerBook users enjoy:</h2>
+<ul>
+    <li>No more copying &amp; pasting of IP addresses and fingerprints</li>
+    <li>Working on behind-the-NAT home desktops and PIs</li>
+    <li>Two factor Authentication</li>
+</ul>
 <form action="/hitme" method="post">
-	<input type="text" name="email" placeholder="email" />
-	<button class="button" type="submit" value="submit">Hit Me</button>
-</form>
+<div class="hitme">
+    <p>
+    To review your PeerBook, please enter your email and we will forge and send a
+    short lived token.
+    </p>
+    <input type="text" name="email" placeholder="email" />
+    <button class="button" type="submit" value="submit">Hit Me</button>
+</div>
+    </form>
 
 </div>
 {{end}}

@@ -21,7 +21,6 @@ body {
   margin: 0;
   justify-content: center;
   align-items: center;
-  text-align: center;
   font-family: 'Fira Sans Condensed', sans-serif;
   color: #00FAFA;
   overflow-x: hidden;
@@ -165,10 +164,25 @@ footer p { text-align: right; }
     max-width: 30em;
     padding: 0.5em;
 }
-
-#home-container > p { padding-left: 1.4em; }
-#home-container > form > * { font-size: 140%; }
+#home-container > p, #home-container li { 
+    font-size: 16px;
+    line-height: 30px;
+    padding-left: 1.4em; 
+}
+#home-container input, #home-container button { font-size: 120%; }
 #home-container > :not(form) { text-align: left; }
+#home-container > h2 { padding-left: 1em; }
+#home-container li { padding-left: 2em; margin-left: 1em; }
+.hitme {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    flex-wrap: wrap-reverse;
+    gap: 0.5em;
+}
+.hitme > p {flex: 5;}
+.hitme > input {flex: 2;}
+.hitme > button {flex: 1;}
 #qr-container > p { padding-left: 1.4em; 
     }
 #qr-container > form { text-align: right; }
