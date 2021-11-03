@@ -1,0 +1,15 @@
+version: '3'
+services:
+  api:
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/peerbook/server:${VERSION}
+    command: sh -c "/bin/chamber exec server -- /bin/myapp"
+    hostname: api
+    ports:
+      - "17777"
+    environment:
+      AWS_REGION: ${AWS_REGION}
+    logging:
+      driver: awslogs
+      options:
+        awslogs-group: api
+        awslogs-region: ${AWS_REGION}
