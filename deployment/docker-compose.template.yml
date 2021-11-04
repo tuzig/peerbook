@@ -2,7 +2,6 @@ version: '3'
 services:
   api:
     image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/peerbook/server:${VERSION}
-    command: sh -c "/bin/chamber exec ${LAYER_NAME} -- /bin/myapp"
     hostname: api
     ports:
       - "17777"
