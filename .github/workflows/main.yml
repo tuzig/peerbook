@@ -35,8 +35,10 @@ jobs:
       # Runs a set of commands using the runners shell
       - name: deploy
         env: # Or as an environment variable
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}    
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}    
           AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}    
           AWS_REGION: ${{ secrets.AWS_REGION }} 
-          LAYER_NAME: ${{ secrets.LAYER_NAME }}
-          TARGET_GROUP_ID: ${{ secrets.TARGET_GROUP_ID }}
+          ENVIRONMENT: ${{ secrets.ENVIRONMENT }}
+          TARGET_GROUP_ID: ${{ secrets.API_TARGET_GROUP_ID }}
         run: bash deployment/deploy.sh
