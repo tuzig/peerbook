@@ -1,4 +1,6 @@
-FROM segment/chamber:2 AS chamber
-FROM base_image
 
-COPY --from=chamber /chamber /bin/chamber
+FROM base_image
+RUN apt-get update
+RUN apt-get install -y curl
+RUN curl -s https://packagecloud.io/install/repositories/segment/chamber/script.deb.sh | bash
+RUN apt-get install -y chamber
