@@ -7,8 +7,11 @@ services:
       - "17777"
     environment:
       AWS_REGION: ${AWS_REGION}
+      LAYER_NAME: ${LAYER_NAME}
     logging:
       driver: awslogs
-      options:
-        awslogs-group: api
+      options:      
+        awslogs-group: staging-peerbook-api
         awslogs-region: ${AWS_REGION}
+        awslogs-stream-prefix: api
+        

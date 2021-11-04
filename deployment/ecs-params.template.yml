@@ -7,7 +7,8 @@ task_definition:
       cpu_shares: 200
       mem_limit: "512m"
       healthcheck:
-        test: [ 'CMD', 'curl', '-s', '-o', '/dev/null', '-w', '"%{http_code}"', 'http://localhost:17777/health/check/' ]
+        test: [ 'CMD', 'curl', '-s', '-o', '/dev/null', '-w', '"%{http_code}"', 'http://localhost:17777/' ]
         start_period: 5s
         interval: 10s
         retries: 5
+        
