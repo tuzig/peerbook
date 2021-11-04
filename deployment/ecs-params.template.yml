@@ -1,6 +1,6 @@
 version: 1
 task_definition:
-  task_execution_role: arn:aws:iam::${AWS_ACCOUNT_ID}:role/peerbook/prod_executor
+  task_execution_role: arn:aws:iam::${AWS_ACCOUNT_ID}:role/ecs/${ENVIRONMENT}_peerbook_ecs_task_executor
   services:
     api:
       essential: true
