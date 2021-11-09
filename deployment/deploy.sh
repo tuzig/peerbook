@@ -19,7 +19,7 @@ ecs-cli compose --project-name tools \
   --region "${AWS_REGION}" \
   --deployment-min-healthy-percent 100 \
   --deployment-max-percent 200 \
-  --timeout 5
+  --timeout 10
 
 if [ "$?" = "1" ]; then
   echo "Deploy failed"
