@@ -3,7 +3,7 @@ set -e
 
 VERSION=$(git rev-parse --short HEAD)
 ECR_HOST="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-ECR_URL="${ECR_HOST}/peerbook"
+ECR_URL="${ENVIRONMENT}/${ECR_HOST}/peerbook"
 
 if [ -z "${AWS_REGION+unset}" ]; then
     echo "AWS_REGION must be set to push the image"
