@@ -1,4 +1,3 @@
-
 FROM base_image
 RUN apt-get update && apt-get install -y curl && \
     curl -o chamber -LOs https://github.com/segmentio/chamber/releases/download/v2.10.6/chamber-v2.10.6-linux-amd64 && \
@@ -6,4 +5,4 @@ RUN apt-get update && apt-get install -y curl && \
     mv chamber /usr/local/bin && \
     chamber version
 
-CMD ["chamber","exec","${LAYER_NAME}","--","/app/server"]
+CMD ["chamber","exec","$LAYER_NAME","--","/app/server"]
