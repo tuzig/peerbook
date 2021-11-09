@@ -11,4 +11,4 @@ RUN apt-get update && apt-get install -y curl && \
     mv chamber /usr/local/bin && \
     chamber version
 
-CMD ["sh", "-c", "chamber exec $LAYER_NAME -- /app/server"]
+CMD chamber exec "${LAYER_NAME}" — /app/server
