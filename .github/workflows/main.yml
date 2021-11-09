@@ -45,4 +45,6 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }} 
           ENVIRONMENT: ${{ secrets.ENVIRONMENT }}
           TARGET_GROUP_ID: ${{ secrets.API_TARGET_GROUP_ID }}
-        run: bash deployment/deploy.sh
+        run: |
+          cd deployment
+          bash deploy.sh       
