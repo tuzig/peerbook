@@ -1,7 +1,7 @@
 version: '3'
 services:
   api:
-    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/peerbook/server:${VERSION}
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ENVIRONMENT}/peerbook/server:${VERSION}
     hostname: api
     ports:
       - "17777"
