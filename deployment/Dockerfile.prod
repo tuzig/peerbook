@@ -3,7 +3,7 @@
 # docker build -t base_image .
 FROM base_image
 
-ENV LAYER_NAME=${LAYER_NAME}
+ENV LAYER_NAME=""
 
 RUN apt-get update && apt-get install -y curl && \
     curl -o chamber -LOs https://github.com/segmentio/chamber/releases/download/v2.10.6/chamber-v2.10.6-linux-amd64 && \
