@@ -11,7 +11,7 @@ services:
     logging:
       driver: awslogs
       options:      
-        awslogs-group: staging-peerbook-api
+        awslogs-group: ${LAYER_NAME}-api
         awslogs-region: ${AWS_REGION}
         awslogs-stream-prefix: api
         
