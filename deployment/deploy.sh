@@ -2,6 +2,7 @@
 
 VERSION="$(git rev-parse --short HEAD)"
 LAYER_NAME="${ENVIRONMENT}-peerbook"
+CLUSTER_NAME="${ENVIRONMENT}-peerbook"
 
 echo "Preparing docker compose"
 sed -e "s/\${AWS_REGION}/${AWS_REGION}/g; s/\${AWS_ACCOUNT_ID}/${AWS_ACCOUNT_ID}/g; s/\${VERSION}/${VERSION}/g; s/\${LAYER_NAME}/${LAYER_NAME}/g" docker-compose.template.yml >docker-compose.yml
@@ -12,8 +13,8 @@ sed -e "s/\${AWS_REGION}/${AWS_REGION}/g; s/\${AWS_ACCOUNT_ID}/${AWS_ACCOUNT_ID}
 ecs-cli compose --project-name tools \
   service up \
   --create-log-groups \
-  --cluster-config "${LAYER_NAME}" \
-  --cluster "${LAYER_NAME}" \
+  --cluster-config "${CLUSTER_NAME}" \
+  --cluster "${CLUSTER_NAME}" \
   --target-groups "targetGroupArn=arn:aws:elasticloadbalancing:${AWS_REGION}:${AWS_ACCOUNT_ID}:targetgroup/${TARGET_GROUP_ID},containerName=api,containerPort=17777" \
   --region "${AWS_REGION}" \
   --deployment-min-healthy-percent 100 \
