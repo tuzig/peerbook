@@ -1,0 +1,14 @@
+version: 1
+task_definition:
+  task_execution_role: arn:aws:iam::${AWS_ACCOUNT_ID}:role/ecs/${ENVIRONMENT}_peerbook_ecs_task_executor
+  services:
+    api:
+      essential: true
+      cpu_shares: 200
+      mem_limit: "512m"
+      healthcheck:
+        test: [ 'CMD', 'curl', '-s', '-o', '/dev/null', '-w', '"%{http_code}"', 'http://localhost:17777/' ]
+        start_period: 5s
+        interval: 10s
+        retries: 5
+        

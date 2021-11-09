@@ -1,0 +1,17 @@
+version: '3'
+services:
+  api:
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/peerbook/server:${VERSION}
+    hostname: api
+    ports:
+      - "17777"
+    environment:
+      AWS_REGION: ${AWS_REGION}
+      LAYER_NAME: ${LAYER_NAME}
+    logging:
+      driver: awslogs
+      options:      
+        awslogs-group: staging-peerbook-api
+        awslogs-region: ${AWS_REGION}
+        awslogs-stream-prefix: api
+        
