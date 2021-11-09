@@ -25,8 +25,9 @@ jobs:
 
       - name: build and push
         env: 
-          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}    
-          AWS_REGION: ${{ secrets.AWS_REGION }}      
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCOUNT_ID }}    
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}   
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}              
         run: |
           cd $GITHUB_WORKSPACE
           bash deployment/build_and_push.sh
