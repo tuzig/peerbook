@@ -28,10 +28,10 @@ push() {
     docker tag "${app}:${HASH}" "${ECR_URL}/${app}:${HASH}"
 
     if [ "${GIT_TAG}" != "" ]; then
-      docker tag "${app}:${GIT_TAG}" "${ECR_URL}/${app}:${HASH}"
+      docker tag "${app}:${HASH}" "${ECR_URL}/${app}:${GIT_TAG}"
     fi
 
-    docker push "${ECR_URL}/${app}:${HASH}"
+    docker push --all-tags "${ECR_URL}/${app}"
 }
 
 build
