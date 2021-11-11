@@ -21,6 +21,8 @@ jobs:
           sudo chmod +x /usr/local/bin/ecs-cli
 
       - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
 
 
       - name: build and push
