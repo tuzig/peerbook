@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
-VERSION=$(git rev-parse --short HEAD)
+HASH=$(git rev-parse --short HEAD)
+GIT_TAG=$(git tag -l | tail -1)
 ECR_HOST="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 ECR_URL="${ECR_HOST}/${ENVIRONMENT}/peerbook"
 
@@ -16,13 +17,14 @@ fi
 
 build() {
     docker build -t base_image .
-    docker build -t "server:${VERSION}" -f deployment/Dockerfile.prod .
+    docker build -t "server:${HASH}" -f deployment/Dockerfile.prod .
 }
 
 push() {
     local app=server
-    docker tag "${app}":"${VERSION}" "${ECR_URL}"/"${app}":"${VERSION}"
-    docker push "${ECR_URL}"/"${app}":"${VERSION}"
+    docker tag "${app}:${HASH}" "${ECR_URL}/${app}:${HASH}"
+    docker tag "${app}:${GIT_TAG}" "${ECR_URL}/${app}:${HASH}"
+    docker push "${ECR_URL}/${app}:${HASH}"
 }
 
 build

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 
-VERSION="$(git rev-parse --short HEAD)"
+HASH="$(git rev-parse --short HEAD)"
 LAYER_NAME="${ENVIRONMENT}-peerbook"
 CLUSTER_NAME="${ENVIRONMENT}-peerbook"
 
 echo "Preparing docker compose"
-sed -e "s/\${AWS_REGION}/${AWS_REGION}/g; s/\${AWS_ACCOUNT_ID}/${AWS_ACCOUNT_ID}/g; s/\${VERSION}/${VERSION}/g; s/\${LAYER_NAME}/${LAYER_NAME}/g" docker-compose.template.yml >docker-compose.yml
+sed -e "s/\${AWS_REGION}/${AWS_REGION}/g; s/\${AWS_ACCOUNT_ID}/${AWS_ACCOUNT_ID}/g; s/\${HASH}/${HASH}/g; s/\${LAYER_NAME}/${LAYER_NAME}/g" docker-compose.template.yml >docker-compose.yml
 
 echo "Preparing ecs params"
 sed -e "s/\${AWS_REGION}/${AWS_REGION}/g; s/\${AWS_ACCOUNT_ID}/${AWS_ACCOUNT_ID}/g; s/\${ENVIRONMENT}/${ENVIRONMENT}/g" ecs-params.template.yml >ecs-params.yml
