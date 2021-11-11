@@ -3,6 +3,9 @@ set -e
 
 HASH=$(git rev-parse --short HEAD)
 GIT_TAG=$(git tag -l | tail -1)
+
+echo "git tag is: ${GIT_TAG}"
+
 ECR_HOST="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 ECR_URL="${ECR_HOST}/${ENVIRONMENT}/peerbook"
 
@@ -23,7 +26,11 @@ build() {
 push() {
     local app=server
     docker tag "${app}:${HASH}" "${ECR_URL}/${app}:${HASH}"
-    docker tag "${app}:${GIT_TAG}" "${ECR_URL}/${app}:${HASH}"
+
+    if [ "${GIT_TAG}" != "" ]; then
+      docker tag "${app}:${GIT_TAG}" "${ECR_URL}/${app}:${HASH}"
+    fi
+
     docker push "${ECR_URL}/${app}:${HASH}"
 }
 
