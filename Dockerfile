@@ -24,8 +24,6 @@ RUN set -x && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -
     rm -rf /var/lib/apt/lists/*
 
 # Copy the binary to the production image from the builder stage.
-ENV PB_STATIC_ROOT /app/html
 COPY --from=builder /app/server /app/server
-COPY ./html /app/html
 # Run the web service on container startup:6379.
 CMD ["/app/server"]

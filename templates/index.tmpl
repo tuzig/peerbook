@@ -1,0 +1,33 @@
+{{template "base" .}}
+{{define "title"}}{{end}}
+
+{{define "main"}}
+
+<div id="home-container">
+<h1>Greetings & Salutations!</h1>
+<p>
+PeerBook is an open source address book and WebRTC signaling service.
+Each Peerbook user controls a private address book of servers, clients and
+their fingerprints. Developed for use by
+<a href="https://terminal7.dev">Termainl7</a>, PeerBook is open to all WebRTC
+peers with persistent fingerprints.
+</p>
+<h2>PeerBook users enjoy:</h2>
+<ul>
+    <li>No more copying &amp; pasting of IP addresses and fingerprints</li>
+    <li>Working on behind-the-NAT home desktops and PIs</li>
+    <li>Two factor Authentication</li>
+</ul>
+<form action="/hitme" method="post">
+<div class="hitme">
+    <p>
+    To review your PeerBook, please enter your email and we will forge and send a
+    short lived token.
+    </p>
+    <input type="text" name="email" placeholder="email" />
+    <button class="button" type="submit" value="submit">Hit Me</button>
+</div>
+    </form>
+
+</div>
+{{end}}

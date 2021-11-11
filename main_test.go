@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"testing"
 	"time"
 
@@ -126,6 +127,7 @@ func TestSignalingAcrossUsers(t *testing.T) {
 // - peer A recieves the answer
 func TestValidSignaling(t *testing.T) {
 	startTest(t)
+	startTime := time.Now().Unix()
 	redisDouble.SetAdd("user:j", "A", "B")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "1", "online", "0")
@@ -178,6 +180,12 @@ func TestValidSignaling(t *testing.T) {
 	var a AnswerMessage
 	err = wsA.ReadJSON(&a)
 	require.Equal(t, "B's answer", a.Answer)
+	lA, err := strconv.ParseInt(redisDouble.HGet("peer:A", "last_connect"), 10, 64)
+	require.Nil(t, err)
+	lB, err := strconv.ParseInt(redisDouble.HGet("peer:B", "last_connect"), 10, 64)
+	require.Nil(t, err)
+	require.LessOrEqual(t, startTime, lA)
+	require.LessOrEqual(t, startTime, lB)
 }
 func TestVerifyQR(t *testing.T) {
 	startTest(t)
@@ -531,14 +539,16 @@ func TestGoodOTP2(t *testing.T) {
 	redisDouble.SetAdd("user:j", "A", "B")
 	redisDouble.Set("token:avalidtoken", "j")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
-		"user", "j", "verified", "1")
+		"user", "j", "verified", "1", "online", "0")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "foo", "kind", "lay",
-		"user", "j", "verified", "0")
+		"user", "j", "verified", "0", "online", "0")
 	ok, err := totp.Generate(totp.GenerateOpts{
 		Issuer:      "Peerbbook",
 		AccountName: "j",
 	})
 	require.Nil(t, err)
+	rc := db.pool.Get()
+	defer rc.Close()
 	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
 	require.Nil(t, err)
 	redisDouble.Set("secret:j", ok.Secret())
@@ -546,8 +556,10 @@ func TestGoodOTP2(t *testing.T) {
 	resp, err := http.PostForm("http://127.0.0.1:17777/pb/avalidtoken",
 		url.Values{"rmrf": {"checked"}, "otp": {otp}})
 	require.Nil(t, err)
-	require.Equal(t, 200, resp.StatusCode)
-	time.Sleep(time.Second / 50)
+	defer resp.Body.Close()
+	bb, err := io.ReadAll(resp.Body)
+	bs := string(bb)
+	require.Equal(t, 200, resp.StatusCode, bs)
 	require.False(t, redisDouble.Exists("peer:A"))
 	require.False(t, redisDouble.Exists("peer:B"))
 	require.False(t, redisDouble.Exists("user:j"))
@@ -579,7 +591,10 @@ func TestRemoveAll(t *testing.T) {
 		url.Values{"rmrf": {"checked"},
 			"otp": {otp}})
 	require.Nil(t, err)
-	require.Equal(t, 200, resp.StatusCode)
+	defer resp.Body.Close()
+	bb, err := io.ReadAll(resp.Body)
+	bs := string(bb)
+	require.Equal(t, 200, resp.StatusCode, bs)
 	time.Sleep(time.Second / 100)
 	require.False(t, redisDouble.Exists("peer:A"))
 	require.False(t, redisDouble.Exists("peer:B"))

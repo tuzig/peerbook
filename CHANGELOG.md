@@ -9,6 +9,22 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
+## [1.0.1] 2021-10-20
+
+### Fixed 
+
+- plain text email signature link
+- email preferred format is html
+
+## [1.0.0] 2021-10-20
+
+### Added
+
+- 2FA using one time password
+- graphics design
+- limitting peerbook to 10 entries
+
+
 ## [0.3.3] 2021-9-23
 
 ### Fixed

@@ -42,7 +42,7 @@ func (d *DBType) CreateToken(email string) (string, error) {
 	defer conn.Close()
 	_, err := conn.Do("SETEX", key, TokenTTL, email)
 	if err != nil {
-		Logger.Errorf("Failed to set token: %w", err)
+		return "", fmt.Errorf("Failed to set token: %w", err)
 	}
 	return token, nil
 }
@@ -55,6 +55,14 @@ func (d *DBType) Connect(host string) error {
 		MaxIdle:     5,
 		IdleTimeout: 5 * time.Second,
 		Dial:        func() (redis.Conn, error) { return redis.Dial("tcp", host) },
+	}
+	if redisDouble == nil {
+		conn := d.pool.Get()
+		defer conn.Close()
+		_, err := conn.Do("GET", "SFJAWERWEQRQWER")
+		if err != redis.ErrNil {
+			return err
+		}
 	}
 	return nil
 }
@@ -122,8 +130,8 @@ func (d *DBType) AddPeer(peer *Peer) error {
 	if err != nil {
 		return err
 	}
-	conn.Do("SADD", key, peer.FP)
-	return nil
+	_, err = conn.Do("SADD", key, peer.FP)
+	return err
 }
 
 // IsVerfied tests the db to see if a peer is verfied
@@ -153,7 +161,7 @@ func VerifyPeer(fp string, verified bool) error {
 	key := fmt.Sprintf("peer:%s", fp)
 	online, err := redis.Bool(rc.Do("HGET", key, "online"))
 	if err != nil {
-		return fmt.Errorf("Failed to get online key: %s", err)
+		return fmt.Errorf("Failed to get online field for key %s: %s", key, err)
 	}
 	if verified {
 		rc.Do("HSET", key, "verified", "1")

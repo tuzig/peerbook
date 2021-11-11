@@ -21,7 +21,6 @@ body {
   margin: 0;
   justify-content: center;
   align-items: center;
-  text-align: center;
   font-family: 'Fira Sans Condensed', sans-serif;
   color: #00FAFA;
   overflow-x: hidden;
@@ -29,7 +28,6 @@ body {
 }
 body { padding: 10px; }
 a {
-    text-decoration: none;
     color: #00FAFA;
 }
 
@@ -165,18 +163,34 @@ footer p { text-align: right; }
     margin: 0 auto;
     max-width: 30em;
     padding: 0.5em;
+    text-align: center;
 }
-
-#home-container > p { padding-left: 1.4em; }
-#home-container > form > * { font-size: 140%; }
+#home-container > p, #home-container li { 
+    font-size: 16px;
+    line-height: 30px;
+    padding-left: 1.4em; 
+}
+#home-container input, #home-container button { font-size: 120%; }
 #home-container > :not(form) { text-align: left; }
+#home-container > h2 { padding-left: 1em; }
+#home-container li { padding-left: 2em; margin-left: 1em; }
+.hitme {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    flex-wrap: wrap-reverse;
+    gap: 0.5em;
+}
+.hitme > p {flex: 5;}
+.hitme > input {flex: 2;}
+.hitme > button {flex: 1;}
 #qr-container > p { padding-left: 1.4em; 
     }
 #qr-container > form { text-align: right; }
 #qr-container > form * { font-size: 140%; }
 #qr-container > p { text-align: left; }
 #qr-container > h1 { text-align: left; }
-.qr-image { margin: 1em auto; }
+.qr-image { margin: 1em auto; text-align:center; }
 .entire-row a { text-decoration: underline; }
 .entire-row { text-align: center; border-right: 1px solid #F952F9; }
 
@@ -238,7 +252,7 @@ footer p { text-align: right; }
 <body>
     <div id="frame">
         <div id="header">
-            <h1><a href="/">PeerBook.io</a></h1>
+            <h2><a href="/" style="color: #00FAFA;">pb.terminal7.dev</a></h2>
             <h2>{{.User}}</h2>
         </div>
         {{if .Message}}
@@ -295,7 +309,10 @@ footer p { text-align: right; }
 </svg>
     </div>
     <p style="clear:both; padding-right:60px;">
-            copyright &copy; 2021 Tuzig LTD
+    PeerBook is part of the <a href="https://terminal7.dev">Terminal7</a> suite 
+    </p>
+    <p style="clear:both; padding-right:60px;">
+            copyright &copy; 2021 Tuzig LTD, some rights reservered
     </p>
             <div style="float:right; padding-right:60px;">
                 <a href="https://github.com/tuzig/terminal7">

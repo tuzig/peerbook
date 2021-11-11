@@ -7,6 +7,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"embed"
 	"encoding/base64"
 	"encoding/json"
 	"flag"
@@ -31,33 +32,18 @@ import (
 const (
 	// SendChanSize is the size of the send channel in messages
 	SendChanSize = 4
-	HTMLThankYou = `<html lang=en> <head><meta charset=utf-8>
-<title>Thank You</title>
-</head>
-<body><h2>Your changes have been recorded<h2>
-<h3>Please ensure your servers and started and clients refreshed</h3>`
 
-	HTMLPostrmrf = `<html lang=en> <head><meta charset=utf-8>
-<title>Thank You</title>
-</head>
-<body><h2>All your peers and your email were deleted</h2>`
-
-	HTMLEmailSent = `<html lang=en> <head><meta charset=utf-8>
-<title>Peerbook</title>
-</head>
-<body><h2>Please check your inbox for your peerbook link</h2>
-
-`
-	DefaultHomeUrl = "https://pb.terminal7.dev"
+	DefaultHomeURL = "https://pb.terminal7.dev"
 )
 
 // Logger is our global logger
 var (
-	Logger       *zap.SugaredLogger
-	stop         chan os.Signal
-	db           DBType
-	hub          Hub
-	baseTemplate string
+	Logger *zap.SugaredLogger
+	stop   chan os.Signal
+	db     DBType
+	hub    Hub
+	//go:embed templates
+	tFS embed.FS
 )
 
 // PeerIsForeign is an error for the time when a peer asks to connect to a peer
@@ -153,7 +139,7 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 	verified := db.IsQRVerified(user)
 	if !verified {
 		// show the QR code
-		a, err := createTempURL(user, "qr")
+		a, err := createTempURL(user, "qr", true)
 		if err != nil {
 			msg := fmt.Sprintf("Got an error creating temp url: %s", err)
 			Logger.Warnf(msg)
@@ -197,8 +183,9 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 				}
 				key := fmt.Sprintf("user:%s", user)
 				conn.Do("DEL", key)
-				w.Write([]byte(HTMLPostrmrf))
-				return
+				data.Peers = nil
+				data.Message = "Your peers were removed"
+				goto render
 			}
 			verified := make(map[string]bool)
 			for k, _ := range r.Form {
@@ -230,8 +217,8 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	main := fmt.Sprintf("%s/pb.tmpl", os.Getenv("PB_STATIC_ROOT"))
-	tmpl, err := template.ParseFiles(main, baseTemplate)
+render:
+	tmpl, err := template.ParseFS(tFS, "templates/pb.tmpl", "templates/base.tmpl")
 	if err != nil {
 		msg := fmt.Sprintf("Failed to parse the template: %s", err)
 		http.Error(w, msg, http.StatusInternalServerError)
@@ -245,30 +232,31 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func serveHitMe(w http.ResponseWriter, r *http.Request) {
+	var data struct {
+		Message string
+		User    string
+	}
 	if r.Method == "POST" {
 		err := r.ParseForm()
 		if err != nil {
 			msg := fmt.Sprintf("Got an error parsing form: %s", err)
 			Logger.Warnf(msg)
-			http.Error(w, `{"msg": "`+msg+`"}`, http.StatusBadRequest)
-			return
+			data.Message = msg
+			goto render
 		}
-		email := r.Form.Get("email")
-		if email == "" {
-			msg := "Got a hitme request with no email"
-			Logger.Warnf(msg)
-			http.Error(w, `{"msg": "`+msg+`"}`, http.StatusBadRequest)
-			return
+		data.User = r.Form.Get("email")
+		if data.User == "" {
+			data.Message = "Failed as no email was posted"
+			goto render
 		}
-		sendAuthEmail(email)
-		var data struct {
-			Message string
-			User    string
+		err = sendAuthEmail(data.User)
+		if err != nil {
+			data.Message = fmt.Sprintf("Failed to send email: %s", err)
+			goto render
 		}
-		data.User = email
 		data.Message = "You've been hit with the email stick"
-		index := fmt.Sprintf("%s/index.tmpl", os.Getenv("PB_STATIC_ROOT"))
-		tmpl, err := template.ParseFiles(index, baseTemplate)
+	render:
+		tmpl, err := template.ParseFS(tFS, "templates/index.tmpl", "templates/base.tmpl")
 		if err != nil {
 			msg := fmt.Sprintf("Failed to parse the template: %s", err)
 			http.Error(w, msg, http.StatusInternalServerError)
@@ -386,8 +374,7 @@ func serveHome(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	index := fmt.Sprintf("%s/index.tmpl", os.Getenv("PB_STATIC_ROOT"))
-	tmpl, err := template.ParseFiles(index, baseTemplate)
+	tmpl, err := template.ParseFS(tFS, "templates/index.tmpl", "templates/base.tmpl")
 	if err != nil {
 		msg := fmt.Sprintf("Failed to parse the template: %s", err)
 		http.Error(w, msg, http.StatusInternalServerError)
@@ -452,49 +439,60 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 	return srv
 }
 
-func createTempURL(email string, prefix string) (string, error) {
-	// TODO: send an email in the background
+func createTempURL(email string, prefix string, rel bool) (string, error) {
+	var s string
 	token, err := db.CreateToken(email)
 	if err != nil {
 		return "", fmt.Errorf("Failed to create token: %w", err)
 	}
-	homeUrl := os.Getenv("PB_HOME_URL")
-	if homeUrl == "" {
-		homeUrl = DefaultHomeUrl
+	if !rel {
+		s = os.Getenv("PB_HOME_URL")
+		if s == "" {
+			s = DefaultHomeURL
+		}
 	}
-	parts := []string{homeUrl, prefix, url.PathEscape(token)}
+	parts := []string{s, prefix, url.PathEscape(token)}
 	return strings.Join(parts, "/"), nil
 }
 
 // sendAuthEmail creates a short lived token and emails a message with a link
 // to `/auth/<token>` so the javascript at /auth can read the list of peers and
 // use checkboxes to enable/disable
-func sendAuthEmail(email string) {
+func sendAuthEmail(email string) error {
 	if !db.canSendEmail(email) {
-		Logger.Warnf("Throttling prevented sending email to %q", email)
-		return
+		return fmt.Errorf("Throttling prevented sending email to %q", email)
 	}
 	m := gomail.NewMessage()
-	clickL, err := createTempURL(email, "pb")
+	clickL, err := createTempURL(email, "pb", false)
 	if err != nil {
-		Logger.Errorf("Failed to sendte temp URL: %s", err)
-		return
+		return fmt.Errorf("Failed to sendte temp URL: %s", err)
 	}
-	m.SetBody("text/html", `<html lang=en> <head><meta charset=utf-8>
-<title>Peerbook updates for your approval</title>
-</head>
-Please click <a href="`+clickL+`">here to review</a>.`)
-
-	text := fmt.Sprintf("Please click to review:\n%s", clickL)
-	m.AddAlternative("text/plain", text)
+	htmlT, err := template.ParseFS(tFS, "templates/email.html.tmpl")
+	if err != nil {
+		return fmt.Errorf("Failed to parse the html template: %s", err)
+	}
+	plainT, err := template.ParseFS(tFS, "templates/email.plain.tmpl")
+	if err != nil {
+		return fmt.Errorf("Failed to parse the plain template: %s", err)
+	}
+	var p bytes.Buffer
+	err = plainT.Execute(&p, clickL)
+	if err != nil {
+		return fmt.Errorf("Failed to execute template: %s", err)
+	}
+	m.SetBody("text/plain", p.String())
+	var h bytes.Buffer
+	err = htmlT.Execute(&h, clickL)
+	if err != nil {
+		return fmt.Errorf("Failed to execute template: %s", err)
+	}
+	m.AddAlternative("text/html", h.String())
 
 	m.SetHeaders(map[string][]string{
-		"From":               {m.FormatAddress("support@tuzig.com", "Terminal7")},
+		"From":               {m.FormatAddress("support@tuzig.com", "PeerBook Support")},
 		"To":                 {email},
-		"Subject":            {"Pending changes to your peerbook"},
+		"Subject":            {"A peer is waiting your approval"},
 		"X-SES-MESSAGE-TAGS": {"genre=auth_email"},
-		// Comment or remove the next line if you are not using a configuration set
-		// "X-SES-CONFIGURATION-SET": {ConfigSet},
 	})
 
 	host := os.Getenv("PB_SMTP_HOST")
@@ -502,14 +500,14 @@ Please click <a href="`+clickL+`">here to review</a>.`)
 	pass := os.Getenv("PB_SMTP_PASS")
 	d := gomail.NewPlainDialer(host, 587, user, pass)
 
-	Logger.Infof("Sending email %q", text)
 	// Display an error message if something goes wrong; otherwise,
 	// display a message confirming that the message was sent.
 	if err := d.DialAndSend(m); err != nil {
 		Logger.Errorf("Failed to send email: %s", err)
 	} else {
-		Logger.Infof("Send email to %q", email)
+		Logger.Infof("Sent email to %q", email)
 	}
+	return nil
 }
 
 func getUserKey(user string) (*otp.Key, error) {
@@ -581,7 +579,7 @@ If you lost your device please use the account-recovery channel on our discord s
 			msg = "One Time Password validation failed, please try again"
 			goto render
 		}
-		a, err := createTempURL(user, "pb")
+		a, err := createTempURL(user, "pb", true)
 		if err != nil {
 			msg = fmt.Sprintf("Failed to create temp url: %s", err)
 			goto render
@@ -615,8 +613,8 @@ render:
 	encoder := base64.NewEncoder(base64.StdEncoding, &qr)
 	png.Encode(encoder, img)
 	encoder.Close()
-	p := fmt.Sprintf("%s/qr.tmpl", os.Getenv("PB_STATIC_ROOT"))
-	tmpl, err := template.ParseFiles(p, baseTemplate)
+	tmpl, err := template.ParseFS(tFS, "templates/qr.tmpl",
+		"templates/base.tmpl")
 	if err != nil {
 		msg := fmt.Sprintf("Failed to parse the template: %s", err)
 		http.Error(w, msg, http.StatusInternalServerError)
@@ -648,7 +646,6 @@ render:
 }
 
 func main() {
-	baseTemplate = fmt.Sprintf("%s/base.tmpl", os.Getenv("PB_STATIC_ROOT"))
 	addr := flag.String("addr", "0.0.0.0:17777", "address to listen for http requests")
 	redisH := os.Getenv("REDIS_HOST")
 	if redisH == "" {
