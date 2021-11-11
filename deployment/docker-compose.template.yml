@@ -1,0 +1,18 @@
+# https://docs.aws.amazon.com/AmazonECS/latest/developerguide/cmd-ecs-cli-compose-parameters.html
+# Docker compose file to define ECS services.
+version: '3'
+services:
+  api:
+    image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ENVIRONMENT}/peerbook/server:${HASH}
+    hostname: api
+    ports:
+      - "17777"
+    environment:
+      AWS_REGION: ${AWS_REGION}
+      LAYER_NAME: ${LAYER_NAME}
+    logging:
+      driver: awslogs
+      options:      
+        awslogs-group: ${LAYER_NAME}-api
+        awslogs-region: ${AWS_REGION}
+        awslogs-stream-prefix: api
