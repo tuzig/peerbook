@@ -10,7 +10,7 @@ sed -e "s/\${AWS_REGION}/${AWS_REGION}/g; s/\${AWS_ACCOUNT_ID}/${AWS_ACCOUNT_ID}
 echo "Preparing ecs params"
 sed -e "s/\${AWS_REGION}/${AWS_REGION}/g; s/\${AWS_ACCOUNT_ID}/${AWS_ACCOUNT_ID}/g; s/\${ENVIRONMENT}/${ENVIRONMENT}/g" ecs-params.template.yml >ecs-params.yml
 
-ecs-cli compose --project-name tools \
+ecs-cli compose --project-name "${CLUSTER_NAME}" \
   service up \
   --create-log-groups \
   --cluster-config "${CLUSTER_NAME}" \
