@@ -20,7 +20,7 @@ fi
 
 build() {
     docker build -t base_image .
-    docker build -t "server:${HASH}" -f deployment/Dockerfile.prod .
+    docker build -t "server:${HASH}" -f deployment/Dockerfile .
 }
 
 push() {
