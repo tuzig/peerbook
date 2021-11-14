@@ -19,7 +19,8 @@ RUN go build -v -o peerbook
 RUN apt-get update && apt-get install -y curl && \
     curl -o chamber -LOs https://github.com/segmentio/chamber/releases/download/v2.10.6/chamber-v2.10.6-linux-amd64 && \
     chmod 755 chamber && \
-    ./chamber version
+    mv chamber /usr/local/bin && \
+    chamber version
 # Use the official Debian slim image for a lean production container.
 # https://hub.docker.com/_/debian
 # https://docs.docker.com/develop/develop-images/multistage-build/#use-multi-stage-builds
