@@ -1,15 +1,26 @@
-name: CI
+name: deploy
 
 on:
   workflow_dispatch:
+    inputs:
+      envName:
+        description: "Environment to deploy to: staging/prod"
+        required: false
+        default: "staging"
+      ref:
+        description: "Specific tag/branch/sha to deploy. Defaults to selected branch"
+        required: false
+        default: ""
+
 
 jobs:
 
-  build:
-
+  build-and-deploy:
+    name: Build image and deploy to ECS
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment: 
-      name: staging
+      name: "${{ github.event.inputs.envName }}"
       url: https://github.com
 
 
@@ -20,9 +31,11 @@ jobs:
           sudo curl -Lo /usr/local/bin/ecs-cli https://amazon-ecs-cli.s3.amazonaws.com/ecs-cli-linux-amd64-latest
           sudo chmod +x /usr/local/bin/ecs-cli
 
+      # checkout code
       - uses: actions/checkout@v2
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # must set to 0 to get tags
+          ref: "${{ github.event.inputs.ref }}"
 
 
       - name: build and push
@@ -36,7 +49,6 @@ jobs:
         run: |
           cd $GITHUB_WORKSPACE
           bash deployment/build_and_push.sh
-
 
 
       - name: deploy
