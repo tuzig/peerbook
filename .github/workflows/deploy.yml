@@ -1,0 +1,64 @@
+name: deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      envName:
+        description: "Environment to deploy to: staging/prod"
+        required: false
+        default: "staging"
+      ref:
+        description: "Specific tag/branch/sha to deploy. Defaults to selected branch"
+        required: false
+        default: ""
+
+
+jobs:
+
+  build-and-deploy:
+    name: Build image and deploy to ECS
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: 
+      name: "${{ github.event.inputs.envName }}"
+      url: https://github.com
+
+
+    steps:
+      # install ecs-cli
+      - name: install ecs-cli
+        run: |
+          sudo curl -Lo /usr/local/bin/ecs-cli https://amazon-ecs-cli.s3.amazonaws.com/ecs-cli-linux-amd64-latest
+          sudo chmod +x /usr/local/bin/ecs-cli
+
+      # checkout code
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0  # must set to 0 to get tags
+          ref: "${{ github.event.inputs.ref }}"
+
+
+      - name: build and push
+        env: 
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}    
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}   
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }} 
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          ENVIRONMENT: ${{ secrets.ENVIRONMENT }}
+        run: |
+          cd $GITHUB_WORKSPACE
+          bash deployment/build_and_push.sh
+
+
+      - name: deploy
+        env: 
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}    
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}    
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}    
+          AWS_REGION: ${{ secrets.AWS_REGION }} 
+          ENVIRONMENT: ${{ secrets.ENVIRONMENT }}
+          TARGET_GROUP_ID: ${{ secrets.API_TARGET_GROUP_ID }}
+        run: |
+          cd deployment
+          bash deploy.sh       

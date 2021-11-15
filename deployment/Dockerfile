@@ -20,6 +20,7 @@ RUN apt-get update && apt-get install -y curl && \
     curl -o chamber -LOs https://github.com/segmentio/chamber/releases/download/v2.10.6/chamber-v2.10.6-linux-amd64 && \
     chmod 755 chamber && \
     ./chamber version
+
 # Use the official Debian slim image for a lean production container.
 # https://hub.docker.com/_/debian
 # https://docs.docker.com/develop/develop-images/multistage-build/#use-multi-stage-builds
@@ -27,7 +28,7 @@ FROM debian:buster-slim
 ENV LAYER_NAME=""
 WORKDIR /app
 RUN set -x && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    ca-certificates && \
+    curl ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy the binary to the production image from the builder stage.
