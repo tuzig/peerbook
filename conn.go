@@ -36,7 +36,7 @@ type Conn struct {
 // The application runs readPump in a per-connection goroutine. The application
 // ensures that there is at most one reader on a connection by executing all
 // reads from this goroutine.
-func (c *Conn) readPump(onDone func()) {
+func (c *Conn) readPump() {
 	defer func() {
 		hub.unregister <- c
 	}()
@@ -46,6 +46,9 @@ func (c *Conn) readPump(onDone func()) {
 		c.WS.SetReadDeadline(time.Now().Add(pongWait))
 		return nil
 	})
+	ctx, cancel := context.WithCancel(context.Background())
+	go c.subscribe(ctx)
+	go c.pinger(ctx)
 	for {
 		message := make(map[string]interface{})
 		err := c.WS.ReadJSON(&message)
@@ -66,11 +69,11 @@ func (c *Conn) readPump(onDone func()) {
 		// message["user"] = c.User
 		c.handleMessage(message)
 	}
-	onDone()
+	cancel()
 }
 
 // pinger sends pings
-func (c *Conn) pinger() {
+func (c *Conn) pinger(ctx context.Context) {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
@@ -151,12 +154,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 		Logger.Errorf("Failed to upgrade socket: %w", err)
 	}
 	hub.register <- conn
-	go conn.pinger()
-	ctx, cancel := context.WithCancel(context.Background())
-	go conn.subscribe(ctx)
-	go conn.readPump(func() {
-		cancel()
-	})
+	go conn.readPump()
 	// if it's an unverified peer, keep the connection open and send a status message
 	if !conn.Verified {
 		err = conn.sendStatus(http.StatusUnauthorized, fmt.Errorf(
@@ -222,26 +220,36 @@ func (c *Conn) subscribe(ctx context.Context) {
 
 	// Start a goroutine to receive notifications from the server.
 	go func() {
+	loop:
 		for {
-			switch n := psc.Receive().(type) {
-			case error:
-				Logger.Errorf("Receive error from redis: %v", n)
-				done <- true
-				return
-			case redis.Message:
-				Logger.Infof("%q got a message: %s", c.FP, n.Data)
-				verified, err := IsVerified(c.FP)
-				if err != nil {
-					Logger.Errorf("Got an error testing if perr verfied: %s", err)
-				}
-				if verified {
-					Logger.Infof("forwarding %q message: %s", c.FP, n.Data)
-					c.WS.SetWriteDeadline(time.Now().Add(writeWait))
-					c.send <- n.Data
-				} else {
-					Logger.Infof("ignoring %q message: %s", c.FP, n.Data)
+			select {
+			case <-ctx.Done():
+				break loop
+			default:
+				switch n := psc.Receive().(type) {
+				case error:
+					Logger.Errorf("Receive error from redis: %v", n)
+					done <- true
+					break loop
+				case redis.Message:
+					Logger.Infof("%q got a message: %s", c.FP, n.Data)
+					verified, err := IsVerified(c.FP)
+					if err != nil {
+						Logger.Errorf("Got an error testing if perr verfied: %s", err)
+					}
+					if verified {
+						Logger.Infof("forwarding %q message: %s", c.FP, n.Data)
+						c.WS.SetWriteDeadline(time.Now().Add(writeWait))
+						c.send <- n.Data
+					} else {
+						Logger.Infof("ignoring %q message: %s", c.FP, n.Data)
+					}
 				}
 			}
+		}
+		// Signal the receiving goroutine to exit by unsubscribing from all channels.
+		if err := psc.Unsubscribe(); err != nil {
+			Logger.Errorf("Failed to unsubscribe: %s", err)
 		}
 	}()
 
@@ -264,11 +272,6 @@ loop:
 		}
 	}
 
-	// Signal the receiving goroutine to exit by unsubscribing from all channels.
-	if err := psc.Unsubscribe(); err != nil {
-		Logger.Errorf("Failed to unsubscribe: %s", err)
-	}
-	<-done
 }
 
 // ConnFromQ retruns a fresh Peer based on query paramets: fp, name, kind &
