@@ -422,6 +422,7 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 	http.HandleFunc("/verify", serveVerify)
 	http.HandleFunc("/hitme", serveHitMe)
 	http.HandleFunc("/ws", serveWs)
+	http.HandleFunc("/turn", serveTURN)
 	http.HandleFunc("/qr/", serveQR)
 
 	go func() {
@@ -544,7 +545,6 @@ func getUserSecret(user string) (string, error) {
 	}
 	return secret, nil
 }
-
 func serveQR(w http.ResponseWriter, r *http.Request) {
 	var qr bytes.Buffer
 	var msg string

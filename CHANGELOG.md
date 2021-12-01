@@ -9,6 +9,12 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
+## Unreleased
+
+### Aded
+
+- the `/turn` API endpoint, returning turn servers
+
 ## [1.0.1] 2021-10-20
 
 ### Fixed 
