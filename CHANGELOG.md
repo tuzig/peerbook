@@ -9,7 +9,11 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
-## Unreleased
+## [1.1] 2021-12-06
+
+### Fixed
+
+- Fixing offline webexec servers after `webexec restart`
 
 ### Aded
 
