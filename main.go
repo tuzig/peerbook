@@ -117,9 +117,8 @@ func getUserFromRequest(r *http.Request) (string, error) {
 func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 	user, err := getUserFromRequest(r)
 	if err != nil {
-		msg := fmt.Sprintf("Failed to parse url: %s", err)
-		Logger.Error(msg)
-		http.Error(w, msg, http.StatusInternalServerError)
+		goHome(w, r, "Stale token, please try again")
+		Logger.Warnf("Failed to get user from req: %s", err)
 		return
 	}
 	peers, err := GetUsersPeers(user)
@@ -380,7 +379,12 @@ func serveHome(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, msg, http.StatusInternalServerError)
 		return
 	}
-	err = tmpl.Execute(w, nil)
+	var data struct {
+		Message string
+		User    string
+	}
+	data.Message = r.URL.Query().Get("m")
+	err = tmpl.Execute(w, data)
 	if err != nil {
 		msg := fmt.Sprintf("Failed to execute template: %s", err)
 		http.Error(w, msg, http.StatusInternalServerError)
@@ -545,22 +549,26 @@ func getUserSecret(user string) (string, error) {
 	}
 	return secret, nil
 }
+
+func goHome(w http.ResponseWriter, r *http.Request, msg string) {
+	a := fmt.Sprintf("/?m=%s", url.PathEscape(msg))
+	http.Redirect(w, r, a, http.StatusSeeOther)
+	return
+}
 func serveQR(w http.ResponseWriter, r *http.Request) {
 	var qr bytes.Buffer
 	var msg string
 
 	user, err := getUserFromRequest(r)
 	if err != nil {
-		msg := fmt.Sprintf("Failed to parse url: %s", err)
-		Logger.Error(msg)
-		http.Error(w, msg, http.StatusInternalServerError)
+		goHome(w, r, "Stale token, please try again")
+		Logger.Warnf("Failed to get user from req: %s", err)
 		return
 	}
 	if db.IsQRVerified(user) {
 		/* TODO: make it nicer */
-		http.Error(w, `Your QR was already scanned and verified.
-If you lost your device please use the account-recovery channel on our discord server`,
-			http.StatusNotImplemented)
+		goHome(w, r, `Your QR was already scanned and verified.
+If you lost your device please use the account-recovery channel on our discord server`)
 		return
 	}
 	if r.Method == "POST" {
