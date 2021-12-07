@@ -9,11 +9,21 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
-## [1.0.2] 2021-12-07
+## [1.1.1] 2021-12-07
 
 ### Fixed
 
 - verification updates now affect connected peers
+
+## [1.1] 2021-12-06
+
+### Fixed
+
+- Fixing offline webexec servers after `webexec restart`
+
+### Aded
+
+- the `/turn` API endpoint, returning turn servers
 
 ## [1.0.1] 2021-10-20
 
