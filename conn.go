@@ -56,7 +56,12 @@ func (c *Conn) readPump(onDone func()) {
 			}
 			break
 		}
-		if !c.Verified {
+		verified, err := IsVerified(c.FP)
+		if err != nil {
+			Logger.Warnf("Failed to test if peer verified: %s", err)
+			continue
+		}
+		if !verified {
 			e := &UnauthorizedPeer{c.FP}
 			Logger.Warn(e)
 			c.sendStatus(http.StatusUnauthorized, e)
