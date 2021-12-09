@@ -27,9 +27,6 @@ func (h *Hub) run() {
 				continue
 			}
 		case c := <-h.unregister:
-			if c.WS != nil {
-				c.WS.Close()
-			}
 			if err := c.SetOnline(false); err != nil {
 				Logger.Errorf("Failed setting a peer as offline: %s", err)
 				continue

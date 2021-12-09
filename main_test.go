@@ -677,3 +677,29 @@ func TestUserSecret(t *testing.T) {
 	v := totp.Validate(otp, s)
 	require.True(t, v)
 }
+func TestDisconnectReconnect(t *testing.T) {
+	startTest(t)
+	// setup the fixture - a user, his token and two peers
+	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
+		"user", "j", "verified", "1")
+	ws1, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&email=j")
+	require.Nil(t, err)
+	time.Sleep(time.Millisecond * 50)
+	online := redisDouble.HGet("peer:A", "online")
+	require.Equal(t, "1", online)
+	ws1.Close()
+	time.Sleep(time.Millisecond * 50)
+	online = redisDouble.HGet("peer:A", "online")
+	require.Equal(t, "0", online)
+	ws2, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&email=j")
+	require.Nil(t, err)
+	time.Sleep(time.Millisecond * 50)
+	online = redisDouble.HGet("peer:A", "online")
+	require.Equal(t, "1", online)
+	time.Sleep(pingPeriod + time.Millisecond*50)
+	online = redisDouble.HGet("peer:A", "online")
+	require.Equal(t, "1", online)
+	ws2.Close()
+
+}

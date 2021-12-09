@@ -37,9 +37,6 @@ type Conn struct {
 // ensures that there is at most one reader on a connection by executing all
 // reads from this goroutine.
 func (c *Conn) readPump() {
-	defer func() {
-		hub.unregister <- c
-	}()
 	c.WS.SetReadLimit(maxMessageSize)
 	c.WS.SetReadDeadline(time.Now().Add(pongWait))
 	c.WS.SetPongHandler(func(string) error {
@@ -53,10 +50,6 @@ func (c *Conn) readPump() {
 		message := make(map[string]interface{})
 		err := c.WS.ReadJSON(&message)
 		if err != nil {
-			Logger.Errorf("ws error: %w", err)
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				Logger.Errorf("ws error: %w", err)
-			}
 			break
 		}
 		verified, err := IsVerified(c.FP)
@@ -80,11 +73,7 @@ func (c *Conn) readPump() {
 // pinger sends pings
 func (c *Conn) pinger(ctx context.Context) {
 	ticker := time.NewTicker(pingPeriod)
-	defer func() {
-		ticker.Stop()
-		hub.unregister <- c
-	}()
-	Logger.Infof("in pinger")
+loop:
 	for {
 		select {
 		case message, ok := <-c.send:
@@ -104,7 +93,7 @@ func (c *Conn) pinger(ctx context.Context) {
 			}
 		case <-ticker.C:
 			if c.WS == nil {
-				break
+				break loop
 			}
 			c.WS.SetWriteDeadline(time.Now().Add(writeWait))
 			err := c.WS.WriteMessage(websocket.PingMessage, nil)
@@ -115,8 +104,12 @@ func (c *Conn) pinger(ctx context.Context) {
 				}
 				return
 			}
+		case <-ctx.Done():
+			break loop
 		}
 	}
+	ticker.Stop()
+	hub.unregister <- c
 	Logger.Infof("out pinger")
 }
 func (c *Conn) sendStatus(code int, e error) error {
