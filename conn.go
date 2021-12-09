@@ -204,6 +204,7 @@ func (c *Conn) subscribe(ctx context.Context) {
 	// A ping is set to the server with this period to test for the health of
 	// the connection and server.
 	const healthCheckPeriod = time.Minute
+	var unsubscribed chan bool
 	conn := db.pool.Get()
 	defer conn.Close()
 	psc := redis.PubSubConn{Conn: conn}
@@ -234,6 +235,7 @@ func (c *Conn) subscribe(ctx context.Context) {
 					verified, err := IsVerified(c.FP)
 					if err != nil {
 						Logger.Errorf("Got an error testing if perr verfied: %s", err)
+						return
 					}
 					if verified {
 						Logger.Infof("forwarding %q message: %s", c.FP, n.Data)
@@ -249,6 +251,7 @@ func (c *Conn) subscribe(ctx context.Context) {
 		if err := psc.Unsubscribe(); err != nil {
 			Logger.Errorf("Failed to unsubscribe: %s", err)
 		}
+		unsubscribed <- true
 	}()
 
 	ticker := time.NewTicker(healthCheckPeriod)
@@ -269,6 +272,7 @@ loop:
 			break loop
 		}
 	}
+	<-unsubscribed
 
 }
 
