@@ -21,12 +21,14 @@ func (h *Hub) run() {
 	for {
 		select {
 		case c := <-h.register:
+			Logger.Infof("Registering %s", c.FP)
 			c.SendPeerList()
 			if err := c.SetOnline(true); err != nil {
 				Logger.Errorf("Failed setting a peer as online: %s", err)
 				continue
 			}
 		case c := <-h.unregister:
+			Logger.Infof("Unregistering %s", c.FP)
 			if err := c.SetOnline(false); err != nil {
 				Logger.Errorf("Failed setting a peer as offline: %s", err)
 				continue

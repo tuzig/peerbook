@@ -133,7 +133,11 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 		User    string
 		Peers   *PeerList
 	}
-	data.Peers = peers
+	if peers == nil {
+		data.Peers = &PeerList{}
+	} else {
+		data.Peers = peers
+	}
 	data.User = user
 	verified := db.IsQRVerified(user)
 	if !verified {
@@ -176,12 +180,12 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 			if rmrf {
 				Logger.Infof("Removing user %s and his peers", user)
 				conn := db.pool.Get()
-				defer conn.Close()
 				for _, p := range *peers {
 					conn.Do("DEL", p.Key())
 				}
 				key := fmt.Sprintf("user:%s", user)
 				conn.Do("DEL", key)
+				conn.Close()
 				data.Peers = nil
 				data.Message = "Your peers were removed"
 				goto render
