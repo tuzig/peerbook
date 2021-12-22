@@ -33,7 +33,7 @@ const (
 	// SendChanSize is the size of the send channel in messages
 	SendChanSize = 4
 
-	DefaultHomeURL = "https://pb.terminal7.dev"
+	DefaultHomeURL = "https://api.peerbook.io"
 )
 
 // Logger is our global logger
