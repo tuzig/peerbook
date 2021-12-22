@@ -4,7 +4,7 @@ go 1.16
 
 require (
 	github.com/alicebob/miniredis/v2 v2.15.1
-	github.com/gomodule/redigo v2.0.0+incompatible
+	github.com/gomodule/redigo v1.8.6
 	github.com/gorilla/websocket v1.4.2
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pquerna/otp v1.3.0

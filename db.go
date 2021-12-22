@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
@@ -18,7 +19,8 @@ const MaxPeersPerUser = 10
 
 // DBType is the type that holds our db
 type DBType struct {
-	pool *redis.Pool
+	pool  *redis.Pool
+	poolM sync.Mutex
 }
 
 // DBUser is the info we store about a user - a list of peers' fingerprint
@@ -38,7 +40,7 @@ func (d *DBType) CreateToken(email string) (string, error) {
 	}
 	token := base64.StdEncoding.EncodeToString(b)
 	key := fmt.Sprintf("token:%s", token)
-	conn := d.pool.Get()
+	conn := d.getConn()
 	defer conn.Close()
 	_, err := conn.Do("SETEX", key, TokenTTL, email)
 	if err != nil {
@@ -51,13 +53,15 @@ func (d *DBType) Connect(host string) error {
 	if redisDouble != nil {
 		host = redisDouble.Addr()
 	}
+	d.poolM.Lock()
 	d.pool = &redis.Pool{
 		MaxIdle:     5,
 		IdleTimeout: 5 * time.Second,
 		Dial:        func() (redis.Conn, error) { return redis.Dial("tcp", host) },
 	}
+	d.poolM.Unlock()
 	if redisDouble == nil {
-		conn := d.pool.Get()
+		conn := d.getConn()
 		defer conn.Close()
 		_, err := conn.Do("GET", "SFJAWERWEQRQWER")
 		if err != redis.ErrNil {
@@ -70,7 +74,7 @@ func (d *DBType) Connect(host string) error {
 // GetToken reads the value of a token, usually an email address
 func (d *DBType) GetToken(token string) (string, error) {
 	key := fmt.Sprintf("token:%s", token)
-	conn := d.pool.Get()
+	conn := d.getConn()
 	defer conn.Close()
 	value, err := redis.String(conn.Do("GET", key))
 	if err != nil {
@@ -83,7 +87,7 @@ func (d *DBType) GetToken(token string) (string, error) {
 func (d *DBType) GetUser(email string) (*DBUser, error) {
 	var r DBUser
 	key := fmt.Sprintf("user:%s", email)
-	conn := d.pool.Get()
+	conn := d.getConn()
 	defer conn.Close()
 	values, err := redis.Values(conn.Do("SMEMBERS", key))
 	if err != nil {
@@ -95,7 +99,7 @@ func (d *DBType) GetUser(email string) (*DBUser, error) {
 	return &r, nil
 }
 func (d *DBType) getDoc(key string, target interface{}) error {
-	conn := d.pool.Get()
+	conn := d.getConn()
 	defer conn.Close()
 	values, err := redis.Values(conn.Do("HGETALL", key))
 	if err = redis.ScanStruct(values, target); err != nil {
@@ -105,7 +109,7 @@ func (d *DBType) getDoc(key string, target interface{}) error {
 }
 func (d *DBType) PeerExists(fp string) (bool, error) {
 	key := fmt.Sprintf("peer:%s", fp)
-	conn := d.pool.Get()
+	conn := d.getConn()
 	defer conn.Close()
 	return redis.Bool(conn.Do("EXISTS", key))
 }
@@ -116,7 +120,7 @@ func (d *DBType) Close() error {
 
 // AddPeer adds or updates a peer
 func (d *DBType) AddPeer(peer *Peer) error {
-	conn := d.pool.Get()
+	conn := d.getConn()
 	defer conn.Close()
 	key := fmt.Sprintf("user:%s", peer.User)
 	values, err := redis.Values(conn.Do("SMEMBERS", key))
@@ -195,7 +199,7 @@ func VerifyPeer(fp string, verified bool) error {
 }
 func (d *DBType) canSendEmail(email string) bool {
 	key := fmt.Sprintf("dontsend:%s", email)
-	conn := d.pool.Get()
+	conn := d.getConn()
 	defer conn.Close()
 	blocked, err := redis.Bool(conn.Do("EXISTS", key))
 	if err != nil {
@@ -210,14 +214,20 @@ func (d *DBType) canSendEmail(email string) bool {
 }
 func (d *DBType) SetQRVerified(email string) error {
 	key := fmt.Sprintf("QRVerified:%s", email)
-	conn := d.pool.Get()
+	conn := d.getConn()
 	defer conn.Close()
 	_, err := conn.Do("SET", key, "1")
 	return err
 }
+func (d *DBType) getConn() redis.Conn {
+	d.poolM.Lock()
+	conn := d.pool.Get()
+	d.poolM.Unlock()
+	return conn
+}
 func (d *DBType) IsQRVerified(email string) bool {
 	key := fmt.Sprintf("QRVerified:%s", email)
-	conn := d.pool.Get()
+	conn := d.getConn()
 	defer conn.Close()
 	seen, err := redis.Bool(conn.Do("EXISTS", key))
 	if err != nil {
