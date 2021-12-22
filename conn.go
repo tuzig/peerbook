@@ -50,6 +50,7 @@ func (c *Conn) readPump() {
 		message := make(map[string]interface{})
 		err := c.WS.ReadJSON(&message)
 		if err != nil {
+			Logger.Info("Exiting read pump on error: %s", err)
 			break
 		}
 		verified, err := IsVerified(c.FP)
@@ -93,6 +94,7 @@ loop:
 			}
 		case <-ticker.C:
 			if c.WS == nil {
+				Logger.Info("Breaking on nil WS")
 				break loop
 			}
 			c.WS.SetWriteDeadline(time.Now().Add(writeWait))
@@ -105,12 +107,12 @@ loop:
 				return
 			}
 		case <-ctx.Done():
+			Logger.Infof("out pinger on Done")
 			break loop
 		}
 	}
 	ticker.Stop()
 	hub.unregister <- c
-	Logger.Infof("out pinger")
 }
 func (c *Conn) sendStatus(code int, e error) error {
 	Logger.Infof("Sending status %d %s", code, e)
@@ -204,10 +206,10 @@ func (c *Conn) subscribe(ctx context.Context) {
 	// A ping is set to the server with this period to test for the health of
 	// the connection and server.
 	const healthCheckPeriod = time.Minute
-	var unsubscribed chan bool
 	conn := db.pool.Get()
 	defer conn.Close()
 	psc := redis.PubSubConn{Conn: conn}
+	defer psc.Unsubscribe()
 	outK := fmt.Sprintf("out:%s", c.FP)
 	peersK := fmt.Sprintf("peers:%s", c.User)
 	if err := psc.Subscribe(outK, peersK); err != nil {
@@ -215,65 +217,43 @@ func (c *Conn) subscribe(ctx context.Context) {
 		return
 	}
 
-	done := make(chan bool, 1)
-
-	// Start a goroutine to receive notifications from the server.
-	go func() {
-	loop:
-		for {
-			select {
-			case <-ctx.Done():
-				break loop
-			default:
-				switch n := psc.Receive().(type) {
-				case error:
-					Logger.Errorf("Receive error from redis: %v", n)
-					done <- true
-					break loop
-				case redis.Message:
-					Logger.Infof("%q got a message: %s", c.FP, n.Data)
-					verified, err := IsVerified(c.FP)
-					if err != nil {
-						Logger.Errorf("Got an error testing if perr verfied: %s", err)
-						return
-					}
-					if verified {
-						Logger.Infof("forwarding %q message: %s", c.FP, n.Data)
-						c.WS.SetWriteDeadline(time.Now().Add(writeWait))
-						c.send <- n.Data
-					} else {
-						Logger.Infof("ignoring %q message: %s", c.FP, n.Data)
-					}
-				}
-			}
-		}
-		// Signal the receiving goroutine to exit by unsubscribing from all channels.
-		if err := psc.Unsubscribe(); err != nil {
-			Logger.Errorf("Failed to unsubscribe: %s", err)
-		}
-		unsubscribed <- true
-	}()
-
 	ticker := time.NewTicker(healthCheckPeriod)
 	defer ticker.Stop()
+	// Start a goroutine to receive notifications from the server.
 loop:
 	for {
 		select {
+		case <-ctx.Done():
+			break loop
 		case <-ticker.C:
 			// Send ping to test health of connection and server. If
 			// corresponding pong is not received, then receive on the
 			// connection will timeout and the receive goroutine will exit.
 			if err := psc.Ping(""); err != nil {
+				Logger.Info("Pong timeout")
 				break loop
 			}
-		case <-ctx.Done():
-			break loop
-		case <-done:
-			break loop
+		default:
+			switch n := psc.Receive().(type) {
+			case error:
+				Logger.Errorf("Receive error from redis: %v", n)
+				break loop
+			case redis.Message:
+				verified, err := IsVerified(c.FP)
+				if err != nil {
+					Logger.Errorf("Got an error testing if perr verfied: %s", err)
+					return
+				}
+				if verified {
+					Logger.Infof("forwarding %q message: %s", c.FP, n.Data)
+					c.WS.SetWriteDeadline(time.Now().Add(writeWait))
+					c.send <- n.Data
+				} else {
+					Logger.Infof("ignoring %q message: %s", c.FP, n.Data)
+				}
+			}
 		}
 	}
-	<-unsubscribed
-
 }
 
 // ConnFromQ retruns a fresh Peer based on query paramets: fp, name, kind &
