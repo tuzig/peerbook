@@ -304,12 +304,8 @@ func (c *Conn) handleMessage(m map[string]interface{}) {
 				fmt.Errorf("Target peer belongs to user %q", targetUser))
 			return
 		}
-		Logger.Infof("Forwarding: %v", m)
 		rc.Do("HSET", key, "last_connect", time.Now().Unix())
 		delete(m, "target")
 		SendMessage(tfp, m)
-		if err != nil {
-			Logger.Errorf("Failed to encode a clients msg: %s", err)
-		}
 	}
 }
