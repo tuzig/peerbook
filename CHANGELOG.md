@@ -9,6 +9,13 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
+## [1.1.2] 2021-12-26
+
+### Fixed
+
+- timeouts on sunspace turn servers API
+- home page URL 
+
 ## [1.1.1] 2021-12-07
 
 ### Fixed

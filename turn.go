@@ -23,6 +23,7 @@ func serveTURN(w http.ResponseWriter, r *http.Request) {
 	if bearerAuth == "" {
 		t, err := getTURNToken()
 		if err != nil {
+			Logger.Warnf("subspace to get subspace token: %s")
 			http.Error(w, fmt.Sprintf("Failed to get token: %s", err),
 				http.StatusInternalServerError)
 			return
@@ -41,6 +42,8 @@ func serveTURN(w http.ResponseWriter, r *http.Request) {
 	resp, err := client.Do(req)
 	defer resp.Body.Close()
 	if resp.StatusCode == http.StatusUnauthorized {
+		Logger.Info("Requesting a new subspace token")
+		bearerAuth = ""
 		serveTURN(w, r)
 		return
 	}
@@ -55,7 +58,10 @@ func getTURNToken() (string, error) {
 		"audience":      "https://api.subspace.com/",
 		"grant_type":    "client_credentials"}
 	m, err := json.Marshal(msg)
-	resp, err := http.Post(tokenURL, "application/json", bytes.NewBuffer(m))
+	client := &http.Client{
+		Timeout: time.Second * 10,
+	}
+	resp, err := client.Post(tokenURL, "application/json", bytes.NewBuffer(m))
 	if err != nil {
 		return "", err
 	}
