@@ -239,3 +239,23 @@ func (d *DBType) IsQRVerified(email string) bool {
 	}
 	return false
 }
+func (d *DBType) Reset() {
+	conn := d.getConn()
+	i := 0
+	for {
+		arr, err := redis.Values(conn.Do("SCAN", i, "MATCH", "peer:*"))
+		if err != nil {
+			Logger.Errorf("Failed to retrieve redis keys: %s", err)
+		}
+		i, err = redis.Int(arr[0], nil)
+		keys, err := redis.Strings(arr[1], nil)
+		for _, k := range keys {
+			if _, err := conn.Do("HSET", k, "online", false); err != nil {
+				Logger.Errorf("Failed to set %s online to false: %s", k, err)
+			}
+		}
+		if i == 0 {
+			break
+		}
+	}
+}

@@ -672,6 +672,16 @@ func main() {
 		Logger.Errorf("Failed to connect to redis: %s", err)
 		os.Exit(1)
 	}
+	Logger.Infof("Using redis server at: %s", redisH)
+	if len(os.Args) == 2 {
+		if os.Args[1] == "reset" {
+			db.Reset()
+			return
+		} else {
+			Logger.Errorf("Unknown argument: %s", os.Args[1])
+			os.Exit(1)
+		}
+	}
 
 	hub = Hub{
 		register:   make(chan *Conn),

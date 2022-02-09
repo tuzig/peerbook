@@ -9,6 +9,12 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
+## Unrelease
+
+### Added
+
+- the `reset` command used to clear the online flag
+
 ## [1.1.2] 2021-12-26
 
 ### Fixed

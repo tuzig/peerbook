@@ -79,3 +79,11 @@ func TestCanSendEmail(t *testing.T) {
 	can2 := db.canSendEmail("j")
 	require.False(t, can2)
 }
+func TestReset(t *testing.T) {
+	startTest(t)
+	redisDouble.HSet("peer:foo", "fp", "foo", "name", "fucked up", "online", "1")
+	redisDouble.HSet("peer:bar", "fp", "bar", "name", "beyond all", "online", "1")
+	db.Reset()
+	require.Equal(t, "0", redisDouble.HGet("peer:foo", "online"))
+	require.Equal(t, "0", redisDouble.HGet("peer:bar", "online"))
+}
