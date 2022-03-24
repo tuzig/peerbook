@@ -23,7 +23,7 @@ func serveTURN(w http.ResponseWriter, r *http.Request) {
 	if bearerAuth == "" {
 		t, err := getTURNToken()
 		if err != nil {
-			Logger.Warnf("subspace to get subspace token: %s")
+			Logger.Warnf("subspace to get subspace token: %s", err)
 			http.Error(w, fmt.Sprintf("Failed to get token: %s", err),
 				http.StatusInternalServerError)
 			return
@@ -52,8 +52,12 @@ func serveTURN(w http.ResponseWriter, r *http.Request) {
 }
 
 func getTURNToken() (string, error) {
+	subspaceId := os.Getenv("SUBSPACE_ID")
+	if subspaceId == "" {
+		return "", fmt.Errorf("SUBSPACE_ID is not set")
+	}
 	msg := map[string]string{
-		"client_id":     os.Getenv("SUBSPACE_ID"),
+		"client_id":     subspaceId,
 		"client_secret": os.Getenv("SUBSPACE_SECRET"),
 		"audience":      "https://api.subspace.com/",
 		"grant_type":    "client_credentials"}
