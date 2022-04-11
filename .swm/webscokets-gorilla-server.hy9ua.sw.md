@@ -8,6 +8,10 @@ file_blobs:
   conn.go: b4af937cdb06fdd0ee60cbfc5f0d422ddc9d1e92
 ---
 
+These are snippets that use the [gorilla](https://github.com/gorilla/websocket) websocket package
+
+<br/>
+
 This is where the server starts
 <!-- NOTE-swimm-snippet: the lines below link your snippet to Swimm -->
 ### 📄 main.go
@@ -19,6 +23,23 @@ This is where the server starts
 ⬜ 697    	// Setting up signal capturing
 ⬜ 698    	stop = make(chan os.Signal, 1)
 ⬜ 699    	signal.Notify(stop, os.Interrupt)
+```
+
+<br/>
+
+Creating a server and connecting the websocket handler
+<!-- NOTE-swimm-snippet: the lines below link your snippet to Swimm -->
+### 📄 main.go
+```go
+⬜ 424    func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
+⬜ 425    	srv := &http.Server{
+⬜ 426    		Addr: addr, Handler: cors.Default().Handler(http.DefaultServeMux)}
+⬜ 427    
+⬜ 428    	http.HandleFunc("/", serveHome)
+⬜ 429    	http.HandleFunc("/pb/", serveAuthPage)
+⬜ 430    	http.HandleFunc("/verify", serveVerify)
+⬜ 431    	http.HandleFunc("/hitme", serveHitMe)
+🟩 432    	http.HandleFunc("/ws", serveWs)
 ```
 
 <br/>
