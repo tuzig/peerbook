@@ -37,16 +37,22 @@ func serveTURN(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to get redetials from subspace: %s", err),
 			http.StatusInternalServerError)
+		return
 	}
 	req.Header.Add("authorization", bearerAuth)
 	resp, err := client.Do(req)
-	defer resp.Body.Close()
+	if err != nil {
+		Logger.Warn("Failed to get turn server")
+		w.Write([]byte("{}"))
+		return
+	}
 	if resp.StatusCode == http.StatusUnauthorized {
 		Logger.Info("Requesting a new subspace token")
 		bearerAuth = ""
 		serveTURN(w, r)
 		return
 	}
+	defer resp.Body.Close()
 	b, _ := io.ReadAll(resp.Body)
 	w.Write(b)
 }
