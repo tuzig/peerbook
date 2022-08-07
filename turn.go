@@ -10,8 +10,6 @@ import (
 	"time"
 )
 
-var bearerAuth string
-
 const credentialsURL = "https://api.subspace.com/v1/globalturn"
 const tokenURL = "https://subspace.auth0.com/oauth/token"
 
@@ -20,16 +18,15 @@ func serveTURN(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "Only th POST method is supported", http.StatusBadRequest)
 	}
-	if bearerAuth == "" {
-		t, err := getTURNToken()
-		if err != nil {
-			Logger.Warnf("subspace to get subspace token: %s", err)
-			http.Error(w, fmt.Sprintf("Failed to get token: %s", err),
-				http.StatusInternalServerError)
-			return
-		}
-		bearerAuth = fmt.Sprintf("Bearer %s", t)
+	t, err := getTURNToken()
+	if err != nil {
+		Logger.Warnf("Failed to get subspace token: %s", err)
+		http.Error(w, fmt.Sprintf("Failed to get token: %s", err),
+			http.StatusInternalServerError)
+		return
 	}
+	// TODO cache the bearerAuth using redis
+	bearerAuth := fmt.Sprintf("Bearer %s", t)
 	client := &http.Client{
 		Timeout: time.Second * 10,
 	}
@@ -47,9 +44,9 @@ func serveTURN(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if resp.StatusCode == http.StatusUnauthorized {
-		Logger.Info("Requesting a new subspace token")
-		bearerAuth = ""
-		serveTURN(w, r)
+		Logger.Warn("Our TURN credentials are outdates")
+		http.Error(
+			w, "Uauthorized on the TURN service", http.StatusInternalServerError)
 		return
 	}
 	defer resp.Body.Close()
