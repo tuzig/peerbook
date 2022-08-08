@@ -64,6 +64,7 @@ func TestUnknownFingerprint(t *testing.T) {
 	require.Nil(t, err)
 	var m map[string]interface{}
 	err = ws.ReadJSON(&m)
+	fmt.Printf("Got message %v", m)
 	require.Nil(t, err)
 	require.Equal(t, float64(401), m["code"].(float64), "msg: %v", m)
 }

@@ -157,11 +157,73 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 	go conn.readPump()
 	// if it's an unverified peer, keep the connection open and send a status message
 	if !conn.Verified {
-		err = conn.sendStatus(http.StatusUnauthorized, fmt.Errorf(
-			"Unverified peer, please check your inbox to verify"))
+		var peer *Peer
+		fp := q.Get("fp")
+		email := q.Get("email")
+		name := q.Get("name")
+		kind := q.Get("kind")
+		pexists, err := db.PeerExists(fp)
 		if err != nil {
-			Logger.Errorf("Failed to send status message: %s", err)
+			Logger.Info("db read failure")
+			Logger.Error(w, "DB read failure", http.StatusInternalServerError)
+			err = conn.sendStatus(http.StatusInternalServerError, fmt.Errorf(
+				"Failed to read from db: %s", err))
+			return
 		}
+		if !pexists {
+			peer = NewPeer(fp, name, email, kind)
+			err = db.AddPeer(peer)
+			if err != nil {
+				msg := fmt.Sprintf("Failed to add peer: %s", err)
+				Logger.Warn(msg)
+				http.Error(w, msg, http.StatusInternalServerError)
+				return
+			}
+		} else {
+			Logger.Info("peer exists")
+			peer, err = GetPeer(fp)
+			if err != nil {
+				Logger.Info("failt to get peer")
+				msg := fmt.Sprintf("Failed to get peer: %s", err)
+				Logger.Errorf(msg)
+				m, _ := json.Marshal(map[string]string{"m": msg})
+				http.Error(w, string(m), http.StatusInternalServerError)
+				return
+			}
+			if peer.User == "" {
+				Logger.Info("peer user empty")
+				peer = NewPeer(fp, name, email, kind)
+				err = db.AddPeer(peer)
+				if err != nil {
+					msg := fmt.Sprintf("Failed to add peer: %s", err)
+					Logger.Warn(msg)
+					http.Error(w, msg, http.StatusInternalServerError)
+					return
+				}
+			} else if peer.User != email {
+				msg := fmt.Sprintf(
+					"Fingerprint is associated to another email: %s", peer.User)
+				http.Error(w, msg, http.StatusConflict)
+				return
+			}
+			if peer.Name != name {
+				peer.setName(name)
+			}
+		}
+		go func() {
+			err := sendAuthEmail(email)
+			if err != nil {
+				Logger.Errorf("Failed to send email: %s", err)
+				err = conn.sendStatus(http.StatusUnauthorized, fmt.Errorf(
+					"Unverified peer, please check your inbox to verify"))
+				return
+			}
+			err = conn.sendStatus(http.StatusUnauthorized, fmt.Errorf(
+				"Unverified peer, please check your inbox to verify"))
+			if err != nil {
+				Logger.Errorf("Failed to send status message: %s", err)
+			}
+		}()
 	}
 }
 
@@ -189,15 +251,17 @@ func SendPeerUpdate(rc redis.Conn, user string, fp string, verified bool, online
 }
 
 func (c *Conn) SendPeerList() error {
-	ps, err := GetUsersPeers(c.User)
-	if err != nil {
-		return err
+	if c.Verified {
+		ps, err := GetUsersPeers(c.User)
+		if err != nil {
+			return err
+		}
+		m, err := json.Marshal(map[string]interface{}{"peers": ps})
+		if err != nil {
+			return err
+		}
+		c.send <- m
 	}
-	m, err := json.Marshal(map[string]interface{}{"peers": ps})
-	if err != nil {
-		return err
-	}
-	c.send <- m
 	return nil
 }
 
