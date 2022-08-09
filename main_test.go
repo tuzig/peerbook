@@ -367,7 +367,7 @@ func TestHTTPPeerVerification(t *testing.T) {
 	redisDouble.Set("secret:j", ok.Secret())
 	redisDouble.Set("QRVerified:j", "1")
 	// connect using websockets
-	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar")
+	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&email=j")
 	require.Nil(t, err)
 	defer ws.Close()
 	if err = ws.SetReadDeadline(time.Now().Add(ReadTimeout)); err != nil {
@@ -376,7 +376,7 @@ func TestHTTPPeerVerification(t *testing.T) {
 	var s StatusMessage
 	err = ws.ReadJSON(&s)
 	require.Nil(t, err)
-	require.Equal(t, 401, s.Code)
+	require.Equal(t, http.StatusUnauthorized, s.Code)
 	resp, err := http.PostForm("http://127.0.0.1:17777/pb/avalidtoken",
 		url.Values{"B": {"checked"},
 			"otp": {otp},
@@ -389,9 +389,13 @@ func TestHTTPPeerVerification(t *testing.T) {
 	var m map[string]interface{}
 	err = ws.ReadJSON(&m)
 	require.Nil(t, err)
+	require.Contains(t, m, "code", "got msg %v", m)
+	require.Equal(t, float64(200), m["code"], "got msg %v", m)
+	err = ws.ReadJSON(&m)
 	require.Contains(t, m, "peers", "got msg %v", m)
+	peers := m["peers"].([]interface{})
+	require.Equal(t, 2, len(peers), "got msg %v", m)
 	require.Nil(t, err)
-	require.Equal(t, 200, resp.StatusCode)
 }
 func TestVerifyUnverified(t *testing.T) {
 	startTest(t)
@@ -526,13 +530,13 @@ func TestValidatePeerNPublish(t *testing.T) {
 	defer resp.Body.Close()
 	time.Sleep(time.Second / 100)
 	require.Equal(t, "1", redisDouble.HGet("peer:A", "verified"))
-	err = wsA.ReadJSON(&pl)
-	require.Nil(t, err)
-	require.Contains(t, pl, "peers")
 	var s2 StatusMessage
 	err = wsA.ReadJSON(&s2)
 	require.Nil(t, err)
 	require.Equal(t, 200, s2.Code, "go msg: %s", s.Text)
+	err = wsA.ReadJSON(&pl)
+	require.Nil(t, err, "ReadJSON returned err: %s", err)
+	require.Contains(t, pl, "peers")
 }
 func TestGoodOTP2(t *testing.T) {
 	startTest(t)
