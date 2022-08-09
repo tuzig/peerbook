@@ -144,7 +144,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 	Logger.Infof("Got a new peer request: %v", q)
 	conn, err := ConnFromQ(q)
 	if err != nil {
-		Logger.Warnf("Refusing a bad request: %s", err)
+		Logger.Errorf("Failed creating a Conn: %s", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -159,76 +159,22 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 	go conn.readPump()
 	// if it's an unverified peer, keep the connection open and send a status message
 	if !conn.Verified {
-		email := q.Get("email")
-		name := q.Get("name")
-		kind := q.Get("kind")
-		conn.welcomeUnverified(name, kind, email)
+		err = conn.sendStatus(http.StatusUnauthorized, fmt.Errorf(
+			"Unverified peer, please check your email to verify"))
+		if err != nil {
+			Logger.Errorf("Failed to send status message: %s", err)
+		}
+		go conn.welcomeUnverified()
 	}
-
 }
 
-func (c *Conn) welcomeUnverified(name string, kind string, email string) {
-	var peer *Peer
-	pexists, err := db.PeerExists(c.FP)
+func (c *Conn) welcomeUnverified() {
+	err := sendAuthEmail(c.User)
 	if err != nil {
-		msg := fmt.Errorf("Failed to read from redis: %s", err)
-		Logger.Error(msg)
-		err = c.sendStatus(http.StatusInternalServerError, msg)
+		Logger.Errorf("Failed to send email: %s", err)
+		c.sendStatus(http.StatusInternalServerError, fmt.Errorf(
+			"Failed to send email: %s", err))
 		return
-	}
-	if !pexists {
-		peer = NewPeer(c.FP, name, c.User, kind)
-		err = db.AddPeer(peer)
-		if err != nil {
-			msg := fmt.Errorf("Failed to add peer: %s", err)
-			Logger.Warn(msg)
-			c.sendStatus(http.StatusInternalServerError, msg)
-			return
-		}
-	} else {
-		Logger.Info("peer exists")
-		peer, err = GetPeer(c.FP)
-		if err != nil {
-			Logger.Info("failt to get peer")
-			msg := fmt.Errorf("Failed to get peer: %s", err)
-			Logger.Error(msg)
-			c.sendStatus(http.StatusInternalServerError, msg)
-			return
-		}
-		if peer.User == "" {
-			Logger.Info("peer user empty")
-			peer = NewPeer(c.FP, name, c.User, kind)
-			err = db.AddPeer(peer)
-			if err != nil {
-				msg := fmt.Errorf("Failed to add peer: %s", err)
-				Logger.Warn(msg)
-				c.sendStatus(http.StatusInternalServerError, msg)
-				return
-			}
-		} else if peer.User != email {
-			msg := fmt.Errorf(
-				"Fingerprint is associated to another email: %s", peer.User)
-			Logger.Warn(msg)
-			c.sendStatus(http.StatusConflict, msg)
-			return
-		}
-		if peer.Name != name {
-			peer.setName(name)
-		}
-	}
-	go func() {
-		err := sendAuthEmail(email)
-		if err != nil {
-			Logger.Errorf("Failed to send email: %s", err)
-			c.sendStatus(http.StatusInternalServerError, fmt.Errorf(
-				"Failed to send email: %s", err))
-			return
-		}
-	}()
-	err = c.sendStatus(http.StatusUnauthorized, fmt.Errorf(
-		"Unverified peer, please check your email to verify"))
-	if err != nil {
-		Logger.Errorf("Failed to send status message: %s", err)
 	}
 }
 
@@ -325,10 +271,16 @@ loop:
 	}
 }
 
-// ConnFromQ retruns a fresh Peer based on query paramets: fp, name, kind &
-// email
+// ConnFromQ gets a a url values and returns a pointer to Conn
+//	It first looks for an existing peer based on the fingerprint.
+//  If found, it will reconcile the input fields and throw errors.
+//  If it's a fresh peer it will be added to the database.
 func ConnFromQ(q url.Values) (*Conn, error) {
 	fp := q.Get("fp")
+	name := q.Get("name")
+	email := q.Get("email")
+	Logger.Infof("got email: %s", email)
+	kind := q.Get("kind")
 	if fp == "" {
 		return nil, &PeerNotFound{}
 	}
@@ -337,13 +289,35 @@ func ConnFromQ(q url.Values) (*Conn, error) {
 		return nil, fmt.Errorf("Failed to get peer: %w", err)
 	}
 	if peer == nil {
-		return nil, &PeerNotFound{}
+		peer = NewPeer(fp, name, email, kind)
+		err = db.AddPeer(peer)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to add peer: %s", err)
+		}
+	} else {
+		// field validation & sync
+		if peer.Name != name {
+			peer.setName(name)
+		}
+		if peer.User == "" {
+			Logger.Info("peer user empty")
+			peer = NewPeer(fp, name, email, kind)
+			err = db.AddPeer(peer)
+			if err != nil {
+				return nil, fmt.Errorf("Failed to add peer: %s", err)
+			}
+		}
+		if peer.User != email {
+			return nil, fmt.Errorf(
+				"Fingerprint is associated to another email: %s", peer.User)
+		}
 	}
-	ret := Conn{FP: fp,
+	// TODO: refactor `NewConn(peer)`
+	return Conn{FP: fp,
 		Verified: peer.Verified,
 		User:     peer.User,
-		send:     make(chan []byte, SendBufSize)}
-	return &ret, nil
+		send:     make(chan []byte, SendBufSize),
+	}, nil
 }
 
 func (c *Conn) handleMessage(m map[string]interface{}) {

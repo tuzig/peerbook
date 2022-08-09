@@ -471,6 +471,7 @@ func sendAuthEmail(email string) error {
 	if !db.canSendEmail(email) {
 		return fmt.Errorf("Throttling prevented sending email to %q", email)
 	}
+	Logger.Infof("Sending email to: %s", email)
 	m := gomail.NewMessage()
 	clickL, err := createTempURL(email, "pb", false)
 	if err != nil {

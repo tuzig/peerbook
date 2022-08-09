@@ -417,6 +417,21 @@ func TestVerifyUnverified(t *testing.T) {
 	require.Nil(t, err)
 	require.False(t, ret["verified"])
 }
+func TestWSNew(t *testing.T) {
+	startTest(t)
+	// setup the fixture - a user, his token and two peers
+	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=Z&name=foo&email=j&kind=server")
+	var m map[string]interface{}
+	err = ws.ReadJSON(&m)
+	require.Nil(t, err)
+	require.Contains(t, m, "code", "got msg %v", m)
+	require.Equal(t, float64(401), m["code"], "got msg %v", m)
+	time.Sleep(time.Second)
+	require.Equal(t, "0", redisDouble.HGet("peer:Z", "verified"))
+	require.Equal(t, "foo", redisDouble.HGet("peer:Z", "name"))
+	require.Equal(t, "server", redisDouble.HGet("peer:Z", "kind"))
+	require.Equal(t, "j", redisDouble.HGet("peer:Z", "user"))
+}
 func TestVerifyNew(t *testing.T) {
 	startTest(t)
 	// setup the fixture - a user, his token and two peers
