@@ -313,7 +313,7 @@ func ConnFromQ(q url.Values) (*Conn, error) {
 		}
 	}
 	// TODO: refactor `NewConn(peer)`
-	return Conn{FP: fp,
+	return &Conn{FP: fp,
 		Verified: peer.Verified,
 		User:     peer.User,
 		send:     make(chan []byte, SendBufSize),
