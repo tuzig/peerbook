@@ -155,7 +155,6 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 		Logger.Errorf("Failed to upgrade socket: %w", err)
 		return
 	}
-	hub.register <- conn
 	go conn.readPump()
 	// if it's an unverified peer, keep the connection open and send a status message
 	if !conn.Verified {
@@ -166,6 +165,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 		}
 		go conn.welcomeUnverified()
 	}
+	hub.register <- conn
 }
 
 func (c *Conn) welcomeUnverified() {
@@ -207,11 +207,13 @@ func (c *Conn) SendPeerList() error {
 		if err != nil {
 			return err
 		}
-		m, err := json.Marshal(map[string]interface{}{"peers": ps})
-		if err != nil {
-			return err
+		if ps != nil {
+			m, err := json.Marshal(map[string]interface{}{"peers": ps})
+			if err != nil {
+				return err
+			}
+			c.send <- m
 		}
-		c.send <- m
 	}
 	return nil
 }
