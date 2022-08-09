@@ -51,7 +51,7 @@ func (c *Conn) readPump() {
 		message := make(map[string]interface{})
 		err := c.WS.ReadJSON(&message)
 		if err != nil {
-			Logger.Info("Exiting read pump on error: %s", err)
+			Logger.Info("Exiting read pump for %q on error: %s", c.FP, err)
 			break
 		}
 		verified, err := IsVerified(c.FP)
