@@ -15,9 +15,9 @@ import (
 const (
 	// Time allowed to write a message to the peer.
 	writeWait  = 10 * time.Second
-	pingPeriod = 5 * time.Second
+	pingPeriod = 50 * time.Second
 	// Time allowed to read the next pong message from the peer.
-	pongWait = 6 * time.Second
+	pongWait = 60 * time.Second
 	// Maximum message size allowed from peer.
 	maxMessageSize = 4096
 	SendBufSize    = 4096
