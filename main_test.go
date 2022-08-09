@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -95,6 +96,8 @@ func TestSignalingAcrossUsers(t *testing.T) {
 	err = wsA.ReadJSON(&pl)
 	require.Nil(t, err)
 	require.Contains(t, pl, "peers")
+	peers := pl["peers"].([]interface{})
+	require.Equal(t, 1, len(peers))
 	err = wsA.ReadJSON(&pl)
 	require.Nil(t, err)
 	require.Contains(t, pl, "peer_update")
@@ -431,6 +434,12 @@ func TestWSNew(t *testing.T) {
 	require.Equal(t, "foo", redisDouble.HGet("peer:Z", "name"))
 	require.Equal(t, "server", redisDouble.HGet("peer:Z", "kind"))
 	require.Equal(t, "j", redisDouble.HGet("peer:Z", "user"))
+	if err = ws.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
+	err2 := ws.ReadJSON(&m).(net.Error)
+	require.NotNil(t, err2)
+	require.True(t, err2.Timeout())
 }
 func TestVerifyNew(t *testing.T) {
 	startTest(t)
