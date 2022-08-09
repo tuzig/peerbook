@@ -207,7 +207,7 @@ func (c *Conn) SendPeerList() error {
 		if err != nil {
 			return err
 		}
-		if ps != nil {
+		if ps != nil && len(*ps) > 0 {
 			m, err := json.Marshal(map[string]interface{}{"peers": ps})
 			if err != nil {
 				return err

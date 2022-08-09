@@ -143,7 +143,11 @@ func IsVerified(fp string) (bool, error) {
 	key := fmt.Sprintf("peer:%s", fp)
 	conn := db.pool.Get()
 	defer conn.Close()
-	return redis.Bool(conn.Do("HGET", key, "verified"))
+	verified, err := redis.Bool(conn.Do("HGET", key, "verified"))
+	if err != nil {
+		return false, err
+	}
+	return verified, err
 }
 
 // GetPeer gets a peer, using the hub as cache for connected peers
