@@ -280,7 +280,6 @@ func ConnFromQ(q url.Values) (*Conn, error) {
 	fp := q.Get("fp")
 	name := q.Get("name")
 	email := q.Get("email")
-	Logger.Infof("got email: %s", email)
 	kind := q.Get("kind")
 	if fp == "" {
 		return nil, &PeerNotFound{}
@@ -301,7 +300,7 @@ func ConnFromQ(q url.Values) (*Conn, error) {
 			peer.setName(name)
 		}
 		if peer.User == "" {
-			Logger.Info("peer user empty")
+			Logger.Warn("peer user empty")
 			peer = NewPeer(fp, name, email, kind)
 			err = db.AddPeer(peer)
 			if err != nil {

@@ -145,6 +145,7 @@ func IsVerified(fp string) (bool, error) {
 	defer conn.Close()
 	verified, err := redis.Bool(conn.Do("HGET", key, "verified"))
 	if err != nil {
+		Logger.Warnf("Failed to get 'verified' field for %s", key)
 		return false, err
 	}
 	return verified, err
