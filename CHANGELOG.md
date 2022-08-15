@@ -9,11 +9,16 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
-## Unrelease
+## [1.1.3]
 
 ### Added
 
 - the `reset` command used to clear the online flag
+
+### Fixed
+
+- improved handling of our expired TURN provider
+- extended ping time to 50sec
 
 ## [1.1.2] 2021-12-26
 
