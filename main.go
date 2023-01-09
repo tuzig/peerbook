@@ -229,9 +229,7 @@ render:
 	}
 	err = tmpl.Execute(w, data)
 	if err != nil {
-		msg := fmt.Sprintf("Failed to execute the main template: %s", err)
-		Logger.Error(msg)
-		http.Error(w, msg, http.StatusInternalServerError)
+		Logger.Warnf("Failed to execute the main template: %s", err)
 	}
 }
 func serveHitMe(w http.ResponseWriter, r *http.Request) {

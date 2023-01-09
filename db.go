@@ -264,3 +264,23 @@ func (d *DBType) Reset() {
 		}
 	}
 }
+func (d *DBType) GetICESErvers() ([]ICEServer, error) {
+	var ret []ICEServer
+	conn := d.getConn()
+	i := 0
+
+	arr, err := redis.Values(conn.Do("SCAN", i, "MATCH", "iceserver:*"))
+	if err != nil {
+		return nil, fmt.Errorf("Failed to retrieve iceserver:* keys: %s", err)
+	}
+	i, err = redis.Int(arr[0], nil)
+	keys, err := redis.Strings(arr[1], nil)
+	for _, key := range keys {
+		var info ICEServer
+		d.getDoc(key, &info)
+		if info.active {
+			ret = append(ret, info)
+		}
+	}
+	return ret, nil
+}
