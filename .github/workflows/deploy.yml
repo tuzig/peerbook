@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: 
-      name: "${{ github.event.inputs.envName }}"
+      name: "${{ github.event.inputs.env }}"
       url: https://github.com
 
 
