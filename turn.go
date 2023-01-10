@@ -18,7 +18,7 @@ type ICEServer struct {
 	Active     bool   `redis:"active" json:"active"`
 }
 
-func serveTURN(w http.ResponseWriter, r *http.Request) {
+func serveICEServers(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "Only th POST method is supported", http.StatusBadRequest)
 	}

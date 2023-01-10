@@ -428,7 +428,9 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 	http.HandleFunc("/verify", serveVerify)
 	http.HandleFunc("/hitme", serveHitMe)
 	http.HandleFunc("/ws", serveWs)
-	http.HandleFunc("/turn", serveTURN)
+	// `/turn` is deprecated
+	http.HandleFunc("/turn", serveICEServers)
+	http.HandleFunc("/iceservers", serveICEServers)
 	http.HandleFunc("/qr/", serveQR)
 
 	go func() {
