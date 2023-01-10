@@ -12,10 +12,13 @@ import (
 const credentialsURL = "https://api.subspace.com/v1/globalturn"
 const tokenURL = "https://subspace.auth0.com/oauth/token"
 
+// ICEServer is used to represent a STUN or TURN server
 type ICEServer struct {
-	URLs       []string `json:"urls"`
-	Username   string   `json:"username"`
-	Credential string   `json:"credential"`
+	// NOTE: in code it's URL, elsewhere it's urls as in w3c
+	URL        string `redis:"urls" json:"urls"`
+	Username   string `redis:"username" json:"username"`
+	Credential string `redis:"credential" json:"credential"`
+	Active     bool   `redis:"active" json:"active"`
 }
 
 func serveTURN(w http.ResponseWriter, r *http.Request) {

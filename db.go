@@ -264,7 +264,7 @@ func (d *DBType) Reset() {
 		}
 	}
 }
-func (d *DBType) GetICESErvers() ([]ICEServer, error) {
+func (d *DBType) GetICEServers() ([]ICEServer, error) {
 	var ret []ICEServer
 	conn := d.getConn()
 	i := 0
@@ -278,7 +278,7 @@ func (d *DBType) GetICESErvers() ([]ICEServer, error) {
 	for _, key := range keys {
 		var info ICEServer
 		d.getDoc(key, &info)
-		if info.active {
+		if info.Active {
 			ret = append(ret, info)
 		}
 	}
