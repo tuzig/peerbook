@@ -15,13 +15,13 @@ func TestGetCredentialsPost(t *testing.T) {
 		"urls", "turn:example.com",
 		"username", "foo",
 		"credential", "bar",
-		"active", "true",
+		"active", "1",
 	)
 	redisDouble.HSet("iceserver:bar",
 		"urls", "turn:anotherexample.com",
 		"username", "foo",
 		"credential", "bar",
-		"active", "false",
+		"active", "0",
 	)
 	resp, err := http.Post("http://127.0.0.1:17777/turn", "", nil)
 	require.Nil(t, err)
