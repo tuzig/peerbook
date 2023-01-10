@@ -15,7 +15,7 @@ type ICEServer struct {
 	URL        string `redis:"urls" json:"urls"`
 	Username   string `redis:"username" json:"username"`
 	Credential string `redis:"credential" json:"credential"`
-	Active     bool   `redis:"active" json:"active"`
+	active     bool   `redis:"active"`
 }
 
 func serveICEServers(w http.ResponseWriter, r *http.Request) {
@@ -41,9 +41,11 @@ func serveICEServers(w http.ResponseWriter, r *http.Request) {
 				http.StatusInternalServerError)
 			return
 		}
-		w.Write(b)
-		if i != len(servers)-1 {
-			w.Write([]byte(","))
+		if s.active {
+			w.Write(b)
+			if i != len(servers)-1 {
+				w.Write([]byte(","))
+			}
 		}
 	}
 	w.Write([]byte("]"))
