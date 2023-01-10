@@ -3,7 +3,7 @@ name: deploy
 on:
   workflow_dispatch:
     inputs:
-      envName:
+      env:
         description: "Environment to deploy to: staging/prod"
         required: false
         default: "staging"
