@@ -9,6 +9,12 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
+## [1.2]
+
+### Added
+
+- Reading turn servers from redis
+
 ## [1.1.3]
 
 ### Added
