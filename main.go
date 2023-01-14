@@ -34,7 +34,7 @@ const (
 	SendChanSize = 4
 
 	// TODO: remove the api
-	DefaultHomeURL = "https://api.peerbook.io"
+	DefaultHomeURL = "https://peerbook.io"
 )
 
 // Logger is our global logger
