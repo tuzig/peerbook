@@ -20,7 +20,8 @@ type ICEServer struct {
 
 func serveICEServers(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
-		http.Error(w, "Only th POST method is supported", http.StatusBadRequest)
+		http.Error(w, "Only the POST method is supported", http.StatusBadRequest)
+		return
 	}
 	servers, err := db.GetICEServers()
 	if err != nil {
