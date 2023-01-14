@@ -33,6 +33,7 @@ const (
 	// SendChanSize is the size of the send channel in messages
 	SendChanSize = 4
 
+	// TODO: remove the api
 	DefaultHomeURL = "https://api.peerbook.io"
 )
 
@@ -659,7 +660,8 @@ render:
 }
 
 func main() {
-	addr := flag.String("addr", "0.0.0.0:17777", "address to listen for http requests")
+	addr := flag.String(
+		"addr", "0.0.0.0:17777", "address to listen for http requests")
 	redisH := os.Getenv("REDIS_HOST")
 	if redisH == "" {
 		redisH = "127.0.0.1:6379"
