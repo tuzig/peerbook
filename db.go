@@ -274,6 +274,9 @@ func (d *DBType) GetICEServers() ([]ICEServer, error) {
 	for _, key := range keys {
 		var info ICEServer
 		d.getDoc(key, &info)
+		if !info.Active {
+			continue
+		}
 		ret = append(ret, info)
 	}
 	return ret, nil

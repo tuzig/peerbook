@@ -1,21 +1,43 @@
 package main
 
 import (
+	"crypto/hmac"
+	"crypto/sha1"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"time"
+
+	"github.com/twilio/twilio-go"
+	tapi "github.com/twilio/twilio-go/rest/api/v2010"
 )
 
-const credentialsURL = "https://api.subspace.com/v1/globalturn"
-const tokenURL = "https://subspace.auth0.com/oauth/token"
+var now = time.Now
 
 // ICEServer is used to represent a STUN or TURN server
 type ICEServer struct {
-	// NOTE: in code it's URL, elsewhere it's urls as in w3c
-	URL        string `redis:"urls" json:"urls"`
-	Username   string `redis:"username" json:"username"`
-	Credential string `redis:"credential" json:"credential"`
+	Url        string `redis:"url" json:"url,omitempty"`
+	Username   string `redis:"username" json:"username,omitempyy"`
+	Credential string `redis:"-" json:"credential,omitempyy"`
 	Active     bool   `redis:"active" json:"-"`
+	Urls       string `redis:"urls" json:"urls,omitempty"`
+}
+
+// genCredential returns a username and credential for a TURN server
+// based on the username and the secret key
+func genCredential(username string) (string, string) {
+	secretKey := os.Getenv("TURN_SECRET_KEY")
+	if secretKey == "" {
+		secretKey = "thisisatest"
+	}
+	h := hmac.New(sha1.New, []byte(secretKey))
+	timestamp := now().Add(24 * time.Hour).Unix()
+	compuser := fmt.Sprintf("%s:%d", username, timestamp)
+	_, _ = h.Write([]byte(compuser))
+	// return the compound username and the base64 encoded HMAC-SHA1
+	return compuser, base64.StdEncoding.EncodeToString(h.Sum(nil))
 }
 
 func serveICEServers(w http.ResponseWriter, r *http.Request) {
@@ -29,25 +51,43 @@ func serveICEServers(w http.ResponseWriter, r *http.Request) {
 			http.StatusInternalServerError)
 		return
 	}
-	if len(servers) == 0 {
-		http.Error(w, "No ICE servers found", http.StatusNotFound)
+	// Add creredentials to the servers
+	for i, server := range servers {
+		servers[i].Username, servers[i].Credential = genCredential(server.Username)
+	}
+	twilioServers, err := getTwilio()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to get twilio ICE servers: %s", err),
+			http.StatusInternalServerError)
+		return
+	}
+	servers = append(servers, twilioServers...)
+	// return the JSON representation of the servers
+	b, err := json.Marshal(servers)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to marshal servers: %s", err),
+			http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte("["))
-	for i, s := range servers {
-		b, err := json.Marshal(s)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Failed to marshal ICE server: %s", err),
-				http.StatusInternalServerError)
-			return
-		}
-		if s.Active {
-			w.Write(b)
-			if i != len(servers)-1 {
-				w.Write([]byte(","))
-			}
-		}
+	_, _ = w.Write(b)
+}
+
+func getTwilio() ([]ICEServer, error) {
+	client := twilio.NewRestClient()
+	params := &tapi.CreateTokenParams{}
+	token, err := client.Api.CreateToken(params)
+	if err != nil {
+		return nil, err
 	}
-	w.Write([]byte("]"))
+	var ret []ICEServer
+	for _, iceServer := range *token.IceServers {
+		ret = append(ret, ICEServer{
+			Url:        iceServer.Url,
+			Urls:       iceServer.Urls,
+			Username:   iceServer.Username,
+			Credential: iceServer.Credential,
+		})
+	}
+	return ret, nil
 }
