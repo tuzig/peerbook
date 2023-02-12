@@ -731,3 +731,28 @@ func TestDisconnectReconnect(t *testing.T) {
 	ws2.Close()
 
 }
+func TestDeletePeerFromWeb(t *testing.T) {
+	startTest(t)
+	// setup the fixture - a user, his token and two peers
+	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay")
+	redisDouble.HSet("peer:A", "user", "j", "verified", "1")
+	redisDouble.HSet("peer:B", "fp", "B", "name", "foo", "kind", "lay",
+		"user", "j", "verified", "0")
+	redisDouble.Set("token:avalidtoken", "j")
+	redisDouble.Set("QRVerified:j", "1")
+	// get the OTP
+	ok, err := getUserKey("j")
+	require.Nil(t, err)
+	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
+	require.Nil(t, err)
+	resp, err := http.PostForm("http://127.0.0.1:17777/pb/avalidtoken",
+		url.Values{"del-A": {"checked"}, "otp": {otp}})
+	// validate 200 response
+	require.Nil(t, err)
+	require.Equal(t, 200, resp.StatusCode)
+	defer resp.Body.Close()
+	// validate the peer is gone
+	require.False(t, redisDouble.Exists("peer:A"))
+	require.True(t, redisDouble.Exists("peer:B"))
+}

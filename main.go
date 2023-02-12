@@ -129,6 +129,9 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, msg, http.StatusInternalServerError)
 		return
 	}
+	if peers == nil {
+		peers = &PeerList{}
+	}
 	var data struct {
 		Message string
 		User    string
@@ -193,6 +196,30 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 			}
 			verified := make(map[string]bool)
 			for k, _ := range r.Form {
+				if k == "otp" || k == "rmrf" {
+					continue
+				}
+				Logger.Infof("Got key %s", k)
+				// if key start with "del-" remove the peer
+				if strings.HasPrefix(k, "del-") {
+					fp := k[4:]
+					Logger.Infof("Deleting peer %s\n", fp)
+					err := db.DeletePeer(fp)
+					if err != nil {
+						msg := fmt.Sprintf("Failed to delete peer: %s", err)
+						Logger.Errorf(msg)
+						http.Error(w, msg, http.StatusInternalServerError)
+						return
+					}
+					// remove the peer from the list
+					for i, p := range *peers {
+						if p.FP == fp {
+							*peers = append((*peers)[:i], (*peers)[i+1:]...)
+							break
+						}
+					}
+					continue
+				}
 				verified[k] = true
 			}
 			for _, p := range *peers {

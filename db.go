@@ -170,7 +170,7 @@ func VerifyPeer(fp string, verified bool) error {
 	key := fmt.Sprintf("peer:%s", fp)
 	online, err := redis.Bool(rc.Do("HGET", key, "online"))
 	if err != nil {
-		return fmt.Errorf("Failed to get online field for key %s: %s", key, err)
+		online = false
 	}
 	if verified {
 		rc.Do("HSET", key, "verified", "1")
@@ -280,4 +280,13 @@ func (d *DBType) GetICEServers() ([]ICEServer, error) {
 		ret = append(ret, info)
 	}
 	return ret, nil
+}
+
+// DeletePeer deletes a peer from the database
+func (d *DBType) DeletePeer(fp string) error {
+	key := fmt.Sprintf("peer:%s", fp)
+	conn := d.pool.Get()
+	defer conn.Close()
+	_, err := conn.Do("DEL", key)
+	return err
 }
