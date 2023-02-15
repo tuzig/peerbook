@@ -16,6 +16,7 @@ const TokenLen = 30      // in Bytes, four times that in base64 and urls
 const TokenTTL = 300     // in Seconds
 const EmailInterval = 60 // in Seconds
 const MaxPeersPerUser = 10
+const UserIDLength = 10
 
 // DBType is the type that holds our db
 type DBType struct {
@@ -132,10 +133,15 @@ func (d *DBType) AddPeer(peer *Peer) error {
 	}
 	_, err = conn.Do("HSET", redis.Args{}.Add(peer.Key()).AddFlat(peer)...)
 	if err != nil {
-		return err
+		return fmt.Errorf("Failed to add peer %q: %w", peer.FP, err)
 	}
 	_, err = conn.Do("SADD", key, peer.FP)
-	return err
+	if err != nil {
+		// get the key's kind
+		kind, err := redis.String(conn.Do("TYPE", key))
+		return fmt.Errorf("Failed to add peer - kind %q: %w", kind, err)
+	}
+	return nil
 }
 
 // IsVerfied tests the db to see if a peer is verfied
@@ -290,3 +296,53 @@ func (d *DBType) DeletePeer(fp string) error {
 	_, err := conn.Do("DEL", key)
 	return err
 }
+
+// tempIDExists checks if a temporary ID exists
+// it returns true if it does, false otherwise
+// and an error if something went wrong
+func (d *DBType) tempIDExists(id string) (bool, error) {
+	key := fmt.Sprintf("tempid:%s", id)
+	conn := d.pool.Get()
+	defer conn.Close()
+	exists, err := redis.Bool(conn.Do("EXISTS", key))
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
+// AddUser is used to add a new user to the data base
+// it recieves an email. It returns a permanent user id.
+// If the user already exists, it returns the permanent user id
+// and an error
+func (d *DBType) AddUser(email string) (string, error) {
+	conn := d.pool.Get()
+	defer conn.Close()
+	key := fmt.Sprintf("id:%s", email)
+	userID, err := redis.String(conn.Do("GET", key))
+	if err != nil && err != redis.ErrNil {
+		return "", fmt.Errorf("Failed to get %s: %w", key, err)
+	}
+	if userID != "" {
+		return userID, fmt.Errorf("User already exists")
+	}
+	b := make([]byte, UserIDLength)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("Failed to generate random bytes: %w", err)
+	}
+
+	id := base64.StdEncoding.EncodeToString(b)
+	_, err = conn.Do("SET", key, id)
+	if err != nil {
+		return "", fmt.Errorf("Failed to set %s: %w", key, err)
+	}
+	key = fmt.Sprintf("email:%s", id)
+	_, err = conn.Do("SET", key, email)
+	if err != nil {
+		return "", fmt.Errorf("Failed to set %s: %w", key, err)
+	}
+	return id, nil
+}
+
+// email:<user id> and id:<email> returning strings
+// with the email and user_id respectively

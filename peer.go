@@ -29,6 +29,7 @@ type Peer struct {
 	VerifiedOn  int64  `redis:"verified_on" json:"verified_on,omitempty"`
 	LastConnect int64  `redis:"last_connect" json:"last_connect,omitempty"`
 	Online      bool   `redis:"online" json:"online"`
+	PublicKey   string `redis:"public_key,omitempty" json:"public_key,omitempty"`
 }
 type PeerList []*Peer
 

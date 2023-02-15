@@ -9,6 +9,13 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
+## Unreleased
+
+### Added 
+
+- The `/approve` endpoint POST there to approve a peer
+- The `/register` endpoint, used to register a user
+
 ## [1.2]
 
 ### Added

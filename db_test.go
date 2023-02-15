@@ -87,3 +87,24 @@ func TestReset(t *testing.T) {
 	require.Equal(t, "0", redisDouble.HGet("peer:foo", "online"))
 	require.Equal(t, "0", redisDouble.HGet("peer:bar", "online"))
 }
+func TestAddUser(t *testing.T) {
+	startTest(t)
+	id, err := db.AddUser("j")
+	require.NoError(t, err)
+	require.Equal(t, 16, len(id))
+	// ensure the new user is added to the db
+	dbID, err := redisDouble.Get("id:j")
+	require.NoError(t, err)
+	require.Equal(t, id, dbID)
+	dbEmail, err := redisDouble.Get(fmt.Sprintf("email:%s", id))
+	require.NoError(t, err)
+	require.Equal(t, "j", dbEmail)
+}
+func TestDoubleAddUser(t *testing.T) {
+	startTest(t)
+	id, err := db.AddUser("j")
+	require.NoError(t, err)
+	id2, err := db.AddUser("j")
+	require.Error(t, err)
+	require.Equal(t, id, id2)
+}

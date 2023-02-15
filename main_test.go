@@ -36,7 +36,7 @@ func startTest(t *testing.T) {
 		var err error
 		Logger = zaptest.NewLogger(t).Sugar()
 		redisDouble, err = miniredis.Run()
-		require.Nil(t, err)
+		require.NoError(t, err)
 		go main()
 		mainRunning = true
 		// let the server open
