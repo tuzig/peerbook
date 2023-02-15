@@ -8,12 +8,10 @@ import (
 	"bytes"
 	"context"
 	"embed"
-	"encoding/base64"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"html/template"
-	"image/png"
 	"net/http"
 	"net/url"
 	"os"
@@ -591,7 +589,6 @@ func goHome(w http.ResponseWriter, r *http.Request, msg string) {
 	return
 }
 func serveQR(w http.ResponseWriter, r *http.Request) {
-	var qr bytes.Buffer
 	var msg string
 
 	user, err := getUserFromRequest(r)
@@ -640,22 +637,14 @@ If you lost your device please use the account-recovery channel on our discord s
 		return
 	}
 render:
-	// getting the required data and rendering the html page
-	ok, err := getUserKey(user)
+	// getting the qr and rendering the html page
+	img, err := GetQRImage(user)
 	if err != nil {
-		msg := fmt.Sprintf("Failed to get users secret key QR iomage: %S", err)
+		msg := fmt.Sprintf("Failed to get QR image: %s", err)
 		http.Error(w, msg, http.StatusInternalServerError)
 		return
 	}
-	img, err := ok.Image(200, 200)
-	if err != nil {
-		msg := fmt.Sprintf("Failed to get the QR image: %S", err)
-		http.Error(w, msg, http.StatusInternalServerError)
-		return
-	}
-	encoder := base64.NewEncoder(base64.StdEncoding, &qr)
-	png.Encode(encoder, img)
-	encoder.Close()
+
 	tmpl, err := template.ParseFS(tFS, "templates/qr.tmpl",
 		"templates/base.tmpl")
 	if err != nil {
@@ -670,7 +659,7 @@ render:
 		Image   string
 		Token   string
 	}
-	d.Image = qr.String()
+	d.Image = img
 	d.User = user
 	d.Message = msg
 	// create a new URL to reset the timer

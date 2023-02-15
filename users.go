@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"image/png"
 	"net/http"
 	"net/url"
 	"strings"
@@ -88,9 +91,8 @@ func serveRegister(w http.ResponseWriter, r *http.Request) {
 	// add the user to the db
 	uID, err := db.AddUser(m["email"])
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		// write an error message: failed to add user - %s
-		w.Write([]byte(fmt.Sprintf("failed to add user - %s", err)))
+		http.Error(w, fmt.Sprintf("failed to add user - %s", err),
+			http.StatusInternalServerError)
 		return
 	}
 	peer := NewPeer(m["fp"], m["peer_name"], uID, "client")
@@ -98,9 +100,8 @@ func serveRegister(w http.ResponseWriter, r *http.Request) {
 	peer.Verified = true
 	err = db.AddPeer(peer)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		// write an error message: failed to add peer - %s
-		w.Write([]byte(fmt.Sprintf("failed to add peer - %s", err)))
+		http.Error(w, fmt.Sprintf("failed to add peer - %s", err),
+			http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
@@ -109,9 +110,15 @@ func serveRegister(w http.ResponseWriter, r *http.Request) {
 	// - QR
 	// - ID
 	// - token
+	img, err := GetQRImage(uID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to generate QR code - %s", err),
+			http.StatusInternalServerError)
+		return
+	}
 	resp := map[string]string{
 		// TODO: add the QR code
-		"QR":   "TBD",
+		"QR":   img,
 		"ID":   uID,
 		"next": next,
 	}
@@ -147,4 +154,20 @@ func serveAuthorize(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(fmt.Sprintf("failed to verify peer - %s", err)))
 		return
 	}
+}
+
+func GetQRImage(user string) (string, error) {
+	var qr bytes.Buffer
+	ok, err := getUserKey(user)
+	if err != nil {
+		return "", fmt.Errorf("Failed to get users secret key QR iomage: %S", err)
+	}
+	img, err := ok.Image(200, 200)
+	if err != nil {
+		return "", fmt.Errorf("Failed to get the QR image: %S", err)
+	}
+	encoder := base64.NewEncoder(base64.StdEncoding, &qr)
+	defer encoder.Close()
+	png.Encode(encoder, img)
+	return qr.String(), nil
 }
