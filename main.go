@@ -460,6 +460,7 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 	http.HandleFunc("/turn", serveICEServers)
 	http.HandleFunc("/iceservers", serveICEServers)
 	http.HandleFunc("/qr/", serveQR)
+	http.HandleFunc("/rcwh", serveRCWH)
 
 	go func() {
 		defer wg.Done() // let main know we are done cleaning up
