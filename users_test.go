@@ -14,9 +14,11 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
+	"github.com/iktakahiro/revcatgo"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
+	"gopkg.in/guregu/null.v4"
 )
 
 // test the register endpoint
@@ -83,8 +85,7 @@ func TestRegister(t *testing.T) {
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.Equal(t, "1", redisDouble.HGet("peer:456", "verified"))
 	require.Equal(t, userID, redisDouble.HGet("peer:456", "user"))
-	dbemail, err := redisDouble.Get(fmt.Sprintf("email:%s", userID))
-	require.NoError(t, err)
+	dbemail := redisDouble.HGet(fmt.Sprintf("u:%s", userID), "email")
 	require.Equal(t, "wile@acme.com", dbemail)
 	dbuser, err := redisDouble.Get("id:wile@acme.com")
 	require.NoError(t, err)
@@ -155,5 +156,26 @@ func TestAuthorizeAPeer(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	require.Equal(t, "1", redisDouble.HGet(`peer:${fp}`, "verified"))
-
+}
+func TestRevenuCatWH(t *testing.T) {
+	var err error
+	redisDouble, err = miniredis.Run()
+	require.NoError(t, err)
+	err = db.Connect("127.0.0.1:6379")
+	require.NoError(t, err)
+	var evType null.String
+	evType.UnmarshalJSON([]byte(`"INITIAL_PURCHASE"`))
+	msg := revcatgo.WebhookEvent{
+		Event: revcatgo.Event{AppUserID: "123", Type: evType},
+	}
+	body, err := json.Marshal(msg)
+	req, err := http.NewRequest("POST", "/rcwh", bytes.NewReader(body))
+	require.NoError(t, err)
+	rr := httptest.NewRecorder()
+	handler := http.HandlerFunc(serveRCWH)
+	handler.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+	v, err := redisDouble.Get("tempid:123")
+	require.NoError(t, err)
+	require.Equal(t, "1", v)
 }

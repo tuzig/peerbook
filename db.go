@@ -336,13 +336,28 @@ func (d *DBType) AddUser(email string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("Failed to set %s: %w", key, err)
 	}
-	key = fmt.Sprintf("email:%s", id)
-	_, err = conn.Do("SET", key, email)
+	key = fmt.Sprintf("u:%s", id)
+	_, err = conn.Do("HSET", key, "email", email, "active", "1")
 	if err != nil {
 		return "", fmt.Errorf("Failed to set %s: %w", key, err)
 	}
 	return id, nil
 }
 
-// email:<user id> and id:<email> returning strings
-// with the email and user_id respectively
+func (d *DBType) AddTempID(tempID string, expireAt int64) error {
+	conn := d.pool.Get()
+	defer conn.Close()
+	key := fmt.Sprintf("tempid:%s", tempID)
+	_, err := conn.Do("Set", key, "1")
+	return err
+	//  calculate how long the tempid should be valid for
+	// ttl := expireAt/1000 - time.Now().Unix()
+	// err = db.Expire(key, ttl)
+}
+func (d *DBType) SetUserActive(UserID string, active bool) error {
+	conn := d.pool.Get()
+	defer conn.Close()
+	key := fmt.Sprintf("u:%s", UserID)
+	_, err := conn.Do("HSET", key, "active", active)
+	return err
+}

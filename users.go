@@ -9,7 +9,25 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/iktakahiro/revcatgo"
 )
+
+func GetQRImage(user string) (string, error) {
+	var qr bytes.Buffer
+	ok, err := getUserKey(user)
+	if err != nil {
+		return "", fmt.Errorf("Failed to get users secret key QR iomage: %S", err)
+	}
+	img, err := ok.Image(200, 200)
+	if err != nil {
+		return "", fmt.Errorf("Failed to get the QR image: %S", err)
+	}
+	encoder := base64.NewEncoder(base64.StdEncoding, &qr)
+	defer encoder.Close()
+	png.Encode(encoder, img)
+	return qr.String(), nil
+}
 
 // serveRegister handles the registration of a new user
 // it will return a 200 if the user is registered
@@ -156,18 +174,26 @@ func serveAuthorize(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func GetQRImage(user string) (string, error) {
-	var qr bytes.Buffer
-	ok, err := getUserKey(user)
+// serveRCWH handles revenuecat webhooks
+func serveRCWH(w http.ResponseWriter, r *http.Request) {
+	var whevent revcatgo.WebhookEvent
+
+	err := json.NewDecoder(r.Body).Decode(&whevent)
 	if err != nil {
-		return "", fmt.Errorf("Failed to get users secret key QR iomage: %S", err)
+		http.Error(w, fmt.Sprintf("failed to decode webhook - %s", err),
+			http.StatusBadRequest)
+		return
 	}
-	img, err := ok.Image(200, 200)
-	if err != nil {
-		return "", fmt.Errorf("Failed to get the QR image: %S", err)
+	event := whevent.Event
+	switch event.Type.String() {
+	case "INITIAL_PURCHASE":
+		// add the user's temp_id to the db
+		db.AddTempID(event.AppUserID, event.ExpirationAt.Int64())
+		break
+	case "EXPIRATION":
+		// mark the user as inactive
+		db.SetUserActive(event.AppUserID, false)
+		break
 	}
-	encoder := base64.NewEncoder(base64.StdEncoding, &qr)
-	defer encoder.Close()
-	png.Encode(encoder, img)
-	return qr.String(), nil
+
 }

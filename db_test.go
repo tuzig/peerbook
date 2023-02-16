@@ -96,8 +96,7 @@ func TestAddUser(t *testing.T) {
 	dbID, err := redisDouble.Get("id:j")
 	require.NoError(t, err)
 	require.Equal(t, id, dbID)
-	dbEmail, err := redisDouble.Get(fmt.Sprintf("email:%s", id))
-	require.NoError(t, err)
+	dbEmail := redisDouble.HGet(fmt.Sprintf("u:%s", id), "email")
 	require.Equal(t, "j", dbEmail)
 }
 func TestDoubleAddUser(t *testing.T) {
