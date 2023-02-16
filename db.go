@@ -344,7 +344,7 @@ func (d *DBType) AddUser(email string) (string, error) {
 	return id, nil
 }
 
-func (d *DBType) AddTempID(tempID string, expireAt int64) error {
+func (d *DBType) AddTempID(tempID string) error {
 	conn := d.pool.Get()
 	defer conn.Close()
 	key := fmt.Sprintf("tempid:%s", tempID)

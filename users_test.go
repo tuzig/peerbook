@@ -14,11 +14,9 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/iktakahiro/revcatgo"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
-	"gopkg.in/guregu/null.v4"
 )
 
 // test the register endpoint
@@ -163,10 +161,8 @@ func TestRevenuCatWH(t *testing.T) {
 	require.NoError(t, err)
 	err = db.Connect("127.0.0.1:6379")
 	require.NoError(t, err)
-	var evType null.String
-	evType.UnmarshalJSON([]byte(`"INITIAL_PURCHASE"`))
-	msg := revcatgo.WebhookEvent{
-		Event: revcatgo.Event{AppUserID: "123", Type: evType},
+	msg := RCWebhookEvent{
+		Event: RCEvent{AppUserID: "123", Type: "INITIAL_PURCHASE"},
 	}
 	body, err := json.Marshal(msg)
 	req, err := http.NewRequest("POST", "/rcwh", bytes.NewReader(body))
