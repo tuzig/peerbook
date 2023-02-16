@@ -251,7 +251,7 @@ func TestVerifyQR(t *testing.T) {
 		}
 	}
 	f(doc)
-	require.True(t, validImg, "Image elment is not valise")
+	require.True(t, validImg, "Image elment is not valid")
 	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
 	require.Nil(t, err)
 	u := fmt.Sprintf("http://127.0.0.1:17777/qr/%s", token)
