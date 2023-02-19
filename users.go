@@ -157,8 +157,7 @@ func serveRegister(w http.ResponseWriter, r *http.Request) {
 			http.StatusInternalServerError)
 		return
 	}
-	peer := NewPeer(m["fp"], m["peer_name"], uID, "client")
-	peer.PublicKey = m["public_key"]
+	peer := NewPeer(m["fp"], m["peer_name"], uID, "client", m["public_key"])
 	peer.Verified = true
 	err = db.AddPeer(peer)
 	if err != nil {

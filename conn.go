@@ -10,6 +10,7 @@ import (
 
 	"github.com/gomodule/redigo/redis"
 	"github.com/gorilla/websocket"
+	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -24,12 +25,20 @@ const (
 )
 
 type Conn struct {
-	WS       *websocket.Conn
-	FP       string
-	Verified bool
-	send     chan []byte
-	User     string
-	Kind     string
+	WS        *websocket.Conn
+	FP        string
+	Verified  bool
+	send      chan []byte
+	User      string
+	Kind      string
+	publicKey *ssh.PublicKey
+}
+
+// PeerUpdate is a struct for peer update messages
+type PeerUpdate struct {
+	Verified bool `redis:"verified" json:"verified"`
+	Online   bool `redis:"online" json:"online"`
+	// TODO: should we add the authorization token?
 }
 
 // readPump pumps messages from the websocket connection to the hub.
@@ -45,8 +54,9 @@ func (c *Conn) readPump() {
 		return nil
 	})
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	go c.subscribe(ctx)
-	go c.pinger(ctx)
+	go c.sender(ctx)
 	for {
 		message := make(map[string]interface{})
 		err := c.WS.ReadJSON(&message)
@@ -68,19 +78,19 @@ func (c *Conn) readPump() {
 		// message["user"] = c.User
 		c.handleMessage(message)
 	}
-	cancel()
 }
 
-// pinger sends pings
-func (c *Conn) pinger(ctx context.Context) {
+// sender sends messages and pings
+func (c *Conn) sender(ctx context.Context) {
 	ticker := time.NewTicker(pingPeriod)
 loop:
 	for {
 		select {
 		case message, ok := <-c.send:
+			Logger.Infof("Got a message to send: %s", message)
 			if !ok {
 				Logger.Errorf("Got a bad message to send")
-				return
+				continue
 			}
 			c.WS.SetWriteDeadline(time.Now().Add(writeWait))
 			err := c.WS.WriteMessage(websocket.TextMessage, message)
@@ -107,7 +117,7 @@ loop:
 				return
 			}
 		case <-ctx.Done():
-			Logger.Infof("out pinger on Done")
+			Logger.Infof("Exiting sender for %q", c.FP)
 			break loop
 		}
 	}
@@ -188,6 +198,7 @@ func (c *Conn) SetOnline(o bool) error {
 	// publish the peer update
 	return SendPeerUpdate(rc, c.User, c.FP, c.Verified, o)
 }
+
 func SendPeerUpdate(rc redis.Conn, user string, fp string, verified bool, online bool) error {
 	m, err := json.Marshal(map[string]interface{}{
 		"source_fp":   fp,
@@ -202,14 +213,14 @@ func SendPeerUpdate(rc redis.Conn, user string, fp string, verified bool, online
 
 func (c *Conn) SendPeerList() error {
 	if c.Verified {
-		ps, err := GetUsersPeers(c.User)
+		ps, err := GetUsersPeers(c.User, c.publicKey)
 		if err != nil {
-			return err
+			return fmt.Errorf("Failed to get peer list: %w", err)
 		}
 		if ps != nil && len(*ps) > 0 {
 			m, err := json.Marshal(map[string]interface{}{"peers": ps})
 			if err != nil {
-				return err
+				return fmt.Errorf("Failed to marshal peer list: %w", err)
 			}
 			c.send <- m
 		}
@@ -273,14 +284,16 @@ loop:
 }
 
 // ConnFromQ gets a a url values and returns a pointer to Conn
-//	It first looks for an existing peer based on the fingerprint.
-//  If found, it will reconcile the input fields and throw errors.
-//  If it's a fresh peer it will be added to the database.
+//
+//		It first looks for an existing peer based on the fingerprint.
+//	 If found, it will reconcile the input fields and throw errors.
+//	 If it's a fresh peer it will be added to the database.
 func ConnFromQ(q url.Values) (*Conn, error) {
 	fp := q.Get("fp")
 	name := q.Get("name")
 	email := q.Get("email")
 	kind := q.Get("kind")
+	publicKey := q.Get("publicKey")
 	if fp == "" {
 		return nil, &PeerNotFound{}
 	}
@@ -289,7 +302,7 @@ func ConnFromQ(q url.Values) (*Conn, error) {
 		return nil, fmt.Errorf("Failed to get peer: %w", err)
 	}
 	if peer == nil {
-		peer = NewPeer(fp, name, email, kind)
+		peer = NewPeer(fp, name, email, kind, publicKey)
 		err = db.AddPeer(peer)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to add peer: %s", err)
@@ -301,7 +314,7 @@ func ConnFromQ(q url.Values) (*Conn, error) {
 		}
 		if peer.User == "" {
 			Logger.Warn("peer user empty")
-			peer = NewPeer(fp, name, email, kind)
+			peer = NewPeer(fp, name, email, kind, publicKey)
 			err = db.AddPeer(peer)
 			if err != nil {
 				return nil, fmt.Errorf("Failed to add peer: %s", err)
@@ -312,12 +325,26 @@ func ConnFromQ(q url.Values) (*Conn, error) {
 				"Fingerprint is associated to another email: %s", peer.User)
 		}
 	}
-	// TODO: refactor `NewConn(peer)`
-	return &Conn{FP: fp,
+	return NewConn(peer)
+}
+func NewConn(peer *Peer) (*Conn, error) {
+	c := &Conn{FP: peer.FP,
 		Verified: peer.Verified,
 		User:     peer.User,
 		send:     make(chan []byte, SendBufSize),
-	}, nil
+	}
+	if peer.PublicKey != "" {
+		// Strip the SSH key type prefix and suffix
+		// sshKey := strings.TrimSuffix(strings.TrimPrefix(encodedKey, "ssh-ed25519 "), "\n")
+
+		// Parse the SSH-formatted public key
+		pubKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(peer.PublicKey))
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse public key: %v", err)
+		}
+		c.publicKey = &pubKey
+	}
+	return c, nil
 }
 
 func (c *Conn) handleMessage(m map[string]interface{}) {

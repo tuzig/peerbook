@@ -11,6 +11,7 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/twilio/twilio-go v1.3.2
 	go.uber.org/zap v1.16.0
+	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 	golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 )
@@ -26,6 +27,7 @@ require (
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	golang.org/x/lint v0.0.0-20201208152925-83fdc39ff7b5 // indirect
+	golang.org/x/sys v0.0.0-20210510120138-977fb7262007 // indirect
 	golang.org/x/tools v0.1.5 // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect

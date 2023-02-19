@@ -120,7 +120,7 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 		Logger.Warnf("Failed to get user from req: %s", err)
 		return
 	}
-	peers, err := GetUsersPeers(user)
+	peers, err := GetUsersPeers(user, nil)
 	if err != nil {
 		msg := fmt.Sprintf("Failed to get user peers: %s", err)
 		Logger.Error(msg)
@@ -323,7 +323,7 @@ func serveVerify(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !pexists {
-			peer = NewPeer(fp, req["name"], email, req["kind"])
+			peer = NewPeer(fp, req["name"], email, req["kind"], req["public_key"])
 			err = db.AddPeer(peer)
 			if err != nil {
 				msg := fmt.Sprintf("Failed to add peer: %s", err)
@@ -342,7 +342,7 @@ func serveVerify(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if peer.User == "" {
-				peer = NewPeer(fp, req["name"], email, req["kind"])
+				peer = NewPeer(fp, req["name"], email, req["kind"], req["publicKey"])
 				err = db.AddPeer(peer)
 				if err != nil {
 					msg := fmt.Sprintf("Failed to add peer: %s", err)
@@ -365,7 +365,7 @@ func serveVerify(w http.ResponseWriter, r *http.Request) {
 		}
 		var m []byte
 		if peer.Verified {
-			ps, err := GetUsersPeers(peer.User)
+			ps, err := GetUsersPeers(peer.User, nil)
 			if err != nil {
 				msg := fmt.Sprintf("Failed to get user peers: %s", err)
 				Logger.Errorf(msg)

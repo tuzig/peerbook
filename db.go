@@ -30,16 +30,19 @@ type DBUser []string
 // for testing we use a redis "double"
 var redisDouble *miniredis.Miniredis
 
+// RandomString generates a random string of n bytes
+func RandomString(n int) string {
+	b := make([]byte, n)
+	rand.Read(b)
+	return base64.URLEncoding.EncodeToString(b)
+}
+
 // CreateToken creates a short-live token to be emailed to the user
 func (d *DBType) CreateToken(email string) (string, error) {
 	if email == "" {
 		return "", fmt.Errorf("Failied to create a token for an empty email")
 	}
-	b := make([]byte, TokenLen)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	token := base64.StdEncoding.EncodeToString(b)
+	token := RandomString(TokenLen)
 	key := fmt.Sprintf("token:%s", token)
 	conn := d.getConn()
 	defer conn.Close()
@@ -188,7 +191,8 @@ func VerifyPeer(fp string, verified bool) error {
 				return fmt.Errorf("Failed to get a peer's user: %w", err)
 			}
 			// send the peers
-			ps, err := GetUsersPeers(user)
+			// TODO: we need to get the public key
+			ps, err := GetUsersPeers(user, nil)
 			if err != nil {
 				return err
 			}
@@ -326,12 +330,7 @@ func (d *DBType) AddUser(email string) (string, error) {
 	if userID != "" {
 		return userID, fmt.Errorf("User already exists")
 	}
-	b := make([]byte, UserIDLength)
-	if _, err := rand.Read(b); err != nil {
-		return "", fmt.Errorf("Failed to generate random bytes: %w", err)
-	}
-
-	id := base64.StdEncoding.EncodeToString(b)
+	id := RandomString(UserIDLength)
 	_, err = conn.Do("SET", key, id)
 	if err != nil {
 		return "", fmt.Errorf("Failed to set %s: %w", key, err)
