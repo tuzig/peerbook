@@ -179,9 +179,9 @@ func serveRegister(w http.ResponseWriter, r *http.Request) {
 	}
 	resp := map[string]string{
 		// TODO: add the QR code
-		"QR":   img,
-		"ID":   uID,
-		"next": next,
+		"QR":       img,
+		"ID":       uID,
+		"next_url": next,
 	}
 	json.NewEncoder(w).Encode(resp)
 }
