@@ -7,22 +7,33 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"html/template"
+	"math/big"
 	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gomodule/redigo/redis"
+	"github.com/pion/webrtc/v3"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 	"github.com/rs/cors"
+	"github.com/tuzig/webexec/httpserver"
+	"github.com/tuzig/webexec/peers"
 	"go.uber.org/zap"
 	"gopkg.in/gomail.v2" //go get gopkg.in/gomail.v2
 )
@@ -445,10 +456,63 @@ func initLogger() {
 	defer Logger.Sync()
 }
 
+// getCertificate returns a WebRTC certificate based on ED25519.
+func generateCertificate() (*webrtc.Certificate, error) {
+	secretKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to generate key: %w", err)
+	}
+	origin := make([]byte, 16)
+	/* #nosec */
+	if _, err := rand.Read(origin); err != nil {
+		return nil, err
+	}
+
+	// Max random value, a 130-bits integer, i.e 2^130 - 1
+	maxBigInt := new(big.Int)
+	/* #nosec */
+	maxBigInt.Exp(big.NewInt(2), big.NewInt(130), nil).Sub(maxBigInt, big.NewInt(1))
+	/* #nosec */
+	serialNumber, err := rand.Int(rand.Reader, maxBigInt)
+	if err != nil {
+		return nil, err
+	}
+
+	return webrtc.NewCertificate(secretKey, x509.Certificate{
+		ExtKeyUsage: []x509.ExtKeyUsage{
+			x509.ExtKeyUsageClientAuth,
+			x509.ExtKeyUsageServerAuth,
+		},
+		BasicConstraintsValid: true,
+		NotBefore:             time.Now(),
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		// NotAfter:              time.Now().AddDate(10, 0, 0),
+		SerialNumber: serialNumber,
+		Version:      2,
+		Subject:      pkix.Name{CommonName: hex.EncodeToString(origin)},
+		IsCA:         true,
+	})
+}
+
 func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 	srv := &http.Server{
 		Addr: addr, Handler: cors.Default().Handler(http.DefaultServeMux)}
 
+	auth := NewUsersAuth()
+	certificate, err := generateCertificate()
+	if err != nil {
+		Logger.Fatalf("Failed to generate certificate: %s", err)
+		return nil
+	}
+	peerConf := &peers.Conf{
+		Certificate:       certificate,
+		Logger:            Logger,
+		DisconnectTimeout: 3 * time.Second,
+		FailedTimeout:     3 * time.Second,
+		KeepAliveInterval: 3 * time.Second,
+		GatheringTimeout:  3 * time.Second,
+	}
+	webexecHandler := httpserver.NewConnectHandler(auth, peerConf, Logger)
 	http.HandleFunc("/", serveHome)
 	http.HandleFunc("/pb/", serveAuthPage)
 	http.HandleFunc("/verify", serveVerify)
@@ -461,6 +525,7 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 	http.HandleFunc("/iceservers", serveICEServers)
 	http.HandleFunc("/qr/", serveQR)
 	http.HandleFunc("/rcwh", serveRCWH)
+	http.HandleFunc("/we", webexecHandler.HandleConnect)
 
 	go func() {
 		defer wg.Done() // let main know we are done cleaning up

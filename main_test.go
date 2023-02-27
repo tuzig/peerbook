@@ -12,10 +12,17 @@ import (
 	"testing"
 	"time"
 
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gorilla/websocket"
+	"github.com/pion/webrtc/v3"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
+	"github.com/tuzig/webexec/httpserver"
+	"github.com/tuzig/webexec/peers"
 	"go.uber.org/zap/zaptest"
 	"golang.org/x/net/html"
 )
@@ -49,6 +56,20 @@ func openWS(url string) (*websocket.Conn, error) {
 	time.Sleep(time.Millisecond)
 	ws, _, err := cstDialer.Dial(url, nil)
 	return ws, err
+}
+func newClient(t *testing.T) (*webrtc.PeerConnection, *webrtc.Certificate, error) {
+	secretKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, nil, err
+	}
+	certificate, err := webrtc.GenerateCertificate(secretKey)
+	certs := []webrtc.Certificate{*certificate}
+	client, err := webrtc.NewPeerConnection(
+		webrtc.Configuration{Certificates: certs})
+	if err != nil {
+		return nil, nil, err
+	}
+	return client, certificate, err
 }
 func TestBadConnectionRequest(t *testing.T) {
 	startTest(t)
@@ -755,4 +776,60 @@ func TestDeletePeerFromWeb(t *testing.T) {
 	// validate the peer is gone
 	require.False(t, redisDouble.Exists("peer:A"))
 	require.True(t, redisDouble.Exists("peer:B"))
+}
+func TestWebexec(t *testing.T) {
+	startTest(t)
+	done := make(chan bool)
+	// start the webrtc client
+	client, cert, err := newClient(t)
+	require.NoError(t, err, "Failed to create a client: %q", err)
+	cdc, err := client.CreateDataChannel("%", nil)
+	require.Nil(t, err, "Failed to create the control data channel: %q", err)
+	clientOffer, err := client.CreateOffer(nil)
+	require.Nil(t, err, "Failed to create client offer: %q", err)
+	gatherComplete := webrtc.GatheringCompletePromise(client)
+	err = client.SetLocalDescription(clientOffer)
+	require.Nil(t, err, "Failed to set client's local Description client offer: %q", err)
+	select {
+	case <-time.After(3 * time.Second):
+		t.Errorf("timed out waiting to ice gathering to complete")
+	case <-gatherComplete:
+		buf := make([]byte, 4096)
+		l, err := peers.EncodeOffer(buf, *client.LocalDescription())
+		require.Nil(t, err, "Failed ending an offer: %v", clientOffer)
+		fp, err := peers.ExtractFP(cert)
+		require.NoError(t, err, "Failed to extract the fingerprint: %q", err)
+		p := httpserver.ConnectRequest{fp, 1, string(buf[:l])}
+		m, err := json.Marshal(p)
+		resp, err := http.Post("http://127.0.0.1:17777/we", "application/json", bytes.NewBuffer(m))
+		require.NoError(t, err, "Failed to connect to the server")
+		defer resp.Body.Close()
+		answer, err := io.ReadAll(resp.Body)
+		require.NoError(t, err, "Failed to read the offer")
+		require.Equal(t, http.StatusOK, resp.StatusCode, "Failed to connect to the server", answer)
+		// decode the answer from the answer
+		var sd webrtc.SessionDescription
+		err = peers.DecodeOffer(&sd, answer)
+		require.Nil(t, err, "Failed decoding an offer: %v", clientOffer)
+		client.SetRemoteDescription(sd)
+		// when cdc is open, we're done
+		cdc.OnOpen(func() {
+			done <- true
+		})
+	}
+	select {
+	case <-time.After(3 * time.Second):
+		t.Errorf("Timeouton cdc open")
+	case <-done:
+	}
+	/*
+			// There's t.Cleanup in go 1.15+
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			err := Shutdown(ctx)
+			require.Nil(t, err, "Failed shutting the http server: %v", err)
+		Shutdown()
+		// TODO: be smarter, this is just a hack to get github action to pass
+		time.Sleep(500 * time.Millisecond)
+	*/
 }

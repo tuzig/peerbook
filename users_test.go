@@ -64,9 +64,9 @@ func TestRegister(t *testing.T) {
 	// test the response includes a userID
 	require.Contains(t, m, "ID")
 	// test the response includes a token
-	require.Contains(t, m, "next")
+	require.Contains(t, m, "next_url")
 	// validate next is a valid URL
-	_, err = url.Parse(m["next"])
+	_, err = url.Parse(m["next_url"])
 	require.NoError(t, err)
 	userID := m["ID"]
 	// get the secret from the db and generate a code
