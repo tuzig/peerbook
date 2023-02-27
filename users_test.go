@@ -175,3 +175,32 @@ func TestRevenuCatWH(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "1", v)
 }
+func TestBackendAuthorized(t *testing.T) {
+	var err error
+	redisDouble, err = miniredis.Run()
+	require.NoError(t, err)
+	err = db.Connect("127.0.0.1:6379")
+	require.NoError(t, err)
+	b := NewUsersAuth()
+	require.False(t, b.IsAuthorized([]string{"foo"}))
+}
+func TestBackendUnAuthorized(t *testing.T) {
+	var err error
+	redisDouble, err = miniredis.Run()
+	redisDouble.Set("peer:foo", "1")
+	require.NoError(t, err)
+	err = db.Connect("127.0.0.1:6379")
+	require.NoError(t, err)
+	b := NewUsersAuth()
+	require.True(t, b.IsAuthorized([]string{"foo"}))
+}
+func TestBackendAuthorizedTempID(t *testing.T) {
+	var err error
+	redisDouble, err = miniredis.Run()
+	redisDouble.Set("tempid:bar", "1")
+	require.NoError(t, err)
+	err = db.Connect("127.0.0.1:6379")
+	require.NoError(t, err)
+	b := NewUsersAuth()
+	require.True(t, b.IsAuthorized([]string{"bar", "foo"}))
+}

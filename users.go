@@ -38,7 +38,7 @@ func (a *UsersAuth) IsAuthorized(tokens []string) bool {
 			return true
 		}
 	}
-	return true
+	return false
 }
 
 func GetQRImage(user string) (string, error) {
