@@ -12,7 +12,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/kr/pty"
+	"github.com/creack/pty"
 )
 
 type UsersAuth struct {
