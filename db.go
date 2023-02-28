@@ -126,23 +126,25 @@ func (d *DBType) Close() error {
 func (d *DBType) AddPeer(peer *Peer) error {
 	conn := d.getConn()
 	defer conn.Close()
-	key := fmt.Sprintf("user:%s", peer.User)
-	values, err := redis.Values(conn.Do("SMEMBERS", key))
-	if err != nil {
-		return fmt.Errorf("Failed to read user %q list: %w", peer.User, err)
+	if peer.User != "" {
+		key := fmt.Sprintf("user:%s", peer.User)
+		values, err := redis.Values(conn.Do("SMEMBERS", key))
+		if err != nil {
+			return fmt.Errorf("Failed to read user %q list: %w", peer.User, err)
+		}
+		if len(values) == MaxPeersPerUser {
+			return fmt.Errorf("User has too many peers")
+		}
+		_, err = conn.Do("SADD", key, peer.FP)
+		if err != nil {
+			// get the key's kind
+			kind, err := redis.String(conn.Do("TYPE", key))
+			return fmt.Errorf("Failed to add peer - kind %q: %w", kind, err)
+		}
 	}
-	if len(values) == MaxPeersPerUser {
-		return fmt.Errorf("User has too many peers")
-	}
-	_, err = conn.Do("HSET", redis.Args{}.Add(peer.Key()).AddFlat(peer)...)
+	_, err := conn.Do("HSET", redis.Args{}.Add(peer.Key()).AddFlat(peer)...)
 	if err != nil {
 		return fmt.Errorf("Failed to add peer %q: %w", peer.FP, err)
-	}
-	_, err = conn.Do("SADD", key, peer.FP)
-	if err != nil {
-		// get the key's kind
-		kind, err := redis.String(conn.Do("TYPE", key))
-		return fmt.Errorf("Failed to add peer - kind %q: %w", kind, err)
 	}
 	return nil
 }
@@ -321,7 +323,7 @@ func (d *DBType) tempIDExists(id string) (bool, error) {
 func (d *DBType) AddUser(email string) (string, error) {
 	conn := d.pool.Get()
 	defer conn.Close()
-	key := fmt.Sprintf("id:%s", id)
+	key := fmt.Sprintf("id:%s", email)
 	userID, err := redis.String(conn.Do("GET", key))
 	if err != nil && err != redis.ErrNil {
 		return "", fmt.Errorf("Failed to get %s: %w", key, err)

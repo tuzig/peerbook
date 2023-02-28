@@ -47,7 +47,6 @@ func (a *UsersAuth) IsAuthorized(tokens []string) bool {
 			peer := NewPeer(fp, "temp", "", "client")
 			peer.Verified = true
 			err = db.AddPeer(peer)
-			err = db.LinkFPTempID(tokens[1-i], tokens[i])
 			if err != nil {
 				Logger.Error("error registering user", err)
 				return false

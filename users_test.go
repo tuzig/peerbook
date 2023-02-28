@@ -203,4 +203,7 @@ func TestBackendAuthorizedTempID(t *testing.T) {
 	require.NoError(t, err)
 	b := NewUsersAuth()
 	require.True(t, b.IsAuthorized([]string{"bar", "foo"}))
+	verified, err := IsVerified("foo")
+	require.NoError(t, err)
+	require.True(t, verified)
 }
