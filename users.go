@@ -8,7 +8,11 @@ import (
 	"image/png"
 	"net/http"
 	"net/url"
+	"os"
+	"os/exec"
 	"strings"
+
+	"github.com/kr/pty"
 )
 
 type UsersAuth struct {
@@ -199,4 +203,7 @@ func serveAuthorize(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(fmt.Sprintf("failed to verify peer - %s", err)))
 		return
 	}
+}
+func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID int, fp string) (*exec.Cmd, *os.File, error) {
+	return nil, nil, nil
 }

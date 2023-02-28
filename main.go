@@ -511,6 +511,7 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 		FailedTimeout:     3 * time.Second,
 		KeepAliveInterval: 3 * time.Second,
 		GatheringTimeout:  3 * time.Second,
+		RunCommand:        RunCommand,
 	}
 	webexecHandler := httpserver.NewConnectHandler(auth, peerConf, Logger)
 	http.HandleFunc("/", serveHome)

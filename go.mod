@@ -6,6 +6,7 @@ require (
 	github.com/alicebob/miniredis/v2 v2.15.1
 	github.com/gomodule/redigo v1.8.6
 	github.com/gorilla/websocket v1.4.2
+	github.com/kr/pty v1.1.1
 	github.com/pion/webrtc/v3 v3.1.49
 	github.com/pquerna/otp v1.3.0
 	github.com/rs/cors v1.7.0
