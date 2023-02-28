@@ -23,8 +23,11 @@ func NewUsersAuth() *UsersAuth {
 	return &UsersAuth{}
 }
 
+// IsAuthorized is called by the http handler to checks if a peer is
+// authorized. Accepts at least one token, and returns true if any of them
+// are authorized.
 func (a *UsersAuth) IsAuthorized(tokens []string) bool {
-	for _, t := range tokens {
+	for i, t := range tokens {
 		exists, err := db.PeerExists(t)
 		if err != nil {
 			Logger.Error("error checking if peer exists", err)
@@ -39,6 +42,16 @@ func (a *UsersAuth) IsAuthorized(tokens []string) bool {
 			return false
 		}
 		if exists {
+			// The FP is the first token
+			fp := tokens[1-i]
+			peer := NewPeer(fp, "temp", "", "client")
+			peer.Verified = true
+			err = db.AddPeer(peer)
+			err = db.LinkFPTempID(tokens[1-i], tokens[i])
+			if err != nil {
+				Logger.Error("error registering user", err)
+				return false
+			}
 			return true
 		}
 	}
@@ -145,7 +158,7 @@ func serveRegister(w http.ResponseWriter, r *http.Request) {
 			http.StatusInternalServerError)
 		return
 	}
-	peer := NewPeer(m["fp"], m["peer_name"], uID, "client", m["public_key"])
+	peer := NewPeer(m["fp"], m["peer_name"], uID, "client")
 	peer.Verified = true
 	err = db.AddPeer(peer)
 	if err != nil {

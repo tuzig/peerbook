@@ -5,16 +5,11 @@
 package main
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/sha256"
-	"encoding/base64"
 	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/gorilla/websocket"
-	"golang.org/x/crypto/ssh"
 )
 
 const AuthTokenLen = 30 // in Bytes, four times that in base64 and urls
@@ -36,7 +31,6 @@ type Peer struct {
 	VerifiedOn  int64  `redis:"verified_on" json:"verified_on,omitempty"`
 	LastConnect int64  `redis:"last_connect" json:"last_connect,omitempty"`
 	Online      bool   `redis:"online" json:"online"`
-	PublicKey   string `redis:"public_key,omitempty" json:"-"`
 	AuthToken   string `redis:"auth_token,omitempty" json:"auth_token,omitempty"`
 }
 type PeerList []*Peer
@@ -64,15 +58,15 @@ type AnswerMessage struct {
 	Answer     string `json:"answer"`
 }
 
-func NewPeer(fp string, name string, user string, kind string, publicKey string) *Peer {
+func NewPeer(fp string, name string, user string, kind string) *Peer {
 	return &Peer{FP: fp, Name: name, Kind: kind, CreatedOn: time.Now().Unix(),
-		User: user, Verified: false, Online: false, PublicKey: publicKey,
+		User: user, Verified: false, Online: false,
 		AuthToken: RandomString(AuthTokenLen),
 	}
 }
 
 // Getting the list of users peers
-func GetUsersPeers(email string, publicKey *ssh.PublicKey) (*PeerList, error) {
+func GetUsersPeers(email string) (*PeerList, error) {
 	var l PeerList
 	u, err := db.GetUser(email)
 	if err != nil {
@@ -87,16 +81,6 @@ func GetUsersPeers(email string, publicKey *ssh.PublicKey) (*PeerList, error) {
 				Logger.Errorf("Failed to send status message: %s", err)
 			}
 		} else {
-			if !p.Verified {
-				if publicKey == nil {
-					p.AuthToken = ""
-				} else {
-					p.AuthToken, err = p.encryptMessage(p.AuthToken, *publicKey)
-					if err != nil {
-						return nil, fmt.Errorf("failed to encrypt auth token: %w", err)
-					}
-				}
-			}
 			l = append(l, p)
 		}
 	}
@@ -121,26 +105,4 @@ func (p *Peer) SinceConnect() string {
 		return "-"
 	}
 	return time.Now().Sub(time.Unix(p.LastConnect, 0)).Truncate(time.Second).String()
-}
-func (p *Peer) encryptMessage(msg string, publicKey ssh.PublicKey) (string, error) {
-	// To get back to an *rsa.PublicKey, we need to first upgrade to the
-	// ssh.CryptoPublicKey interface
-	parsedCryptoKey := publicKey.(ssh.CryptoPublicKey)
-
-	// Then, we can call CryptoPublicKey() to get the actual crypto.PublicKey
-	pubCrypto := parsedCryptoKey.CryptoPublicKey()
-
-	// Finally, we can convert back to an *rsa.PublicKey
-	pub := pubCrypto.(*rsa.PublicKey)
-
-	encryptedBytes, err := rsa.EncryptOAEP(
-		sha256.New(),
-		rand.Reader,
-		pub,
-		[]byte(msg),
-		nil)
-	if err != nil {
-		return "", err
-	}
-	return base64.StdEncoding.EncodeToString(encryptedBytes), nil
 }

@@ -191,8 +191,7 @@ func VerifyPeer(fp string, verified bool) error {
 				return fmt.Errorf("Failed to get a peer's user: %w", err)
 			}
 			// send the peers
-			// TODO: we need to get the public key
-			ps, err := GetUsersPeers(user, nil)
+			ps, err := GetUsersPeers(user)
 			if err != nil {
 				return err
 			}
@@ -322,7 +321,7 @@ func (d *DBType) tempIDExists(id string) (bool, error) {
 func (d *DBType) AddUser(email string) (string, error) {
 	conn := d.pool.Get()
 	defer conn.Close()
-	key := fmt.Sprintf("id:%s", email)
+	key := fmt.Sprintf("id:%s", id)
 	userID, err := redis.String(conn.Do("GET", key))
 	if err != nil && err != redis.ErrNil {
 		return "", fmt.Errorf("Failed to get %s: %w", key, err)

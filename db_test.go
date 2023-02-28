@@ -11,7 +11,7 @@ import (
 
 func TestGetPeer(t *testing.T) {
 	startTest(t)
-	redisDouble.HSet("peer:foo", "fp", "foo", "name", "fucked up", "public_key", "ABCDEFG")
+	redisDouble.HSet("peer:foo", "fp", "foo", "name", "fucked up")
 	conn := db.pool.Get()
 	defer conn.Close()
 	exists, err := redis.Bool(conn.Do("EXISTS", "peer:foo"))
@@ -20,7 +20,6 @@ func TestGetPeer(t *testing.T) {
 	pd, err := GetPeer("foo")
 	require.Nil(t, err)
 	require.Equal(t, "fucked up", pd.Name)
-	require.Equal(t, "ABCDEFG", pd.PublicKey)
 }
 func TestAddPeer(t *testing.T) {
 	startTest(t)
@@ -45,7 +44,7 @@ func TestGetUserList(t *testing.T) {
 	redisDouble.HSet("peer:foo", "name", "fucked up", "user", "j")
 	redisDouble.HSet("peer:bar", "name", "behind a. recognition", "user", "j")
 	redisDouble.SAdd("user:j", "foo", "bar")
-	list, err := GetUsersPeers("j", nil)
+	list, err := GetUsersPeers("j")
 	require.Nil(t, err)
 	require.Equal(t, "fucked up", (*list)[1].Name)
 	require.Equal(t, "behind a. recognition", (*list)[0].Name)
@@ -55,7 +54,7 @@ func TestVerifyPeer(t *testing.T) {
 	redisDouble.HSet("peer:bar", "fp", "bar", "name", "behind a. recognition",
 		"user", "j", "online", "0")
 	redisDouble.SAdd("user:j", "bar")
-	list, err := GetUsersPeers("j", nil)
+	list, err := GetUsersPeers("j")
 	require.Nil(t, err)
 	peer := (*list)[0]
 	require.Equal(t, false, peer.Verified)

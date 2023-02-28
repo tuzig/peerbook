@@ -1,6 +1,6 @@
 module github.com/tuzig/peerbook
 
-go 1.19
+go 1.18
 
 require (
 	github.com/alicebob/miniredis/v2 v2.15.1
@@ -14,7 +14,6 @@ require (
 	github.com/tuzig/webexec v0.18.0
 	github.com/twilio/twilio-go v1.3.2
 	go.uber.org/zap v1.23.0
-	golang.org/x/crypto v0.0.0-20221010152910-d6f0a8c073c2
 	golang.org/x/net v0.5.0
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 )
@@ -59,6 +58,7 @@ require (
 	go.uber.org/dig v1.16.1 // indirect
 	go.uber.org/fx v1.19.2 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
+	golang.org/x/crypto v0.0.0-20221010152910-d6f0a8c073c2 // indirect
 	golang.org/x/sys v0.4.0 // indirect
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect

@@ -10,7 +10,6 @@ import (
 
 	"github.com/gomodule/redigo/redis"
 	"github.com/gorilla/websocket"
-	"golang.org/x/crypto/ssh"
 )
 
 const (
@@ -25,13 +24,12 @@ const (
 )
 
 type Conn struct {
-	WS        *websocket.Conn
-	FP        string
-	Verified  bool
-	send      chan []byte
-	User      string
-	Kind      string
-	publicKey *ssh.PublicKey
+	WS       *websocket.Conn
+	FP       string
+	Verified bool
+	send     chan []byte
+	User     string
+	Kind     string
 }
 
 // PeerUpdate is a struct for peer update messages
@@ -213,7 +211,7 @@ func SendPeerUpdate(rc redis.Conn, user string, fp string, verified bool, online
 
 func (c *Conn) SendPeerList() error {
 	if c.Verified {
-		ps, err := GetUsersPeers(c.User, c.publicKey)
+		ps, err := GetUsersPeers(c.User)
 		if err != nil {
 			return fmt.Errorf("Failed to get peer list: %w", err)
 		}
@@ -293,7 +291,6 @@ func ConnFromQ(q url.Values) (*Conn, error) {
 	name := q.Get("name")
 	email := q.Get("email")
 	kind := q.Get("kind")
-	publicKey := q.Get("publicKey")
 	if fp == "" {
 		return nil, &PeerNotFound{}
 	}
@@ -302,7 +299,7 @@ func ConnFromQ(q url.Values) (*Conn, error) {
 		return nil, fmt.Errorf("Failed to get peer: %w", err)
 	}
 	if peer == nil {
-		peer = NewPeer(fp, name, email, kind, publicKey)
+		peer = NewPeer(fp, name, email, kind)
 		err = db.AddPeer(peer)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to add peer: %s", err)
@@ -314,7 +311,7 @@ func ConnFromQ(q url.Values) (*Conn, error) {
 		}
 		if peer.User == "" {
 			Logger.Warn("peer user empty")
-			peer = NewPeer(fp, name, email, kind, publicKey)
+			peer = NewPeer(fp, name, email, kind)
 			err = db.AddPeer(peer)
 			if err != nil {
 				return nil, fmt.Errorf("Failed to add peer: %s", err)
@@ -332,17 +329,6 @@ func NewConn(peer *Peer) (*Conn, error) {
 		Verified: peer.Verified,
 		User:     peer.User,
 		send:     make(chan []byte, SendBufSize),
-	}
-	if peer.PublicKey != "" {
-		// Strip the SSH key type prefix and suffix
-		// sshKey := strings.TrimSuffix(strings.TrimPrefix(encodedKey, "ssh-ed25519 "), "\n")
-
-		// Parse the SSH-formatted public key
-		pubKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(peer.PublicKey))
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse public key: %v", err)
-		}
-		c.publicKey = &pubKey
 	}
 	return c, nil
 }
