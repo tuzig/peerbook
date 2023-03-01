@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -206,4 +207,70 @@ func TestBackendAuthorizedTempID(t *testing.T) {
 	verified, err := IsVerified("foo")
 	require.NoError(t, err)
 	require.True(t, verified)
+}
+func TestRegisterCommand(t *testing.T) {
+	var err error
+	redisDouble, err = miniredis.Run()
+	require.NoError(t, err)
+	err = db.Connect("127.0.0.1:6379")
+	redisDouble.HSet("peer:A", "fp", "A", "name", "fucked up", "kind", "client", "verified", "1")
+	require.NoError(t, err)
+	peer, err := GetPeer("A")
+	require.NoError(t, err)
+	fmt.Printf("peer: %+v", peer)
+	_, f, err := RunCommand([]string{"register", "j@example.com"}, nil, nil, 0, "A")
+	require.NoError(t, err)
+	require.NotNil(t, f)
+	b, err := ioutil.ReadAll(f)
+	require.NoError(t, err)
+	var m map[string]string
+	err = json.Unmarshal(b, &m)
+	require.NoError(t, err)
+	require.Contains(t, m, "ID")
+	require.Contains(t, m, "QR")
+	require.Contains(t, m, "next_url")
+	// make sure the m["ID"] is in the db
+	email := redisDouble.HGet("u:"+m["ID"], "email")
+	require.Equal(t, "j@example.com", email)
+	id, err := redisDouble.Get("id:" + email)
+	require.NoError(t, err)
+	require.Equal(t, m["ID"], id)
+}
+func TestAuthorizeCommand(t *testing.T) {
+	var err error
+	redisDouble, err = miniredis.Run()
+	require.NoError(t, err)
+	err = db.Connect("127.0.0.1:6379")
+	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.HSet("peer:A", "fp", "A", "user", "j", "name", "fucked up", "kind", "client", "verified", "1")
+	redisDouble.HSet("peer:B", "fp", "B", "user", "j", "name", "fucked up", "kind", "server", "verified", "0")
+	ok, err := getUserKey("j")
+	require.NoError(t, err)
+	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
+	require.NoError(t, err)
+	cmd, f, err := RunCommand([]string{"authorize", "B", otp}, nil, nil, 0, "A")
+	require.NoError(t, err)
+	require.Nil(t, f)
+	require.Nil(t, cmd)
+	require.Equal(t, "1", redisDouble.HGet("peer:B", "verified"))
+}
+func TestBadOTPAuthorizeCommand(t *testing.T) {
+	var err error
+	redisDouble, err = miniredis.Run()
+	require.NoError(t, err)
+	err = db.Connect("127.0.0.1:6379")
+	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.HSet("peer:A", "fp", "A", "user", "j", "name", "fucked up", "kind", "client", "verified", "1")
+	redisDouble.HSet("peer:B", "fp", "B", "user", "j", "name", "fucked up", "kind", "server", "verified", "0")
+	cmd, f, err := RunCommand([]string{"authorize", "B", "1233456"}, nil, nil, 0, "A")
+	require.NotNil(t, err)
+	require.Nil(t, f)
+	require.Nil(t, cmd)
+	require.Equal(t, "0", redisDouble.HGet("peer:B", "verified"))
+}
+func TestRegisterCommandWithExistingUser(t *testing.T) {
+	var err error
+	redisDouble, err = miniredis.Run()
+	require.NoError(t, err)
+	err = db.Connect("127.0.0.1:6379")
 }

@@ -636,7 +636,7 @@ func getUserSecret(user string) (string, error) {
 			AccountName: user,
 		})
 		if err != nil {
-			return "", fmt.Errorf("Failed to generate a TOTP key")
+			return "", fmt.Errorf("Failed to generate a TOTP key: %s", err)
 		}
 		// all is well, save the secret
 		secret = ok.Secret()

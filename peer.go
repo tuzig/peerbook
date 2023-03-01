@@ -87,6 +87,13 @@ func GetUsersPeers(email string) (*PeerList, error) {
 	return &l, nil
 }
 
+func (p *Peer) SetUser(uID string) {
+	p.User = uID
+	conn := db.pool.Get()
+	defer conn.Close()
+	conn.Do("HSET", p.Key(), "user", uID)
+}
+
 func (p *Peer) setName(name string) {
 	p.Name = name
 	conn := db.pool.Get()

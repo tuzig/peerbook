@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/creack/pty"
+	"github.com/pquerna/otp/totp"
 )
 
 type UsersAuth struct {
@@ -216,6 +217,93 @@ func serveAuthorize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
+
 func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID int, fp string) (*exec.Cmd, *os.File, error) {
-	return nil, nil, nil
+
+	switch command[0] {
+	case "register":
+		email := command[1]
+		exists, err := db.PeerExists(fp)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to check peer exists - %s", err)
+		}
+		if !exists {
+			return nil, nil, fmt.Errorf("peer does not exist")
+		}
+		peer, err := GetPeer(fp)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get peer - %s", err)
+		}
+		if peer == nil {
+			return nil, nil, fmt.Errorf("failed to get peer")
+		}
+		uID, err := db.AddUser(email)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to add user - %s", err)
+		}
+		peer.SetUser(uID)
+
+		next, err := createTempURL(uID, "qr", true)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to create temp url - %s", err)
+		}
+		// write a json encoded response with the following fields:
+		// - QR
+		// - ID
+		// - token
+		img, err := GetQRImage(uID)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to generate QR code - %s", err)
+		}
+		resp := map[string]string{
+			// TODO: add the QR code
+			"QR":       img,
+			"ID":       uID,
+			"next_url": next,
+		}
+		// turn into a string
+		msg, err := json.Marshal(resp)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to marshal json - %s", err)
+		}
+		cmd := exec.Command("echo", string(msg))
+		f, err := pty.Start(cmd)
+		return cmd, f, nil
+	case "authorize":
+		target := command[1]
+		otp := command[2]
+		// check the fingerprint is in the db
+		exists, err := db.PeerExists(target)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to check peer exists - %s", err)
+		}
+		if !exists {
+			return nil, nil, fmt.Errorf("peer does not exist")
+		}
+		peer, err := GetPeer(target)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get peer - %s", err)
+		}
+		// validate the OTP
+		s, err := getUserSecret(peer.User)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get user secret - %s", err)
+		}
+		if s == "" {
+			return nil, nil, fmt.Errorf("failed to get user secret")
+		}
+		if !totp.Validate(otp, s) {
+			return nil, nil, fmt.Errorf("failed to validate OTP")
+		}
+		if peer == nil {
+			return nil, nil, fmt.Errorf("failed to get peer")
+		}
+		err = VerifyPeer(target, true)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to verify peer - %s", err)
+		}
+		return nil, nil, nil
+
+	}
+	return nil, nil, fmt.Errorf("unknown command")
 }
