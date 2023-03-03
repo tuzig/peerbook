@@ -344,6 +344,13 @@ func (d *DBType) AddUser(email string) (string, error) {
 	return id, nil
 }
 
+func (d *DBType) RemoveTempID(tempID string) error {
+	conn := d.pool.Get()
+	defer conn.Close()
+	key := fmt.Sprintf("tempid:%s", tempID)
+	_, err := conn.Do("DEL", key)
+	return err
+}
 func (d *DBType) AddTempID(tempID string) error {
 	conn := d.pool.Get()
 	defer conn.Close()

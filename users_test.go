@@ -183,7 +183,7 @@ func TestBackendAuthorized(t *testing.T) {
 	err = db.Connect("127.0.0.1:6379")
 	require.NoError(t, err)
 	b := NewUsersAuth()
-	require.False(t, b.IsAuthorized([]string{"foo"}))
+	require.False(t, b.IsAuthorized("foo"))
 }
 func TestBackendUnAuthorized(t *testing.T) {
 	var err error
@@ -193,17 +193,18 @@ func TestBackendUnAuthorized(t *testing.T) {
 	err = db.Connect("127.0.0.1:6379")
 	require.NoError(t, err)
 	b := NewUsersAuth()
-	require.True(t, b.IsAuthorized([]string{"foo"}))
+	require.True(t, b.IsAuthorized("foo"))
 }
 func TestBackendAuthorizedTempID(t *testing.T) {
 	var err error
+	Logger = zaptest.NewLogger(t).Sugar()
 	redisDouble, err = miniredis.Run()
 	redisDouble.Set("tempid:bar", "1")
 	require.NoError(t, err)
 	err = db.Connect("127.0.0.1:6379")
 	require.NoError(t, err)
 	b := NewUsersAuth()
-	require.True(t, b.IsAuthorized([]string{"bar", "foo"}))
+	require.True(t, b.IsAuthorized("foo", "bar"))
 	verified, err := IsVerified("foo")
 	require.NoError(t, err)
 	require.True(t, verified)

@@ -25,10 +25,12 @@ func NewUsersAuth() *UsersAuth {
 }
 
 // IsAuthorized is called by the http handler to checks if a peer is
-// authorized. Accepts at least one token, and returns true if any of them
+// authorized. Accepts at least one token and assumes the first
+// token is the fingerprint. returns true if any of the tokens
 // are authorized.
-func (a *UsersAuth) IsAuthorized(tokens []string) bool {
-	for i, t := range tokens {
+func (a *UsersAuth) IsAuthorized(tokens ...string) bool {
+	Logger.Debugf("checking if user is authorized: %v", tokens)
+	for _, t := range tokens {
 		exists, err := db.PeerExists(t)
 		if err != nil {
 			Logger.Error("error checking if peer exists", err)
@@ -44,13 +46,19 @@ func (a *UsersAuth) IsAuthorized(tokens []string) bool {
 		}
 		if exists {
 			// The FP is the first token
-			fp := tokens[1-i]
+			fp := tokens[0]
+			Logger.Debugf("registering user with fp: %s", fp)
 			peer := NewPeer(fp, "temp", "", "client")
 			peer.Verified = true
 			err = db.AddPeer(peer)
 			if err != nil {
 				Logger.Error("error registering user", err)
 				return false
+			}
+			// remove the temp id
+			err = db.RemoveTempID(t)
+			if err != nil {
+				Logger.Error("error removing temp id", err)
 			}
 			return true
 		}

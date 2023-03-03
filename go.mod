@@ -11,7 +11,7 @@ require (
 	github.com/pquerna/otp v1.3.0
 	github.com/rs/cors v1.7.0
 	github.com/stretchr/testify v1.8.0
-	github.com/tuzig/webexec v0.19.0
+	github.com/tuzig/webexec v0.19.1
 	github.com/twilio/twilio-go v1.3.2
 	go.uber.org/zap v1.23.0
 	golang.org/x/net v0.5.0
