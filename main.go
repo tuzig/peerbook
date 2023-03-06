@@ -512,14 +512,16 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 		KeepAliveInterval: 3 * time.Second,
 		GatheringTimeout:  3 * time.Second,
 		RunCommand:        RunCommand,
+		PortMin:           60000,
+		PortMax:           61000,
 	}
 	webexecHandler := httpserver.NewConnectHandler(auth, peerConf, Logger)
 	http.HandleFunc("/", serveHome)
 	http.HandleFunc("/pb/", serveAuthPage)
 	http.HandleFunc("/verify", serveVerify)
 	http.HandleFunc("/hitme", serveHitMe)
-	// http.HandleFunc("/register", serveRegister)
-	// http.HandleFunc("/authorize/", serveAuthorize)
+	http.HandleFunc("/register", serveRegister)
+	http.HandleFunc("/authorize/", serveAuthorize)
 	http.HandleFunc("/ws", serveWs)
 	// `/turn` is deprecated
 	http.HandleFunc("/turn", serveICEServers)
