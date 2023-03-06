@@ -1,4 +1,4 @@
-FROM 1-buster as builder
+FROM golang:1-buster as builder
 
 # Create and change to the app directory.
 WORKDIR /app
