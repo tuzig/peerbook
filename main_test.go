@@ -46,7 +46,6 @@ func startTest(t *testing.T) {
 		require.NoError(t, err)
 		go main()
 		mainRunning = true
-		// let the server open
 	} else {
 		redisDouble.FlushAll()
 	}
@@ -770,7 +769,7 @@ func TestDeletePeerFromWeb(t *testing.T) {
 	resp, err := http.PostForm("http://127.0.0.1:17777/pb/avalidtoken",
 		url.Values{"del-A": {"checked"}, "otp": {otp}})
 	// validate 200 response
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, 200, resp.StatusCode)
 	defer resp.Body.Close()
 	// validate the peer is gone

@@ -514,7 +514,7 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 		RunCommand:        RunCommand,
 		PortMin:           60000,
 		PortMax:           61000,
-		IceServers:        []webrtc.ICEServer{{URLs: []string{"stun:stun.l.google.com:19302"}}},
+		GetICEServers:     GetICEServers,
 	}
 	webexecHandler := httpserver.NewConnectHandler(auth, peerConf, Logger)
 	http.HandleFunc("/", serveHome)

@@ -3,7 +3,7 @@ module github.com/tuzig/peerbook
 go 1.18
 
 require (
-	github.com/alicebob/miniredis/v2 v2.15.1
+	github.com/alicebob/miniredis/v2 v2.30.0
 	github.com/creack/pty v1.1.11
 	github.com/gomodule/redigo v1.8.6
 	github.com/gorilla/websocket v1.4.2
@@ -11,7 +11,7 @@ require (
 	github.com/pquerna/otp v1.3.0
 	github.com/rs/cors v1.7.0
 	github.com/stretchr/testify v1.8.0
-	github.com/tuzig/webexec v0.19.1
+	github.com/tuzig/webexec v0.19.2
 	github.com/twilio/twilio-go v1.3.2
 	go.uber.org/zap v1.23.0
 	golang.org/x/net v0.5.0
@@ -51,7 +51,7 @@ require (
 	github.com/shirou/gopsutil/v3 v3.21.10 // indirect
 	github.com/tklauser/go-sysconf v0.3.9 // indirect
 	github.com/tklauser/numcpus v0.3.0 // indirect
-	github.com/yuin/gopher-lua v0.0.0-20200816102855-ee81675732da // indirect
+	github.com/yuin/gopher-lua v0.0.0-20220504180219-658193537a64 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/dig v1.16.1 // indirect
 	go.uber.org/fx v1.19.2 // indirect

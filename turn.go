@@ -10,6 +10,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/pion/webrtc/v3"
 	"github.com/twilio/twilio-go"
 	tapi "github.com/twilio/twilio-go/rest/api/v2010"
 )
@@ -90,4 +91,23 @@ func getTwilio() ([]ICEServer, error) {
 		})
 	}
 	return ret, nil
+}
+
+// GetICEServers returns all the ICE servers from twilio
+func GetICEServers() ([]webrtc.ICEServer, error) {
+	iceservers := []webrtc.ICEServer{}
+	twilioIS, err := getTwilio()
+	if err != nil {
+		return nil, err
+	}
+	Logger.Debugf("Got from twilio: %v", twilioIS)
+	for _, s := range twilioIS {
+		iceservers = append(iceservers, webrtc.ICEServer{
+			URLs:           []string{s.Urls},
+			Username:       s.Username,
+			Credential:     s.Credential,
+			CredentialType: webrtc.ICECredentialTypePassword,
+		})
+	}
+	return iceservers, nil
 }
