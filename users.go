@@ -313,5 +313,5 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 		return nil, nil, nil
 
 	}
-	return nil, nil, fmt.Errorf("unknown command")
+	return nil, nil, fmt.Errorf("Unknown peerbook command")
 }
