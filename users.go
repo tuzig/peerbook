@@ -246,8 +246,8 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 			return nil, nil, fmt.Errorf("failed to get peer")
 		}
 		uID, err := db.AddUser(email)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to add user - %s", err)
+		if uID == "" {
+			return nil, nil, fmt.Errorf("failed to add/get a user - %s", err)
 		}
 		peer.SetUser(uID)
 
@@ -274,6 +274,7 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to marshal json - %s", err)
 		}
+		Logger.Debugf("replying to register: %s", msg)
 		cmd := exec.Command("echo", string(msg))
 		f, err := pty.Start(cmd)
 		return cmd, f, nil
