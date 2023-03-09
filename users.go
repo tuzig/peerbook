@@ -327,7 +327,47 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 			return nil, nil, fmt.Errorf("failed to verify peer - %s", err)
 		}
 		return nil, nil, nil
-
+	case "ping":
+		// ping can be used to check if the server is alive
+		// if given an argument, it assumes it'n an OTP and will
+		// check it against the user's secret and will echo 0 if it's
+		// valid and 1 if it's not
+		if len(command) < 2 {
+			cmd := exec.Command("echo", "pong")
+			f, err := pty.Start(cmd)
+			return cmd, f, err
+		}
+		otp := command[1]
+		// check the fingerprint is in the db
+		exists, err := db.PeerExists(fp)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to check peer exists - %s", err)
+		}
+		if !exists {
+			return nil, nil, fmt.Errorf("peer does not exist")
+		}
+		peer, err := GetPeer(fp)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get peer - %s", err)
+		}
+		if peer == nil {
+			return nil, nil, fmt.Errorf("failed to get peer")
+		}
+		// validate the OTP
+		s, err := getUserSecret(peer.User)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get user secret - %s", err)
+		}
+		if s == "" {
+			return nil, nil, fmt.Errorf("failed to get user secret")
+		}
+		ret := "1"
+		if totp.Validate(otp, s) {
+			ret = "0"
+		}
+		cmd := exec.Command("echo", ret)
+		f, err := pty.Start(cmd)
+		return cmd, f, err
 	}
 	return nil, nil, fmt.Errorf("Unknown peerbook command")
 }

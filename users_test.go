@@ -236,6 +236,38 @@ func TestRegisterCommand(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, m["ID"], id)
 }
+func TestPingBadOTPCommand(t *testing.T) {
+	var err error
+	redisDouble, err = miniredis.Run()
+	require.NoError(t, err)
+	err = db.Connect("127.0.0.1:6379")
+	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.HSet("peer:A", "fp", "A", "user", "j", "name", "fucked up", "kind", "client", "verified", "1")
+	redisDouble.HSet("peer:B", "fp", "B", "user", "j", "name", "fucked up", "kind", "server", "verified", "0")
+	cmd, f, err := RunCommand([]string{"ping", "BADWOLF"}, nil, nil, 0, "A")
+	require.NotNil(t, cmd)
+	result, err := ioutil.ReadAll(f)
+	require.NoError(t, err)
+	require.Equal(t, "0", string(result))
+}
+func TestPingCommand(t *testing.T) {
+	var err error
+	redisDouble, err = miniredis.Run()
+	require.NoError(t, err)
+	err = db.Connect("127.0.0.1:6379")
+	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.HSet("peer:A", "fp", "A", "user", "j", "name", "fucked up", "kind", "client", "verified", "1")
+	redisDouble.HSet("peer:B", "fp", "B", "user", "j", "name", "fucked up", "kind", "server", "verified", "0")
+	ok, err := getUserKey("j")
+	require.NoError(t, err)
+	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
+	require.NoError(t, err)
+	cmd, f, err := RunCommand([]string{"ping", otp}, nil, nil, 0, "A")
+	require.NotNil(t, cmd)
+	result, err := ioutil.ReadAll(f)
+	require.NoError(t, err)
+	require.Equal(t, "0", string(result))
+}
 func TestAuthorizeCommand(t *testing.T) {
 	var err error
 	redisDouble, err = miniredis.Run()
