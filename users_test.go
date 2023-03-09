@@ -274,3 +274,26 @@ func TestRegisterCommandWithExistingUser(t *testing.T) {
 	require.NoError(t, err)
 	err = db.Connect("127.0.0.1:6379")
 }
+func TestQRSixel(t *testing.T) {
+	var err error
+	redisDouble, err = miniredis.Run()
+	require.NoError(t, err)
+	err = db.Connect("127.0.0.1:6379")
+	// to generate a sixel image we need a user with a QR code
+	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
+		"user", "j", "verified", "1", "online", "0")
+	redisDouble.HSet("peer:B", "fp", "B", "name", "foo", "kind", "lay",
+		"user", "j", "verified", "0", "online", "0")
+	ok, err := totp.Generate(totp.GenerateOpts{
+		Issuer:      "Peerbbook",
+		AccountName: "j",
+	})
+	require.Nil(t, err)
+	// otp, err := totp.GenerateCode(ok.Secret(), time.Now())
+	// require.Nil(t, err)
+	redisDouble.Set("secret:j", ok.Secret())
+	sixel, err := GetQRSixel("j")
+	require.NoError(t, err)
+	require.NotEmpty(t, sixel)
+}

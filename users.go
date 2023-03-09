@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/creack/pty"
+	"github.com/mattn/go-sixel"
 	"github.com/pquerna/otp/totp"
 )
 
@@ -79,6 +80,20 @@ func GetQRImage(user string) (string, error) {
 	encoder := base64.NewEncoder(base64.StdEncoding, &qr)
 	defer encoder.Close()
 	png.Encode(encoder, img)
+	return qr.String(), nil
+}
+
+func GetQRSixel(user string) (string, error) {
+	var qr bytes.Buffer
+	ok, err := getUserKey(user)
+	if err != nil {
+		return "", fmt.Errorf("Failed to get users secret key QR iomage: %S", err)
+	}
+	img, err := ok.Image(200, 200)
+	if err != nil {
+		return "", fmt.Errorf("Failed to get the QR image: %S", err)
+	}
+	sixel.NewEncoder(&qr).Encode(img)
 	return qr.String(), nil
 }
 
@@ -259,13 +274,13 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 		// - QR
 		// - ID
 		// - token
-		img, err := GetQRImage(uID)
+		sixel, err := GetQRSixel(uID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to generate QR code - %s", err)
 		}
 		resp := map[string]string{
 			// TODO: add the QR code
-			"QR":       img,
+			"QR":       sixel,
 			"ID":       uID,
 			"next_url": next,
 		}
