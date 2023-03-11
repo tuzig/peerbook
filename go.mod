@@ -7,18 +7,17 @@ require (
 	github.com/creack/pty v1.1.11
 	github.com/gomodule/redigo v1.8.6
 	github.com/gorilla/websocket v1.4.2
+	github.com/mattn/go-sixel v0.0.5
 	github.com/pion/webrtc/v3 v3.1.49
 	github.com/pquerna/otp v1.3.0
 	github.com/rs/cors v1.7.0
 	github.com/stretchr/testify v1.8.0
-	github.com/tuzig/webexec v0.19.3-0.20230308122333-0a2164886aab
+	github.com/tuzig/webexec v0.19.3-0.20230311165332-a3266b4a20c1
 	github.com/twilio/twilio-go v1.3.2
 	go.uber.org/zap v1.23.0
 	golang.org/x/net v0.5.0
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 )
-
-replace github.com/tuzig/webexec => ../webexec
 
 require (
 	github.com/StackExchange/wmi v1.2.1 // indirect
@@ -31,7 +30,6 @@ require (
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/hinshun/vt10x v0.0.0-20201217012337-52c1408d37d6 // indirect
 	github.com/lufia/plan9stats v0.0.0-20211012122336-39d0f177ccd0 // indirect
-	github.com/mattn/go-sixel v0.0.5 // indirect
 	github.com/pion/datachannel v1.5.2 // indirect
 	github.com/pion/dtls/v2 v2.1.5 // indirect
 	github.com/pion/ice/v2 v2.2.12 // indirect
