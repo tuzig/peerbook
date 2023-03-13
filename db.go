@@ -317,7 +317,7 @@ func (d *DBType) tempIDExists(id string) (bool, error) {
 }
 
 // AddUser is used to add a new user to the data base
-// it recieves an email. It returns a permanent user id.
+// it recieves the users eamil.
 // If the user already exists, it returns the permanent user id
 // and an error
 func (d *DBType) AddUser(email string) (string, error) {
@@ -342,6 +342,18 @@ func (d *DBType) AddUser(email string) (string, error) {
 		return "", fmt.Errorf("Failed to set %s: %w", key, err)
 	}
 	return id, nil
+}
+
+// GetEmail returns the email of a user
+func (d *DBType) GetEmail(uID string) (string, error) {
+	key := fmt.Sprintf("u:%s", uID)
+	conn := d.pool.Get()
+	defer conn.Close()
+	email, err := redis.String(conn.Do("HGET", key, "email"))
+	if err != nil {
+		return "", fmt.Errorf("Failed to get %s: %w", key, err)
+	}
+	return email, nil
 }
 
 func (d *DBType) RemoveTempID(tempID string) error {

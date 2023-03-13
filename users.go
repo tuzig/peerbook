@@ -246,6 +246,7 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 	switch command[0] {
 	case "register":
 		email := command[1]
+		peerName := command[2]
 		exists, err := db.PeerExists(fp)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to check peer exists - %s", err)
@@ -265,24 +266,15 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 			return nil, nil, fmt.Errorf("failed to add/get a user - %s", err)
 		}
 		peer.SetUser(uID)
-
-		next, err := createTempURL(uID, "qr", true)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to create temp url - %s", err)
-		}
-		// write a json encoded response with the following fields:
-		// - QR
-		// - ID
-		// - token
+		peer.setName(peerName)
 		sixel, err := GetQRSixel(uID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to generate QR code - %s", err)
 		}
 		resp := map[string]string{
 			// TODO: add the QR code
-			"QR":       sixel,
-			"ID":       uID,
-			"next_url": next,
+			"QR": sixel,
+			"ID": uID,
 		}
 		// turn into a string
 		msg, err := json.Marshal(resp)
@@ -361,9 +353,9 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 		if s == "" {
 			return nil, nil, fmt.Errorf("failed to get user secret")
 		}
-		ret := "1"
+		ret := "0"
 		if totp.Validate(otp, s) {
-			ret = "0"
+			ret = "1"
 		}
 		cmd := exec.Command("echo", ret)
 		f, err := pty.Start(cmd)

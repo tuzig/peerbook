@@ -218,7 +218,7 @@ func TestRegisterCommand(t *testing.T) {
 	require.NoError(t, err)
 	_, err = GetPeer("A")
 	require.NoError(t, err)
-	_, f, err := RunCommand([]string{"register", "j@example.com"}, nil, nil, 0, "A")
+	_, f, err := RunCommand([]string{"register", "j@example.com", "yossi"}, nil, nil, 0, "A")
 	require.NoError(t, err)
 	require.NotNil(t, f)
 	b, err := ioutil.ReadAll(f)
@@ -228,7 +228,6 @@ func TestRegisterCommand(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, m, "ID")
 	require.Contains(t, m, "QR")
-	require.Contains(t, m, "next_url")
 	// make sure the m["ID"] is in the db
 	email := redisDouble.HGet("u:"+m["ID"], "email")
 	require.Equal(t, "j@example.com", email)
@@ -242,13 +241,14 @@ func TestPingBadOTPCommand(t *testing.T) {
 	require.NoError(t, err)
 	err = db.Connect("127.0.0.1:6379")
 	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.HSet("u:j", "email", "j@example.com")
 	redisDouble.HSet("peer:A", "fp", "A", "user", "j", "name", "fucked up", "kind", "client", "verified", "1")
 	redisDouble.HSet("peer:B", "fp", "B", "user", "j", "name", "fucked up", "kind", "server", "verified", "0")
 	cmd, f, err := RunCommand([]string{"ping", "BADWOLF"}, nil, nil, 0, "A")
 	require.NotNil(t, cmd)
 	result, err := ioutil.ReadAll(f)
 	require.NoError(t, err)
-	require.Equal(t, "0", string(result))
+	require.Equal(t, byte('0'), result[0])
 }
 func TestPingCommand(t *testing.T) {
 	var err error
@@ -256,6 +256,7 @@ func TestPingCommand(t *testing.T) {
 	require.NoError(t, err)
 	err = db.Connect("127.0.0.1:6379")
 	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.HSet("u:j", "email", "j@example.com")
 	redisDouble.HSet("peer:A", "fp", "A", "user", "j", "name", "fucked up", "kind", "client", "verified", "1")
 	redisDouble.HSet("peer:B", "fp", "B", "user", "j", "name", "fucked up", "kind", "server", "verified", "0")
 	ok, err := getUserKey("j")
@@ -266,7 +267,7 @@ func TestPingCommand(t *testing.T) {
 	require.NotNil(t, cmd)
 	result, err := ioutil.ReadAll(f)
 	require.NoError(t, err)
-	require.Equal(t, "0", string(result))
+	require.Equal(t, byte('1'), result[0])
 }
 func TestAuthorizeCommand(t *testing.T) {
 	var err error
@@ -274,6 +275,7 @@ func TestAuthorizeCommand(t *testing.T) {
 	require.NoError(t, err)
 	err = db.Connect("127.0.0.1:6379")
 	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.HSet("u:j", "email", "j@example.com")
 	redisDouble.HSet("peer:A", "fp", "A", "user", "j", "name", "fucked up", "kind", "client", "verified", "1")
 	redisDouble.HSet("peer:B", "fp", "B", "user", "j", "name", "fucked up", "kind", "server", "verified", "0")
 	ok, err := getUserKey("j")
@@ -313,6 +315,7 @@ func TestQRSixel(t *testing.T) {
 	err = db.Connect("127.0.0.1:6379")
 	// to generate a sixel image we need a user with a QR code
 	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.HSet("u:j", "email", "j@example.com")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "1", "online", "0")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "foo", "kind", "lay",

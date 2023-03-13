@@ -215,6 +215,7 @@ func TestVerifyQR(t *testing.T) {
 	token := "=a+valid/token="
 	// setup the fixture - a user, his token and two peers
 	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.HSet("u:j", "email", "j@example.com")
 	ok, err := getUserKey("j")
 	require.Nil(t, err)
 	redisDouble.Set(fmt.Sprintf("token:%s", token), "j")
@@ -625,6 +626,7 @@ func TestRemoveAll(t *testing.T) {
 	startTest(t)
 	// setup the fixture - a user, his token and two peers
 	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.HSet("u:j", "email", "j@example.com")
 	redisDouble.Set("token:avalidtoken", "j")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "1")
@@ -680,6 +682,7 @@ func TestGoodValidateOTP(t *testing.T) {
 	token := "=b+valid/token="
 	// setup the fixture - a user, his token and two peers
 	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.HSet("u:j", "email", "j@example.com")
 	redisDouble.Set(fmt.Sprintf("token:%s", token), "j")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "0", "online", "0")
@@ -702,6 +705,7 @@ func TestBadValidateOTP(t *testing.T) {
 	token := "=b+valid/token="
 	// setup the fixture - a user, his token and two peers
 	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.HSet("u:j", "email", "j@example.com")
 	redisDouble.Set(fmt.Sprintf("token:%s", token), "j")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "0", "online", "0")
@@ -755,6 +759,7 @@ func TestDeletePeerFromWeb(t *testing.T) {
 	startTest(t)
 	// setup the fixture - a user, his token and two peers
 	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.HSet("u:j", "email", "j@example.com")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay")
 	redisDouble.HSet("peer:A", "user", "j", "verified", "1")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "foo", "kind", "lay",

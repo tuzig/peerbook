@@ -623,7 +623,11 @@ func getUserKey(user string) (*otp.Key, error) {
 	if err != nil {
 		return nil, err
 	}
-	u := fmt.Sprintf("otpauth://totp/PeerBook:%s?algorithm=SHA1&digits=6&secret=%s&issuer=PeerBook&period=30", user, s)
+	email, err := db.GetEmail(user)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get email for %q: %w", user, err)
+	}
+	u := fmt.Sprintf("otpauth://totp/PeerBook:%s?algorithm=SHA1&digits=6&secret=%s&issuer=PeerBook&period=30", email, s)
 	return otp.NewKeyFromURL(u)
 
 }
