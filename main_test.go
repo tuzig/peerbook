@@ -810,7 +810,7 @@ func TestWebexec(t *testing.T) {
 		defer resp.Body.Close()
 		answer, err := io.ReadAll(resp.Body)
 		require.NoError(t, err, "Failed to read the offer")
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Failed to connect to the server", answer)
+		require.Equal(t, http.StatusOK, resp.StatusCode, "Failed to connect to the server", string(answer))
 		// decode the answer from the answer
 		var sd webrtc.SessionDescription
 		err = peers.DecodeOffer(&sd, answer)

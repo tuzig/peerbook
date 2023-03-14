@@ -6,9 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"image/png"
+	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"os/exec"
 	"strings"
 
@@ -241,7 +241,7 @@ func serveAuthorize(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID int, fp string) (*exec.Cmd, *os.File, error) {
+func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID int, fp string) (*exec.Cmd, io.ReadWriteCloser, error) {
 
 	switch command[0] {
 	case "register":
@@ -282,9 +282,8 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 			return nil, nil, fmt.Errorf("failed to marshal json - %s", err)
 		}
 		Logger.Debugf("replying to register: %s", msg)
-		cmd := exec.Command("echo", string(msg))
-		f, err := pty.Start(cmd)
-		return cmd, f, nil
+		f := NewRWC(msg)
+		return nil, f, nil
 	case "authorize":
 		target := command[1]
 		otp := command[2]
@@ -325,9 +324,8 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 		// check it against the user's secret and will echo 0 if it's
 		// valid and 1 if it's not
 		if len(command) < 2 {
-			cmd := exec.Command("echo", "pong")
-			f, err := pty.Start(cmd)
-			return cmd, f, err
+			f := NewRWC([]byte("pong"))
+			return nil, f, nil
 		}
 		otp := command[1]
 		// check the fingerprint is in the db
@@ -357,9 +355,33 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 		if totp.Validate(otp, s) {
 			ret = "1"
 		}
-		cmd := exec.Command("echo", ret)
-		f, err := pty.Start(cmd)
-		return cmd, f, err
+		f := NewRWC([]byte(ret))
+		return nil, f, err
 	}
 	return nil, nil, fmt.Errorf("Unknown peerbook command")
+}
+
+type RWC struct {
+	buffer []byte
+}
+
+func NewRWC(b []byte) *RWC {
+	return &RWC{
+		buffer: b,
+	}
+}
+func (r *RWC) Read(p []byte) (n int, err error) {
+	n = copy(p, r.buffer)
+	r.buffer = r.buffer[n:]
+	if n == 0 {
+		return 0, io.EOF
+	}
+	return n, nil
+}
+func (r *RWC) Write(p []byte) (n int, err error) {
+	Logger.Debugf("got write to RWC: %s", p)
+	return len(p), nil
+}
+func (r *RWC) Close() error {
+	return nil
 }
