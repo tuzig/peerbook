@@ -2,12 +2,12 @@ package main
 
 import (
 	"bytes"
-	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"image/png"
 	"io"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os/exec"
@@ -151,6 +151,7 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 			return nil, nil, fmt.Errorf("failed to get peer")
 		}
 		uID := GenerateUserID()
+		Logger.Infof("registering user: %s", uID)
 		err = db.AddUser(email, uID)
 		if uID == "" {
 			return nil, nil, fmt.Errorf("failed to add/get a user - %s", err)
@@ -261,11 +262,11 @@ func NewRWC(b []byte) *RWC {
 	}
 }
 func (r *RWC) Read(p []byte) (n int, err error) {
-	n = copy(p, r.buffer)
-	r.buffer = r.buffer[n:]
-	if n == 0 {
+	if len(r.buffer) == 0 {
 		return 0, io.EOF
 	}
+	n = copy(p, r.buffer)
+	r.buffer = r.buffer[n:]
 	return n, nil
 }
 func (r *RWC) Write(p []byte) (n int, err error) {
@@ -276,27 +277,7 @@ func (r *RWC) Close() error {
 	return nil
 }
 
-// GenerateUserID generates a 10 digit long random user ID
+// GenerateUserID generates a 10 digit long, base 10 random user ID
 func GenerateUserID() string {
-	// Generate 32 random bytes
-	randomBytes := make([]byte, 32)
-	_, err := rand.Read(randomBytes)
-	if err != nil {
-		// Handle error
-	}
-
-	// Encode the random bytes in base64
-	base64Str := base64.StdEncoding.EncodeToString(randomBytes)
-
-	// Get the first 20 characters of the base64 string and convert to integer
-	first20Chars := base64Str[:20]
-	userIDInt, err := strconv.ParseInt(first20Chars, 64, 0)
-	if err != nil {
-		// Handle error
-	}
-
-	// Convert the integer to a string
-	userIDStr := strconv.Itoa(int(userIDInt))
-
-	return userIDStr
+	return strconv.Itoa(rand.Intn(1000000000) + 1000000000)
 }

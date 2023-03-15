@@ -213,6 +213,7 @@ func TestBackendAuthorizedTempID(t *testing.T) {
 }
 func TestRegisterCommand(t *testing.T) {
 	var err error
+	Logger = zaptest.NewLogger(t).Sugar()
 	redisDouble, err = miniredis.Run()
 	require.NoError(t, err)
 	err = db.Connect("127.0.0.1:6379")
@@ -225,10 +226,12 @@ func TestRegisterCommand(t *testing.T) {
 	require.NotNil(t, f)
 	b, err := ioutil.ReadAll(f)
 	require.NoError(t, err)
+	Logger.Infof("Got %d bytes", len(b))
 	var m map[string]string
 	err = json.Unmarshal(b, &m)
 	require.NoError(t, err)
 	require.Contains(t, m, "ID")
+	require.Equal(t, 10, len(m["ID"]))
 	require.Contains(t, m, "QR")
 	// make sure the m["ID"] is in the db
 	email := redisDouble.HGet("u:"+m["ID"], "email")

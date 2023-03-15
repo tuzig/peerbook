@@ -151,8 +151,8 @@ github.com/tklauser/go-sysconf v0.3.9 h1:JeUVdAOWhhxVcU6Eqr/ATFHgXk/mmiItdKeJPev
 github.com/tklauser/go-sysconf v0.3.9/go.mod h1:11DU/5sG7UexIrp/O6g35hrWzu0JxlwQ3LSFUzyeuhs=
 github.com/tklauser/numcpus v0.3.0 h1:ILuRUQBtssgnxw0XXIjKUC56fgnOrFoQQ/4+DeU2biQ=
 github.com/tklauser/numcpus v0.3.0/go.mod h1:yFGUr7TUHQRAhyqBcEg0Ge34zDBAsIvJJcyE6boqnA8=
-github.com/tuzig/webexec v0.19.3-0.20230314144115-2638ef29f977 h1:D5QX9GzZ7fmy5bqs6rK4pGmoLaIVPGl7oy17Zuc+06U=
-github.com/tuzig/webexec v0.19.3-0.20230314144115-2638ef29f977/go.mod h1:18UdjTQso77Sa6jvyr88tWFKZaymu3wizXPEqaWFApI=
+github.com/tuzig/webexec v0.19.3-0.20230315154939-c761ccf4943b h1:UWYPvGvfbfaZ0Fm3GDTtsstWn1i7uFCAacsXlrT/hsc=
+github.com/tuzig/webexec v0.19.3-0.20230315154939-c761ccf4943b/go.mod h1:18UdjTQso77Sa6jvyr88tWFKZaymu3wizXPEqaWFApI=
 github.com/twilio/twilio-go v1.3.2 h1:bO1kly9vwNT4kMDn58gGm6XB/YB8AUarATR/rGvtkDE=
 github.com/twilio/twilio-go v1.3.2/go.mod h1:tdnfQ5TjbewoAu4lf9bMsGvfuJ/QU9gYuv9yx3TSIXU=
 github.com/urfave/cli/v2 v2.3.0/go.mod h1:LJmUH05zAU44vOAcrfzZQKsZbVcdbOG8rtL3/XcUArI=
