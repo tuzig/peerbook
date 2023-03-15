@@ -12,14 +12,12 @@ require (
 	github.com/pquerna/otp v1.3.0
 	github.com/rs/cors v1.7.0
 	github.com/stretchr/testify v1.8.0
-	github.com/tuzig/webexec v0.19.3-0.20230311165332-a3266b4a20c1
+	github.com/tuzig/webexec v0.19.3-0.20230314144115-2638ef29f977
 	github.com/twilio/twilio-go v1.3.2
 	go.uber.org/zap v1.23.0
 	golang.org/x/net v0.5.0
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
 )
-
-replace github.com/tuzig/webexec => ../webexec
 
 require (
 	github.com/StackExchange/wmi v1.2.1 // indirect

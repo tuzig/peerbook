@@ -320,28 +320,27 @@ func (d *DBType) tempIDExists(id string) (bool, error) {
 // it recieves the users eamil.
 // If the user already exists, it returns the permanent user id
 // and an error
-func (d *DBType) AddUser(email string) (string, error) {
+func (d *DBType) AddUser(email string, id string) error {
 	conn := d.pool.Get()
 	defer conn.Close()
-	key := fmt.Sprintf("id:%s", email)
-	userID, err := redis.String(conn.Do("GET", key))
+	idkey := fmt.Sprintf("u:%s", id)
+	exists, err := redis.Bool(conn.Do("EXISTS", idkey))
 	if err != nil && err != redis.ErrNil {
-		return "", fmt.Errorf("Failed to get %s: %w", key, err)
+		return fmt.Errorf("Failed to get %s: %w", idkey, err)
 	}
-	if userID != "" {
-		return userID, fmt.Errorf("User already exists")
+	if exists {
+		return fmt.Errorf("User already exists")
 	}
-	id := RandomString(UserIDLength)
+	key := fmt.Sprintf("id:%s", email)
 	_, err = conn.Do("SET", key, id)
 	if err != nil {
-		return "", fmt.Errorf("Failed to set %s: %w", key, err)
+		return fmt.Errorf("Failed to set %s: %w", key, err)
 	}
-	key = fmt.Sprintf("u:%s", id)
-	_, err = conn.Do("HSET", key, "email", email, "active", "1")
+	_, err = conn.Do("HSET", idkey, "email", email, "active", "1")
 	if err != nil {
-		return "", fmt.Errorf("Failed to set %s: %w", key, err)
+		return fmt.Errorf("Failed to set %s: %w", idkey, err)
 	}
-	return id, nil
+	return nil
 }
 
 // GetEmail returns the email of a user

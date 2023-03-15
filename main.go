@@ -521,7 +521,6 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 	http.HandleFunc("/pb/", serveAuthPage)
 	http.HandleFunc("/verify", serveVerify)
 	http.HandleFunc("/hitme", serveHitMe)
-	http.HandleFunc("/register", serveRegister)
 	http.HandleFunc("/authorize/", serveAuthorize)
 	http.HandleFunc("/ws", serveWs)
 	// `/turn` is deprecated

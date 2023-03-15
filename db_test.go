@@ -89,21 +89,19 @@ func TestReset(t *testing.T) {
 }
 func TestAddUser(t *testing.T) {
 	startTest(t)
-	id, err := db.AddUser("j")
+	err := db.AddUser("j", "123")
 	require.NoError(t, err)
-	require.Equal(t, 16, len(id))
 	// ensure the new user is added to the db
 	dbID, err := redisDouble.Get("id:j")
 	require.NoError(t, err)
-	require.Equal(t, id, dbID)
-	dbEmail := redisDouble.HGet(fmt.Sprintf("u:%s", id), "email")
+	require.Equal(t, "123", dbID)
+	dbEmail := redisDouble.HGet("u:123", "email")
 	require.Equal(t, "j", dbEmail)
 }
 func TestDoubleAddUser(t *testing.T) {
 	startTest(t)
-	id, err := db.AddUser("j")
+	err := db.AddUser("j", "123")
 	require.NoError(t, err)
-	id2, err := db.AddUser("j")
+	err = db.AddUser("h", "123")
 	require.Error(t, err)
-	require.Equal(t, id, id2)
 }
