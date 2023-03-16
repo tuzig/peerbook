@@ -46,24 +46,11 @@ func serveICEServers(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Only the POST method is supported", http.StatusBadRequest)
 		return
 	}
-	servers, err := db.GetICEServers()
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to read ICESevers from db: %s", err),
-			http.StatusInternalServerError)
-		return
-	}
-	// Add creredentials to the servers
-	for i, server := range servers {
-		servers[i].Username, servers[i].Credential = genCredential(server.Username)
-	}
-	twilioServers, err := getTwilio()
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to get twilio ICE servers: %s", err),
-			http.StatusInternalServerError)
-		return
-	}
-	servers = append(servers, twilioServers...)
+	servers, err := GetICEServers()
 	// return the JSON representation of the servers
+	if servers == nil {
+		servers = []webrtc.ICEServer{}
+	}
 	b, err := json.Marshal(servers)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to marshal servers: %s", err),
@@ -95,13 +82,23 @@ func getTwilio() ([]ICEServer, error) {
 
 // GetICEServers returns all the ICE servers from twilio
 func GetICEServers() ([]webrtc.ICEServer, error) {
-	iceservers := []webrtc.ICEServer{}
-	twilioIS, err := getTwilio()
+	var iceservers []webrtc.ICEServer
+	servers, err := db.GetICEServers()
 	if err != nil {
-		return nil, err
+		Logger.Errorf("Failed to get ICE servers from db: %s", err)
+	} else {
+		// Add creredentials to the servers
+		for i, server := range servers {
+			servers[i].Username, servers[i].Credential = genCredential(server.Username)
+		}
 	}
-	Logger.Debugf("Got from twilio: %v", twilioIS)
-	for _, s := range twilioIS {
+	twilioServers, err := getTwilio()
+	if err != nil {
+		Logger.Errorf("Failed to get ICE servers from twilio: %s", err)
+	} else {
+		servers = append(servers, twilioServers...)
+	}
+	for _, s := range servers {
 		iceservers = append(iceservers, webrtc.ICEServer{
 			URLs:           []string{s.Urls},
 			Username:       s.Username,
