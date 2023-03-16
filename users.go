@@ -279,5 +279,5 @@ func (r *RWC) Close() error {
 
 // GenerateUserID generates a 10 digit long, base 10 random user ID
 func GenerateUserID() string {
-	return strconv.Itoa(rand.Intn(1000000000) + 1000000000)
+	return strconv.Itoa(rand.Intn(9000000000) + 1000000000)
 }
