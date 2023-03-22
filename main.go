@@ -313,7 +313,7 @@ func serveVerify(w http.ResponseWriter, r *http.Request) {
 	dec := json.NewDecoder(r.Body)
 	err := dec.Decode(&req)
 	fp := req["fp"]
-	email := req["email"]
+	uid := req["uid"]
 	if err != nil {
 		http.Error(w, "Bad JSON", http.StatusBadRequest)
 		return
@@ -322,8 +322,8 @@ func serveVerify(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Missing fingerprint", http.StatusBadRequest)
 		return
 	}
-	if email == "" {
-		http.Error(w, "Missing email", http.StatusBadRequest)
+	if uid == "" {
+		http.Error(w, "Missing user ID", http.StatusBadRequest)
 		return
 	}
 	if r.Method == "POST" {
@@ -334,7 +334,7 @@ func serveVerify(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !pexists {
-			peer = NewPeer(fp, req["name"], email, req["kind"])
+			peer = NewPeer(fp, req["name"], uid, req["kind"])
 			err = db.AddPeer(peer)
 			if err != nil {
 				msg := fmt.Sprintf("Failed to add peer: %s", err)
@@ -342,7 +342,7 @@ func serveVerify(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, msg, http.StatusInternalServerError)
 				return
 			}
-			sendAuthEmail(email)
+			// sendAuthEmail(email)
 		} else {
 			peer, err = GetPeer(fp)
 			if err != nil {
@@ -353,7 +353,7 @@ func serveVerify(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if peer.User == "" {
-				peer = NewPeer(fp, req["name"], email, req["kind"])
+				peer = NewPeer(fp, req["name"], uid, req["kind"])
 				err = db.AddPeer(peer)
 				if err != nil {
 					msg := fmt.Sprintf("Failed to add peer: %s", err)
@@ -361,18 +361,20 @@ func serveVerify(w http.ResponseWriter, r *http.Request) {
 					http.Error(w, msg, http.StatusInternalServerError)
 					return
 				}
-			} else if peer.User != email {
+			} else if peer.User != uid {
 				msg := fmt.Sprintf(
-					"Fingerprint is associated to another email: %s", peer.User)
+					"Fingerprint is associated to another user: %s", peer.User)
 				http.Error(w, msg, http.StatusConflict)
 				return
 			}
 			if peer.Name != req["name"] {
 				peer.setName(req["name"])
 			}
-			if !peer.Verified {
-				sendAuthEmail(email)
-			}
+			/*
+				if !peer.Verified {
+					sendAuthEmail(email)
+				}
+			*/
 		}
 		var m []byte
 		if peer.Verified {

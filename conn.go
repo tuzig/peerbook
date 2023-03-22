@@ -289,7 +289,7 @@ loop:
 func ConnFromQ(q url.Values) (*Conn, error) {
 	fp := q.Get("fp")
 	name := q.Get("name")
-	email := q.Get("email")
+	uid := q.Get("uid")
 	kind := q.Get("kind")
 	if fp == "" {
 		return nil, &PeerNotFound{}
@@ -299,7 +299,7 @@ func ConnFromQ(q url.Values) (*Conn, error) {
 		return nil, fmt.Errorf("Failed to get peer: %w", err)
 	}
 	if peer == nil {
-		peer = NewPeer(fp, name, email, kind)
+		peer = NewPeer(fp, name, uid, kind)
 		err = db.AddPeer(peer)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to add peer: %s", err)
@@ -310,16 +310,16 @@ func ConnFromQ(q url.Values) (*Conn, error) {
 			peer.setName(name)
 		}
 		if peer.User == "" {
-			Logger.Warn("peer user empty")
-			peer = NewPeer(fp, name, email, kind)
+			Logger.Warn("peer user id empty")
+			peer = NewPeer(fp, name, uid, kind)
 			err = db.AddPeer(peer)
 			if err != nil {
 				return nil, fmt.Errorf("Failed to add peer: %s", err)
 			}
 		}
-		if peer.User != email {
+		if peer.User != uid {
 			return nil, fmt.Errorf(
-				"Fingerprint is associated to another email: %s", peer.User)
+				"Fingerprint is associated to another user: %s", peer.User)
 		}
 	}
 	return NewConn(peer)

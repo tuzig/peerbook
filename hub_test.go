@@ -19,14 +19,16 @@ func TestSetPeerOnline(t *testing.T) {
 }
 func TestPeersNotifications(t *testing.T) {
 	startTest(t)
+	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.HSet("u:j", "email", "j@example.com")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "1")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
 		"user", "j", "verified", "0")
 	redisDouble.SAdd("user:j", "A", "B")
-	wsA, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&email=j")
+	wsA, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&uid=j")
 	defer wsA.Close()
-	wsB, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&email=j")
+	wsB, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&uid=j")
 	require.Nil(t, err)
 	defer wsB.Close()
 	if err := wsA.SetReadDeadline(time.Now().Add(time.Second / 100)); err != nil {

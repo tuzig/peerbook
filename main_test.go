@@ -81,7 +81,7 @@ func TestBadConnectionRequest(t *testing.T) {
 func TestUnknownFingerprint(t *testing.T) {
 	startTest(t)
 	// create client, connect to the hu
-	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=BADWOLF&email=cracker@forbidden.com")
+	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=BADWOLF&uid=1234567890")
 	require.Nil(t, err)
 	var m map[string]interface{}
 	err = ws.ReadJSON(&m)
@@ -90,20 +90,22 @@ func TestUnknownFingerprint(t *testing.T) {
 }
 func TestSignalingAcrossUsers(t *testing.T) {
 	startTest(t)
-	redisDouble.SetAdd("user:j", "A")
-	redisDouble.SetAdd("user:h", "B")
+	redisDouble.HSet("u:j", "email", "j@example.com")
+	redisDouble.HSet("u:h", "email", "h@example.com")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "1")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
 		"user", "h", "verified", "1")
+	redisDouble.SetAdd("user:j", "A")
+	redisDouble.SetAdd("user:h", "B")
 	// create client, connect to the hu
-	wsA, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&email=j")
+	wsA, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&uid=j")
 	require.Nil(t, err)
 	defer wsA.Close()
 	if err = wsA.SetReadDeadline(time.Now().Add(ReadTimeout)); err != nil {
 		t.Fatalf("SetReadDeadline: %v", err)
 	}
-	wsB, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&email=h")
+	wsB, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&uid=h")
 	require.Nil(t, err)
 	defer wsB.Close()
 	if err = wsB.SetReadDeadline(time.Now().Add(ReadTimeout)); err != nil {
@@ -151,19 +153,20 @@ func TestSignalingAcrossUsers(t *testing.T) {
 func TestValidSignaling(t *testing.T) {
 	startTest(t)
 	startTime := time.Now().Unix()
+	redisDouble.HSet("u:j", "email", "j@example.com")
 	redisDouble.SetAdd("user:j", "A", "B")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "1", "online", "0")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
 		"user", "j", "verified", "1", "online", "0")
 	// create client, connect to the hu
-	wsA, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&email=j")
+	wsA, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&uid=j")
 	require.Nil(t, err)
 	defer wsA.Close()
 	if err = wsA.SetReadDeadline(time.Now().Add(ReadTimeout)); err != nil {
 		t.Fatalf("SetReadDeadline: %v", err)
 	}
-	wsB, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&email=j")
+	wsB, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&uid=j")
 	require.Nil(t, err)
 	defer wsB.Close()
 	if err = wsB.SetReadDeadline(time.Now().Add(ReadTimeout)); err != nil {
@@ -284,6 +287,7 @@ func TestGetUsersList(t *testing.T) {
 	startTest(t)
 	token := "=a+valid/token="
 	// setup the fixture - a user, his token and two peers
+	redisDouble.HSet("u:j", "email", "j@example.com")
 	redisDouble.SetAdd("user:j", "A", "B")
 	redisDouble.Set("secret:j", "AVERYSECRETTOKEN")
 	redisDouble.Set("QRVerified:j", "1")
@@ -292,7 +296,7 @@ func TestGetUsersList(t *testing.T) {
 		"user", "j", "verified", "0")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "alpha",
 		"user", "j", "verified", "1")
-	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&email=j&kind=lay")
+	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&uid=j&kind=lay")
 	require.Nil(t, err)
 	defer ws.Close()
 	authU := fmt.Sprintf("http://127.0.0.1:17777/pb/%s", url.PathEscape(token))
@@ -374,6 +378,7 @@ func TestGetUsersList(t *testing.T) {
 func TestHTTPPeerVerification(t *testing.T) {
 	startTest(t)
 	// setup the fixture - a user, his token, otp secret and two peers
+	redisDouble.HSet("u:j", "email", "j@example.com")
 	redisDouble.SetAdd("user:j", "A", "B")
 	redisDouble.Set("token:avalidtoken", "j")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
@@ -390,7 +395,7 @@ func TestHTTPPeerVerification(t *testing.T) {
 	redisDouble.Set("secret:j", ok.Secret())
 	redisDouble.Set("QRVerified:j", "1")
 	// connect using websockets
-	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&email=j")
+	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&uid=j")
 	require.Nil(t, err)
 	defer ws.Close()
 	if err = ws.SetReadDeadline(time.Now().Add(ReadTimeout)); err != nil {
@@ -423,12 +428,13 @@ func TestHTTPPeerVerification(t *testing.T) {
 func TestVerifyUnverified(t *testing.T) {
 	startTest(t)
 	// setup the fixture - a user, his token and two peers
+	redisDouble.HSet("u:j", "email", "j@example.com")
 	redisDouble.SetAdd("user:j", "A", "B")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "0")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
 		"user", "j", "verified", "1")
-	msg := map[string]string{"fp": "A", "email": "j"}
+	msg := map[string]string{"fp": "A", "uid": "j"}
 	m, err := json.Marshal(msg)
 	require.Nil(t, err)
 	resp, err := http.Post("http://127.0.0.1:17777/verify", "application/json",
@@ -443,7 +449,7 @@ func TestVerifyUnverified(t *testing.T) {
 func TestWSNew(t *testing.T) {
 	startTest(t)
 	// setup the fixture - a user, his token and two peers
-	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=Z&name=foo&email=j&kind=server")
+	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=Z&name=foo&uid=j&kind=server")
 	var m map[string]interface{}
 	err = ws.ReadJSON(&m)
 	require.Nil(t, err)
@@ -464,7 +470,7 @@ func TestWSNew(t *testing.T) {
 func TestVerifyNew(t *testing.T) {
 	startTest(t)
 	// setup the fixture - a user, his token and two peers
-	msg := map[string]string{"fp": "A", "email": "j", "kind": "server",
+	msg := map[string]string{"fp": "A", "uid": "j", "kind": "server",
 		"name": "foo"}
 	m, err := json.Marshal(msg)
 	require.Nil(t, err)
@@ -489,7 +495,7 @@ func TestVerifyVerified(t *testing.T) {
 		"user", "j", "verified", "0")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
 		"user", "j", "verified", "1")
-	msg := map[string]string{"fp": "B", "email": "j"}
+	msg := map[string]string{"fp": "B", "uid": "j"}
 	m, err := json.Marshal(msg)
 	require.Nil(t, err)
 	resp, err := http.Post("http://127.0.0.1:17777/verify", "application/json",
@@ -513,7 +519,7 @@ func TestVerifyWrongUser(t *testing.T) {
 	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
 		"user", "j", "verified", "1")
 
-	msg := map[string]string{"fp": "B", "email": "i"}
+	msg := map[string]string{"fp": "B", "uid": "i"}
 	m, err := json.Marshal(msg)
 	require.Nil(t, err)
 	resp, err := http.Post("http://127.0.0.1:17777/verify", "application/json",
@@ -527,6 +533,7 @@ func TestValidatePeerNPublish(t *testing.T) {
 	startTest(t)
 	// setup the fixture - a user, his token and two peers
 	redisDouble.Set("token:avalidtoken", "j")
+	redisDouble.HSet("u:j", "email", "j@example.com")
 	redisDouble.SetAdd("user:j", "A", "B")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "0", "online", "0")
@@ -542,13 +549,13 @@ func TestValidatePeerNPublish(t *testing.T) {
 	redisDouble.Set("secret:j", ok.Secret())
 	redisDouble.Set("QRVerified:j", "1")
 	// connect both peers using websockets
-	wsA, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&email=j")
+	wsA, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&uid=j")
 	require.Nil(t, err)
 	defer wsA.Close()
 	if err = wsA.SetReadDeadline(time.Now().Add(ReadTimeout)); err != nil {
 		t.Fatalf("SetReadDeadline: %v", err)
 	}
-	wsB, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&email=j")
+	wsB, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&uid=j")
 	require.Nil(t, err)
 	defer wsB.Close()
 	if err = wsB.SetReadDeadline(time.Now().Add(ReadTimeout)); err != nil {
@@ -732,10 +739,11 @@ func TestUserSecret(t *testing.T) {
 func TestDisconnectReconnect(t *testing.T) {
 	startTest(t)
 	// setup the fixture - a user, his token and two peers
+	redisDouble.HSet("u:j", "email", "j@example.com")
 	redisDouble.SetAdd("user:j", "A", "B")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "1")
-	ws1, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&email=j")
+	ws1, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&uid=j")
 	require.Nil(t, err)
 	time.Sleep(time.Millisecond * 50)
 	online := redisDouble.HGet("peer:A", "online")
@@ -744,7 +752,7 @@ func TestDisconnectReconnect(t *testing.T) {
 	time.Sleep(time.Millisecond * 50)
 	online = redisDouble.HGet("peer:A", "online")
 	require.Equal(t, "0", online)
-	ws2, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&email=j")
+	ws2, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&uid=j")
 	require.Nil(t, err)
 	time.Sleep(time.Millisecond * 50)
 	online = redisDouble.HGet("peer:A", "online")
