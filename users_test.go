@@ -297,8 +297,13 @@ func TestAuthorizeCommand(t *testing.T) {
 	require.NoError(t, err)
 	cmd, f, err := RunCommand([]string{"authorize", "B", otp}, nil, nil, 0, "A")
 	require.NoError(t, err)
-	require.Nil(t, f)
 	require.Nil(t, cmd)
+	// read the response from f
+	result, err := ioutil.ReadAll(f)
+	require.NoError(t, err)
+	// make sure the response starts with "Authorized"
+	require.Equal(t, "Authorized", string(result[:10]))
+	// make sure the peer is marked as verified
 	require.Equal(t, "1", redisDouble.HGet("peer:B", "verified"))
 }
 func TestBadOTPAuthorizeCommand(t *testing.T) {
@@ -310,8 +315,10 @@ func TestBadOTPAuthorizeCommand(t *testing.T) {
 	redisDouble.HSet("peer:A", "fp", "A", "user", "j", "name", "fucked up", "kind", "client", "verified", "1")
 	redisDouble.HSet("peer:B", "fp", "B", "user", "j", "name", "fucked up", "kind", "server", "verified", "0")
 	cmd, f, err := RunCommand([]string{"authorize", "B", "1233456"}, nil, nil, 0, "A")
-	require.NotNil(t, err)
-	require.Nil(t, f)
+	require.NoError(t, err)
+	result, err := ioutil.ReadAll(f)
+	require.NoError(t, err)
+	require.NotEqual(t, "Authorized", string(result[:10]))
 	require.Nil(t, cmd)
 	require.Equal(t, "0", redisDouble.HGet("peer:B", "verified"))
 }

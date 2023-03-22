@@ -199,7 +199,8 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 			return nil, nil, fmt.Errorf("failed to get user secret")
 		}
 		if !totp.Validate(otp, s) {
-			return nil, nil, fmt.Errorf("failed to validate OTP")
+			f := NewRWC([]byte("Bad OTP, please try again\n"))
+			return nil, f, nil
 		}
 		if peer == nil {
 			return nil, nil, fmt.Errorf("failed to get peer")
@@ -208,7 +209,9 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to verify peer - %s", err)
 		}
-		return nil, nil, nil
+		Logger.Debugf("authorized peer: %s", target)
+		f := NewRWC([]byte("Authorized\n"))
+		return nil, f, nil
 	case "ping":
 		// ping can be used to check if the server is alive
 		// if given an argument, it assumes it'n an OTP and will
