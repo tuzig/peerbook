@@ -186,12 +186,25 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 		if !exists {
 			return nil, nil, fmt.Errorf("peer does not exist")
 		}
-		peer, err := GetPeer(target)
+		clientPeer, err := GetPeer(fp)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to get peer - %s", err)
 		}
+		if clientPeer == nil {
+			return nil, nil, fmt.Errorf("failed to get client's peer")
+		}
+		targetPeer, err := GetPeer(target)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get peer - %s", err)
+		}
+		if targetPeer == nil {
+			return nil, nil, fmt.Errorf("failed to get client's peer")
+		}
+		if targetPeer.User != clientPeer.User {
+			return nil, nil, fmt.Errorf("target peer is not owned by client")
+		}
 		// validate the OTP
-		s, err := getUserSecret(peer.User)
+		s, err := getUserSecret(clientPeer.User)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to get user secret - %s", err)
 		}
@@ -201,9 +214,6 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 		if !totp.Validate(otp, s) {
 			f := NewRWC([]byte("Bad OTP, please try again\n"))
 			return nil, f, nil
-		}
-		if peer == nil {
-			return nil, nil, fmt.Errorf("failed to get peer")
 		}
 		err = VerifyPeer(target, true)
 		if err != nil {
