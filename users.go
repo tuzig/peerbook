@@ -175,6 +175,7 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 		f := NewRWC(msg)
 		return nil, f, nil
 	case "authorize":
+		Logger.Debug("authorizing peer")
 		target := command[1]
 		otp := command[2]
 		// check the fingerprint is in the db
@@ -261,6 +262,7 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 		f := NewRWC([]byte(ret))
 		return nil, f, err
 	}
+	Logger.Debugf("Got unknown command: %s", command)
 	return nil, nil, fmt.Errorf("Unknown peerbook command")
 }
 
