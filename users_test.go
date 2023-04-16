@@ -302,7 +302,7 @@ func TestAuthorizeCommand(t *testing.T) {
 	result, err := ioutil.ReadAll(f)
 	require.NoError(t, err)
 	// make sure the response starts with "Authorized"
-	require.Equal(t, "Authorized", string(result[:10]))
+	require.Equal(t, "1", string(result[0]))
 	// make sure the peer is marked as verified
 	require.Equal(t, "1", redisDouble.HGet("peer:B", "verified"))
 }
@@ -318,7 +318,7 @@ func TestBadOTPAuthorizeCommand(t *testing.T) {
 	require.NoError(t, err)
 	result, err := ioutil.ReadAll(f)
 	require.NoError(t, err)
-	require.NotEqual(t, "Authorized", string(result[:10]))
+	require.Equal(t, "0", string(result[0]))
 	require.Nil(t, cmd)
 	require.Equal(t, "0", redisDouble.HGet("peer:B", "verified"))
 }
