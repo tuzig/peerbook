@@ -211,16 +211,18 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 		if s == "" {
 			return nil, nil, fmt.Errorf("failed to get user secret")
 		}
+		ret := "0"
 		if !totp.Validate(otp, s) {
-			f := NewRWC([]byte("0"))
-			return nil, f, nil
+			Logger.Debug("Wrong otp")
+		} else {
+			err = VerifyPeer(target, true)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to verify peer - %s", err)
+			}
+			Logger.Debugf("authorized peer: %s", target)
+			ret = "1"
 		}
-		err = VerifyPeer(target, true)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to verify peer - %s", err)
-		}
-		Logger.Debugf("authorized peer: %s", target)
-		f := NewRWC([]byte("1"))
+		f := NewRWC([]byte(ret))
 		return nil, f, nil
 	case "ping":
 		// ping can be used to check if the server is alive
