@@ -22,7 +22,12 @@ func (h *Hub) run() {
 		select {
 		case c := <-h.register:
 			Logger.Infof("Registering %v", c)
-			c.SendPeerList()
+			if c.Verified {
+				c.SendPeerList()
+			} else {
+				go c.welcomeUnverified()
+			}
+
 			if err := c.SetOnline(true); err != nil {
 				Logger.Errorf("Failed setting a peer as online: %s", err)
 				continue
