@@ -164,15 +164,18 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 	}
 	go conn.readPump()
 	// if it's an unverified peer, keep the connection open and send a status message
+	hub.register <- conn
 	if !conn.Verified {
-		err = conn.sendStatus(http.StatusUnauthorized, fmt.Errorf(
-			"Unverified peer, please check your email to verify"))
-		if err != nil {
-			Logger.Errorf("Failed to send status message: %s", err)
-		}
+		Logger.Infof("Connection from unverified peer %q", conn.FP)
+		time.AfterFunc(200*time.Millisecond, func() {
+			err = conn.sendStatus(http.StatusUnauthorized, fmt.Errorf(
+				"Unverified peer, please check your email to verify"))
+			if err != nil {
+				Logger.Errorf("Failed to send status message: %s", err)
+			}
+		})
 		go conn.welcomeUnverified()
 	}
-	hub.register <- conn
 }
 
 func (c *Conn) welcomeUnverified() {
