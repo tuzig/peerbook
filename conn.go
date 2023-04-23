@@ -178,7 +178,7 @@ func (c *Conn) welcomeUnverified() {
 		Logger.Errorf("Failed to send status message: %s", err)
 		return
 	}
-	err = sendAuthEmail(email)
+	err = sendAuthEmail(email, c.User)
 	if err != nil {
 		Logger.Errorf("Failed to send email: %s", err)
 		c.sendStatus(http.StatusInternalServerError, fmt.Errorf(

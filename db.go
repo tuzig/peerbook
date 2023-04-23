@@ -37,16 +37,16 @@ func RandomString(n int) string {
 	return base64.URLEncoding.EncodeToString(b)
 }
 
-// CreateToken creates a short-live token to be emailed to the user
-func (d *DBType) CreateToken(email string) (string, error) {
-	if email == "" {
+// email creates a short-live token to be emailed to the user
+func (d *DBType) CreateToken(uid string) (string, error) {
+	if uid == "" {
 		return "", fmt.Errorf("Failied to create a token for an empty email")
 	}
 	token := RandomString(TokenLen)
 	key := fmt.Sprintf("token:%s", token)
 	conn := d.getConn()
 	defer conn.Close()
-	_, err := conn.Do("SETEX", key, TokenTTL, email)
+	_, err := conn.Do("SETEX", key, TokenTTL, uid)
 	if err != nil {
 		return "", fmt.Errorf("Failed to set token: %w", err)
 	}
@@ -87,15 +87,15 @@ func (d *DBType) GetToken(token string) (string, error) {
 	return value, nil
 }
 
-// GetUser gets a user from redis
-func (d *DBType) GetUser(email string) (*DBUser, error) {
+// GetPeers gets a user from redis
+func (d *DBType) GetPeers(uid string) (*DBUser, error) {
 	var r DBUser
-	key := fmt.Sprintf("user:%s", email)
+	key := fmt.Sprintf("user:%s", uid)
 	conn := d.getConn()
 	defer conn.Close()
 	values, err := redis.Values(conn.Do("SMEMBERS", key))
 	if err != nil {
-		return nil, fmt.Errorf("Failed to read user %q list: %w", email, err)
+		return nil, fmt.Errorf("Failed to read user %q list: %w", uid, err)
 	}
 	for _, fp := range values {
 		r = append(r, string(fp.([]byte)))
@@ -228,8 +228,8 @@ func (d *DBType) canSendEmail(email string) bool {
 	_, err = conn.Do("SETEX", key, EmailInterval, "1")
 	return true
 }
-func (d *DBType) SetQRVerified(email string) error {
-	key := fmt.Sprintf("QRVerified:%s", email)
+func (d *DBType) SetQRVerified(uid string) error {
+	key := fmt.Sprintf("QRVerified:%s", uid)
 	conn := d.getConn()
 	defer conn.Close()
 	_, err := conn.Do("SET", key, "1")
@@ -241,8 +241,8 @@ func (d *DBType) getConn() redis.Conn {
 	d.poolM.Unlock()
 	return conn
 }
-func (d *DBType) IsQRVerified(email string) bool {
-	key := fmt.Sprintf("QRVerified:%s", email)
+func (d *DBType) IsQRVerified(uid string) bool {
+	key := fmt.Sprintf("QRVerified:%s", uid)
 	conn := d.getConn()
 	defer conn.Close()
 	seen, err := redis.Bool(conn.Do("EXISTS", key))
@@ -355,6 +355,17 @@ func (d *DBType) GetEmail(uID string) (string, error) {
 	return email, nil
 }
 
+// GetUserID returns the user id of an email
+func (d *DBType) GetUserID(email string) (string, error) {
+	key := fmt.Sprintf("id:%s", email)
+	conn := d.pool.Get()
+	defer conn.Close()
+	id, err := redis.String(conn.Do("GET", key))
+	if err != nil {
+		return "", fmt.Errorf("Failed to get %s: %w", key, err)
+	}
+	return id, nil
+}
 func (d *DBType) RemoveTempID(tempID string) error {
 	conn := d.pool.Get()
 	defer conn.Close()

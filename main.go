@@ -107,9 +107,9 @@ func (e *NewSecret) Error() string {
 	return "Couldn't find a secret, generated a new one"
 }
 
-// getUserFromRequest It workis assuming a valid token is the second
+// getUIDFromRequest It works assuming a valid token is the second
 // url part
-func getUserFromRequest(r *http.Request) (string, error) {
+func getUIDFromRequest(r *http.Request) (string, error) {
 	i := strings.IndexRune(r.URL.Path[1:], '/')
 	t := r.URL.Path[i+2:]
 	token, err := url.PathUnescape(t)
@@ -125,7 +125,7 @@ func getUserFromRequest(r *http.Request) (string, error) {
 }
 
 func serveAuthPage(w http.ResponseWriter, r *http.Request) {
-	user, err := getUserFromRequest(r)
+	user, err := getUIDFromRequest(r)
 	if err != nil {
 		goHome(w, r, "Stale token, please try again")
 		Logger.Warnf("Failed to get user from req: %s", err)
@@ -274,6 +274,8 @@ func serveHitMe(w http.ResponseWriter, r *http.Request) {
 		Message string
 		User    string
 	}
+	var uid string
+	var email string
 	if r.Method == "POST" {
 		err := r.ParseForm()
 		if err != nil {
@@ -282,17 +284,19 @@ func serveHitMe(w http.ResponseWriter, r *http.Request) {
 			data.Message = msg
 			goto render
 		}
-		data.User = r.Form.Get("email")
-		if data.User == "" {
+		email = r.Form.Get("email")
+		if email == "" {
 			data.Message = "Failed as no email was posted"
 			goto render
 		}
-		err = sendAuthEmail(data.User)
+		uid, err = db.GetUserID(email)
+		err = sendAuthEmail(email, uid)
 		if err != nil {
 			data.Message = fmt.Sprintf("Failed to send email: %s", err)
 			goto render
 		}
 		data.Message = "You've been hit with the email stick"
+		data.User = email
 	render:
 		tmpl, err := template.ParseFS(tFS, "templates/index.tmpl", "templates/base.tmpl")
 		if err != nil {
@@ -522,9 +526,9 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 	return srv
 }
 
-func createTempURL(email string, prefix string, rel bool) (string, error) {
+func createTempURL(uid string, prefix string, rel bool) (string, error) {
 	var s string
-	token, err := db.CreateToken(email)
+	token, err := db.CreateToken(uid)
 	if err != nil {
 		return "", fmt.Errorf("Failed to create token: %w", err)
 	}
@@ -541,13 +545,13 @@ func createTempURL(email string, prefix string, rel bool) (string, error) {
 // sendAuthEmail creates a short lived token and emails a message with a link
 // to `/auth/<token>` so the javascript at /auth can read the list of peers and
 // use checkboxes to enable/disable
-func sendAuthEmail(email string) error {
+func sendAuthEmail(email string, uid string) error {
 	if !db.canSendEmail(email) {
 		return fmt.Errorf("Throttling prevented sending email to %q", email)
 	}
 	Logger.Infof("Sending email to: %s", email)
 	m := gomail.NewMessage()
-	clickL, err := createTempURL(email, "pb", false)
+	clickL, err := createTempURL(uid, "pb", false)
 	if err != nil {
 		return fmt.Errorf("Failed to sendte temp URL: %s", err)
 	}
@@ -641,7 +645,7 @@ func goHome(w http.ResponseWriter, r *http.Request, msg string) {
 func serveQR(w http.ResponseWriter, r *http.Request) {
 	var msg string
 
-	user, err := getUserFromRequest(r)
+	user, err := getUIDFromRequest(r)
 	if err != nil {
 		goHome(w, r, "Stale token, please try again")
 		Logger.Warnf("Failed to get user from req: %s", err)

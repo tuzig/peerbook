@@ -66,9 +66,9 @@ func NewPeer(fp string, name string, user string, kind string) *Peer {
 }
 
 // Getting the list of users peers
-func GetUsersPeers(email string) (*PeerList, error) {
+func GetUsersPeers(uid string) (*PeerList, error) {
 	var l PeerList
-	u, err := db.GetUser(email)
+	u, err := db.GetPeers(uid)
 	if err != nil {
 		return nil, err
 	}
