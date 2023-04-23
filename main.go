@@ -308,101 +308,76 @@ func serveHitMe(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 }
+
+// serveVerify is the handler for the /verify endpoint
+// It is used to verify and create a peer.
+// If succesfull returns 201 for newly created peers or 200 for already
+// existing peers and a JSON object with the peer's user id and a boolean
+// indicating if the peer is verified or not.
 func serveVerify(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
 	var req map[string]string
 	dec := json.NewDecoder(r.Body)
 	err := dec.Decode(&req)
-	fp := req["fp"]
-	uid := req["uid"]
 	if err != nil {
 		http.Error(w, "Bad JSON", http.StatusBadRequest)
 		return
 	}
+	fp := req["fp"]
 	if fp == "" {
 		http.Error(w, "Missing fingerprint", http.StatusBadRequest)
 		return
 	}
-	if uid == "" {
-		http.Error(w, "Missing user ID", http.StatusBadRequest)
+	uid := req["uid"]
+	var peer *Peer
+	pexists, err := db.PeerExists(fp)
+	if err != nil {
+		http.Error(w, "DB read failure", http.StatusInternalServerError)
 		return
 	}
-	if r.Method == "POST" {
-		var peer *Peer
-		pexists, err := db.PeerExists(fp)
+	if !pexists {
+		peer = NewPeer(fp, req["name"], uid, req["kind"])
+		err = db.AddPeer(peer)
 		if err != nil {
-			http.Error(w, "DB read failure", http.StatusInternalServerError)
+			msg := fmt.Sprintf("Failed to add peer: %s", err)
+			Logger.Warn(msg)
+			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
-		if !pexists {
-			peer = NewPeer(fp, req["name"], uid, req["kind"])
-			err = db.AddPeer(peer)
-			if err != nil {
-				msg := fmt.Sprintf("Failed to add peer: %s", err)
-				Logger.Warn(msg)
-				http.Error(w, msg, http.StatusInternalServerError)
-				return
-			}
-			// sendAuthEmail(email)
-		} else {
-			peer, err = GetPeer(fp)
-			if err != nil {
-				msg := fmt.Sprintf("Failed to get peer: %s", err)
-				Logger.Errorf(msg)
-				m, _ := json.Marshal(map[string]string{"m": msg})
-				http.Error(w, string(m), http.StatusInternalServerError)
-				return
-			}
-			if peer.User == "" {
-				peer = NewPeer(fp, req["name"], uid, req["kind"])
-				err = db.AddPeer(peer)
-				if err != nil {
-					msg := fmt.Sprintf("Failed to add peer: %s", err)
-					Logger.Warn(msg)
-					http.Error(w, msg, http.StatusInternalServerError)
-					return
-				}
-			} else if peer.User != uid {
-				msg := fmt.Sprintf(
-					"Fingerprint is associated to another user: %s", peer.User)
-				http.Error(w, msg, http.StatusConflict)
-				return
-			}
-			if peer.Name != req["name"] {
-				peer.setName(req["name"])
-			}
-			/*
-				if !peer.Verified {
-					sendAuthEmail(email)
-				}
-			*/
+		w.WriteHeader(http.StatusCreated)
+	} else {
+		peer, err = GetPeer(fp)
+		if err != nil {
+			msg := fmt.Sprintf("Failed to get peer: %s", err)
+			Logger.Errorf(msg)
+			m, _ := json.Marshal(map[string]string{"m": msg})
+			http.Error(w, string(m), http.StatusInternalServerError)
+			return
 		}
-		var m []byte
-		if peer.Verified {
-			ps, err := GetUsersPeers(peer.User)
-			if err != nil {
-				msg := fmt.Sprintf("Failed to get user peers: %s", err)
-				Logger.Errorf(msg)
-				http.Error(w, msg, http.StatusInternalServerError)
-				return
-			}
-			m, err = json.Marshal(map[string]interface{}{"peers": ps})
-			if err != nil {
-				msg := fmt.Sprintf("Failed marshel peers: %s", err)
-				Logger.Errorf(msg)
-				http.Error(w, msg, http.StatusInternalServerError)
-				return
-			}
-		} else {
-			m, err = json.Marshal(map[string]bool{"verified": peer.Verified})
-			if err != nil {
-				msg := fmt.Sprintf("Failed to marshal user's list: %s", err)
-				Logger.Errorf(msg)
-				http.Error(w, msg, http.StatusInternalServerError)
-				return
-			}
+		if peer.User != "" && peer.User != uid {
+			msg := fmt.Sprintf(
+				"Fingerprint is associated to another user: %s", peer.User)
+			http.Error(w, msg, http.StatusConflict)
+			return
 		}
-		w.Write(m)
+		if peer.Name != req["name"] {
+			peer.setName(req["name"])
+		}
 	}
+	var m []byte
+	m, err = json.Marshal(map[string]interface{}{
+		"verified": peer.Verified,
+		"uid":      peer.User})
+	if err != nil {
+		msg := fmt.Sprintf("Failed to marshal user's list: %s", err)
+		Logger.Errorf(msg)
+		http.Error(w, msg, http.StatusInternalServerError)
+		return
+	}
+	w.Write(m)
 }
 func serveHome(w http.ResponseWriter, r *http.Request) {
 

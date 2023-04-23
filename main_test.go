@@ -441,10 +441,10 @@ func TestVerifyUnverified(t *testing.T) {
 		bytes.NewBuffer(m))
 	require.Nil(t, err)
 	defer resp.Body.Close()
-	var ret map[string]bool
+	var ret map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&ret)
 	require.Nil(t, err)
-	require.False(t, ret["verified"])
+	require.False(t, ret["verified"].(bool))
 }
 func TestWSNew(t *testing.T) {
 	startTest(t)
@@ -477,20 +477,20 @@ func TestVerifyNew(t *testing.T) {
 	resp, err := http.Post("http://127.0.0.1:17777/verify", "application/json",
 		bytes.NewBuffer(m))
 	require.Nil(t, err)
-	require.Equal(t, 200, resp.StatusCode)
+	require.Equal(t, 201, resp.StatusCode)
 	defer resp.Body.Close()
-	var ret map[string]bool
+	var ret map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&ret)
 	require.Nil(t, err)
-	require.False(t, ret["verified"])
+	require.False(t, ret["verified"].(bool))
 	require.Equal(t, "0", redisDouble.HGet("peer:A", "verified"))
 	require.Equal(t, "foo", redisDouble.HGet("peer:A", "name"))
 	require.Equal(t, "server", redisDouble.HGet("peer:A", "kind"))
 }
-func TestVerifyVerified(t *testing.T) {
+func TestVerifyAVerified(t *testing.T) {
 	startTest(t)
 	// setup the fixture - a user, his token and two peers
-	redisDouble.SetAdd("user:j", "A", "B")
+	redisDouble.SetAdd("user:j", "B")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "0")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
@@ -502,13 +502,14 @@ func TestVerifyVerified(t *testing.T) {
 		bytes.NewBuffer(m))
 	require.Nil(t, err)
 	defer resp.Body.Close()
+	require.Equal(t, 200, resp.StatusCode)
 	var ret map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&ret)
 	require.Nil(t, err, "failed to decode: %v", ret)
-	v, found := ret["peers"]
+	v, found := ret["verified"]
 	require.True(t, found, "got back: %v", ret)
-	ps := v.([]interface{})
-	require.Equal(t, 2, len(ps), "got back: %v", ps)
+	verified := v.(bool)
+	require.True(t, verified, "got back: %v", ret)
 }
 func TestVerifyWrongUser(t *testing.T) {
 	startTest(t)
