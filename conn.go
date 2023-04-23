@@ -173,9 +173,12 @@ func (c *Conn) welcomeUnverified() {
 	if err != nil {
 		Logger.Errorf("Failed to send status message: %s", err)
 	}
+	if c.User == "" {
+		return
+	}
 	email, err := db.GetEmail(c.User)
 	if err != nil {
-		Logger.Errorf("Failed to send status message: %s", err)
+		Logger.Errorf("Failed to get email for user: %s err %s", c.User, err)
 		return
 	}
 	err = sendAuthEmail(email, c.User)

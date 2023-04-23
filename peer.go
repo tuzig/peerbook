@@ -77,9 +77,6 @@ func GetUsersPeers(uid string) (*PeerList, error) {
 		p, err := GetPeer(fp)
 		if err != nil {
 			Logger.Warnf("Failed to read peer: %w", err)
-			if err != nil {
-				Logger.Errorf("Failed to send status message: %s", err)
-			}
 		} else {
 			l = append(l, p)
 		}
