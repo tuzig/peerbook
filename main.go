@@ -361,7 +361,7 @@ func serveVerify(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, string(m), http.StatusInternalServerError)
 			return
 		}
-		if peer.User != "" && peer.User != uid {
+		if peer.User != "" && uid != "" && peer.User != uid {
 			msg := fmt.Sprintf(
 				"Fingerprint is associated to another user: %s", peer.User)
 			http.Error(w, msg, http.StatusConflict)

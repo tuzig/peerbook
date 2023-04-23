@@ -319,7 +319,7 @@ func ConnFromQ(q url.Values) (*Conn, error) {
 				return nil, fmt.Errorf("Failed to add peer: %s", err)
 			}
 		}
-		if peer.User != uid {
+		if uid != "" && peer.User != uid {
 			return nil, fmt.Errorf(
 				"Fingerprint is associated to another user: %s", peer.User)
 		}
