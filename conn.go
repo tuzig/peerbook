@@ -324,8 +324,8 @@ func ConnFromQ(q url.Values) (*Conn, error) {
 			}
 		}
 		if uid != "" && peer.User != uid {
-			return nil, fmt.Errorf(
-				"Fingerprint is associated to another user: %s", peer.User)
+			Logger.Warnf(
+				"Ignoring request uid %s as db has %s for fp %s", uid, peer.User, fp)
 		}
 	}
 	return NewConn(peer)

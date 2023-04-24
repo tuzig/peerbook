@@ -569,6 +569,7 @@ func TestValidatePeerNPublish(t *testing.T) {
 	require.Equal(t, 401, s.Code)
 	// get the peers list on B
 	var pl map[string]*PeerList
+	time.Sleep(time.Second / 100)
 	err = wsB.ReadJSON(&pl)
 	require.Nil(t, err)
 	require.Contains(t, pl, "peers")
