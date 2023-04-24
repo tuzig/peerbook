@@ -557,7 +557,7 @@ func sendAuthEmail(email string, uid string) error {
 	m := gomail.NewMessage()
 	clickL, err := createTempURL(uid, "pb", false)
 	if err != nil {
-		return fmt.Errorf("Failed to sendte temp URL: %s", err)
+		return fmt.Errorf("Failed to create temp URL: %s", err)
 	}
 	htmlT, err := template.ParseFS(tFS, "templates/email.html.tmpl")
 	if err != nil {
