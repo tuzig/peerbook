@@ -181,11 +181,15 @@ func (c *Conn) welcomeUnverified() {
 		Logger.Errorf("Failed to get email for user: %s err %s", c.User, err)
 		return
 	}
+	if email == "" {
+		return
+	}
 	err = sendAuthEmail(email, c.User)
 	if err != nil {
 		Logger.Errorf("Failed to send email: %s", err)
 		c.sendStatus(http.StatusInternalServerError, fmt.Errorf(
 			"Failed to send email: %s", err))
+		return
 	}
 }
 

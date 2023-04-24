@@ -290,6 +290,10 @@ func serveHitMe(w http.ResponseWriter, r *http.Request) {
 			goto render
 		}
 		uid, err = db.GetUserID(email)
+		if err != nil {
+			data.Message = fmt.Sprintf("Failed to get user ID: %s", err)
+			goto render
+		}
 		err = sendAuthEmail(email, uid)
 		if err != nil {
 			data.Message = fmt.Sprintf("Failed to send email: %s", err)
@@ -549,7 +553,7 @@ func sendAuthEmail(email string, uid string) error {
 	if !db.canSendEmail(email) {
 		return fmt.Errorf("Throttling prevented sending email to %q", email)
 	}
-	Logger.Infof("Sending email to: %s", email)
+	Logger.Infof("Sending email to: %s, %s", email, uid)
 	m := gomail.NewMessage()
 	clickL, err := createTempURL(uid, "pb", false)
 	if err != nil {

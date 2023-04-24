@@ -40,7 +40,7 @@ func RandomString(n int) string {
 // email creates a short-live token to be emailed to the user
 func (d *DBType) CreateToken(uid string) (string, error) {
 	if uid == "" {
-		return "", fmt.Errorf("Failied to create a token for an empty email")
+		return "", fmt.Errorf("Failed to create a token for an empty uid")
 	}
 	token := RandomString(TokenLen)
 	key := fmt.Sprintf("token:%s", token)
