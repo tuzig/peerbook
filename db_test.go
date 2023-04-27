@@ -103,5 +103,6 @@ func TestDoubleAddUser(t *testing.T) {
 	err := db.AddUser("j", "123")
 	require.NoError(t, err)
 	err = db.AddUser("h", "123")
-	require.Error(t, err)
+	require.NoError(t, err)
+	require.Equal(t, "h", redisDouble.HGet("u:123", "email"))
 }

@@ -320,19 +320,12 @@ func (d *DBType) tempIDExists(id string) (bool, error) {
 // it recieves the users eamil.
 // If the user already exists, it returns the permanent user id
 // and an error
-func (d *DBType) AddUser(email string, id string) error {
+func (d *DBType) AddUser(email string, uid string) error {
 	conn := d.pool.Get()
 	defer conn.Close()
-	idkey := fmt.Sprintf("u:%s", id)
-	exists, err := redis.Bool(conn.Do("EXISTS", idkey))
-	if err != nil && err != redis.ErrNil {
-		return fmt.Errorf("Failed to get %s: %w", idkey, err)
-	}
-	if exists {
-		return fmt.Errorf("User already exists")
-	}
+	idkey := fmt.Sprintf("u:%s", uid)
 	key := fmt.Sprintf("id:%s", email)
-	_, err = conn.Do("SET", key, id)
+	_, err := conn.Do("SET", key, uid)
 	if err != nil {
 		return fmt.Errorf("Failed to set %s: %w", key, err)
 	}

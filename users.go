@@ -154,15 +154,17 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 		if uID == "" {
 			uID = GenerateUserID()
 			Logger.Infof("Generated new user ID: %s", uID)
+			peer.SetUser(uID)
 		} else {
 			Logger.Infof("Using existing user ID: %s", uID)
 		}
 		err = db.AddUser(email, uID)
-		if uID == "" {
-			return nil, nil, fmt.Errorf("failed to add/get a user - %s", err)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to add user - %s", err)
 		}
-		peer.SetUser(uID)
 		peer.setName(peerName)
+		VerifyPeer(fp, true)
+
 		sixel, err := GetQRSixel(uID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to generate QR code - %s", err)

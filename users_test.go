@@ -217,7 +217,7 @@ func TestRegisterCommand(t *testing.T) {
 	redisDouble, err = miniredis.Run()
 	require.NoError(t, err)
 	err = db.Connect("127.0.0.1:6379")
-	redisDouble.HSet("peer:A", "fp", "A", "name", "fucked up", "kind", "client", "verified", "1")
+	redisDouble.HSet("peer:A", "fp", "A", "name", "fucked up", "kind", "client", "verified", "0")
 	require.NoError(t, err)
 	_, err = GetPeer("A")
 	require.NoError(t, err)
@@ -239,6 +239,7 @@ func TestRegisterCommand(t *testing.T) {
 	id, err := redisDouble.Get("id:" + email)
 	require.NoError(t, err)
 	require.Equal(t, m["ID"], id)
+	require.Equal(t, "1", redisDouble.HGet("peer:A", "verified"))
 }
 func TestRegisterWExistingUser(t *testing.T) {
 	var err error
