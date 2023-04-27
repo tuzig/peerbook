@@ -240,6 +240,31 @@ func TestRegisterCommand(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, m["ID"], id)
 }
+func TestRegisterWExistingUser(t *testing.T) {
+	var err error
+	Logger = zaptest.NewLogger(t).Sugar()
+	redisDouble, err = miniredis.Run()
+	require.NoError(t, err)
+	err = db.Connect("127.0.0.1:6379")
+	redisDouble.SetAdd("user:j", "A")
+	redisDouble.HSet("u:j", "email", "j@example.com")
+	redisDouble.HSet("peer:A", "fp", "A", "user", "j", "name", "fucked up", "kind", "client", "verified", "1")
+	require.NoError(t, err)
+	_, err = GetPeer("A")
+	require.NoError(t, err)
+	_, f, err := RunCommand([]string{"register", "j@example.com", "yossi"}, nil, nil, 0, "A")
+	require.NoError(t, err)
+	require.NotNil(t, f)
+	b, err := ioutil.ReadAll(f)
+	require.NoError(t, err)
+	Logger.Infof("Got %d bytes", len(b))
+	var m map[string]string
+	err = json.Unmarshal(b, &m)
+	require.NoError(t, err)
+	require.Contains(t, m, "ID")
+	require.Equal(t, "j", m["ID"])
+	require.Contains(t, m, "QR")
+}
 func TestPingBadOTPCommand(t *testing.T) {
 	var err error
 	redisDouble, err = miniredis.Run()

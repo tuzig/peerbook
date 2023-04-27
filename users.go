@@ -150,8 +150,13 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 		if peer == nil {
 			return nil, nil, fmt.Errorf("failed to get peer")
 		}
-		uID := GenerateUserID()
-		Logger.Infof("registering user: %s", uID)
+		uID := peer.User
+		if uID == "" {
+			uID = GenerateUserID()
+			Logger.Infof("Generated new user ID: %s", uID)
+		} else {
+			Logger.Infof("Using existing user ID: %s", uID)
+		}
 		err = db.AddUser(email, uID)
 		if uID == "" {
 			return nil, nil, fmt.Errorf("failed to add/get a user - %s", err)
