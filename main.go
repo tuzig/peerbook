@@ -320,8 +320,8 @@ func serveHitMe(w http.ResponseWriter, r *http.Request) {
 // serveVerify is the handler for the /verify endpoint
 // It is used to verify and create a peer.
 // If succesfull returns 201 for newly created peers or 200 for already
-// existing peers and a JSON object with the peer's user id and a boolean
-// indicating if the peer is verified or not.
+// existing peers and a JSON object with `uid` & `verfified` for
+// the peer's user id and whether it's verified.
 func serveVerify(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
