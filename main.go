@@ -379,12 +379,14 @@ func serveVerify(w http.ResponseWriter, r *http.Request) {
 	m, err = json.Marshal(map[string]interface{}{
 		"verified": peer.Verified,
 		"uid":      peer.User})
+
 	if err != nil {
 		msg := fmt.Sprintf("Failed to marshal user's list: %s", err)
 		Logger.Errorf(msg)
 		http.Error(w, msg, http.StatusInternalServerError)
 		return
 	}
+	w.Header().Set("Content-Type", "application/json")
 	w.Write(m)
 }
 func serveHome(w http.ResponseWriter, r *http.Request) {
