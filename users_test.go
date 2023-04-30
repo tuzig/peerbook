@@ -178,7 +178,7 @@ func TestRevenuCatWH(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "1", v)
 }
-func TestBackendAuthorized(t *testing.T) {
+func TestBackendUnauthorized(t *testing.T) {
 	var err error
 	redisDouble, err = miniredis.Run()
 	require.NoError(t, err)
@@ -187,20 +187,21 @@ func TestBackendAuthorized(t *testing.T) {
 	b := NewUsersAuth()
 	require.False(t, b.IsAuthorized("foo"))
 }
-func TestBackendUnAuthorized(t *testing.T) {
+func TestBackendAuthorized(t *testing.T) {
 	var err error
 	redisDouble, err = miniredis.Run()
-	redisDouble.Set("peer:foo", "1")
+	redisDouble.HSet("peer:foo", "fp", "foo", "verified", "1")
 	require.NoError(t, err)
 	err = db.Connect("127.0.0.1:6379")
 	require.NoError(t, err)
 	b := NewUsersAuth()
 	require.True(t, b.IsAuthorized("foo"))
 }
-func TestBackendAuthorizedTempID(t *testing.T) {
+func TestBackendAuthorizeByBearer(t *testing.T) {
 	var err error
 	Logger = zaptest.NewLogger(t).Sugar()
 	redisDouble, err = miniredis.Run()
+	redisDouble.HSet("peer:foo", "fp", "foo", "verified", "0")
 	redisDouble.Set("tempid:bar", "1")
 	require.NoError(t, err)
 	err = db.Connect("127.0.0.1:6379")
@@ -209,7 +210,7 @@ func TestBackendAuthorizedTempID(t *testing.T) {
 	require.True(t, b.IsAuthorized("foo", "bar"))
 	verified, err := IsVerified("foo")
 	require.NoError(t, err)
-	require.True(t, verified)
+	require.False(t, verified)
 }
 func TestRegisterCommand(t *testing.T) {
 	var err error
@@ -239,7 +240,7 @@ func TestRegisterCommand(t *testing.T) {
 	id, err := redisDouble.Get("id:" + email)
 	require.NoError(t, err)
 	require.Equal(t, m["ID"], id)
-	require.Equal(t, "1", redisDouble.HGet("peer:A", "verified"))
+	require.Equal(t, "0", redisDouble.HGet("peer:A", "verified"))
 }
 func TestRegisterWExistingUser(t *testing.T) {
 	var err error

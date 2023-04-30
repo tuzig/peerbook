@@ -28,43 +28,37 @@ func NewUsersAuth() *UsersAuth {
 }
 
 // IsAuthorized is called by the http handler to checks if a peer is
-// authorized. Accepts at least one token and assumes the first
-// token is the fingerprint. returns true if any of the tokens
+// authorized.
+// Returns true if any of the tokens
 // are authorized.
 func (a *UsersAuth) IsAuthorized(tokens ...string) bool {
-	Logger.Debugf("checking if user is authorized: %v", tokens)
-	for _, t := range tokens {
-		exists, err := db.PeerExists(t)
-		if err != nil {
-			Logger.Error("error checking if peer exists", err)
-			return false
-		}
-		if exists {
-			return true
-		}
-		exists, err = db.tempIDExists(t)
+	if len(tokens) >= 2 {
+		bearer := tokens[1]
+		exists, err := db.tempIDExists(bearer)
+		Logger.Debugf("checked if bearer exists: %s %b", bearer, exists)
 		if err != nil {
 			Logger.Error("error checking if temp id exists", err)
 			return false
 		}
 		if exists {
-			// The FP is the first token
-			fp := tokens[0]
-			Logger.Debugf("registering user with fp: %s", fp)
-			peer := NewPeer(fp, "temp", "", "client")
-			peer.Verified = true
-			err = db.AddPeer(peer)
-			if err != nil {
-				Logger.Error("error registering user", err)
-				return false
-			}
-			// remove the temp id
-			err = db.RemoveTempID(t)
-			if err != nil {
-				Logger.Error("error removing temp id", err)
-			}
+			// token matched a temp id, so we can let the peer in, just this once
 			return true
+			//TODO: remove the temp id
+			/*
+				err = db.RemoveTempID(t)
+				if err != nil {
+					Logger.Error("error removing temp id", err)
+				}
+			*/
 		}
+	}
+	fp := tokens[0]
+	peer, err := GetPeer(fp)
+	if err != nil {
+		Logger.Warnf("error getting peer %s: %s", fp, err)
+	}
+	if peer != nil {
+		return peer.Verified
 	}
 	return false
 }
@@ -163,7 +157,6 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 			return nil, nil, fmt.Errorf("failed to add user - %s", err)
 		}
 		peer.setName(peerName)
-		VerifyPeer(fp, true)
 
 		sixel, err := GetQRSixel(uID)
 		if err != nil {
@@ -267,6 +260,7 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 		ret := "0"
 		if totp.Validate(otp, s) {
 			ret = "1"
+			VerifyPeer(fp, true)
 		}
 		f := NewRWC([]byte(ret))
 		return nil, f, err
