@@ -58,6 +58,7 @@ func serveRCWH(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&whevent)
 	if err != nil {
+		Logger.Warnf("failed to decode revenue cat event - %s", err)
 		http.Error(w, fmt.Sprintf("failed to decode webhook - %s", err),
 			http.StatusBadRequest)
 		return
@@ -66,10 +67,12 @@ func serveRCWH(w http.ResponseWriter, r *http.Request) {
 	switch event.Type {
 	case "INITIAL_PURCHASE":
 		// add the user's temp_id to the db
+		Logger.Infof("adding temp id %s", event.AppUserID)
 		db.AddTempID(event.AppUserID)
 		break
 	case "EXPIRATION":
 		// mark the user as inactive
+		Logger.Infof("user subscription expired %s", event.AppUserID)
 		db.SetUserActive(event.AppUserID, false)
 		break
 	}
