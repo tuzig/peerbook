@@ -172,6 +172,7 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to marshal json - %s", err)
 		}
+		Logger.Debugf("succesful registration with response: %s", msg)
 		f := NewRWC(msg)
 		return nil, f, nil
 	case "authorize":
