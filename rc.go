@@ -64,19 +64,14 @@ func serveRCWH(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	event := whevent.Event
-	Logger.Debugf("got RC event %s %s", event.Type, event.AppUserID)
 	switch event.Type {
-	case "RENEWAL":
-	case "INITIAL_PURCHASE":
+	case "RENEWAL", "INITIAL_PURCHASE", "UNCANCELLATION":
 		// add the user's temp_id to the db
 		Logger.Infof("adding temp id %s", event.AppUserID)
 		db.AddTempID(event.AppUserID)
-		break
-	case "EXPIRATION":
+	case "EXPIRATION", "CANCELLATION":
 		// mark the user as inactive
-		Logger.Infof("user subscription expired %s", event.AppUserID)
+		Logger.Infof("got RC subscription expired %s", event.AppUserID)
 		db.SetUserActive(event.AppUserID, false)
-		break
 	}
-
 }
