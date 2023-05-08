@@ -64,6 +64,7 @@ func serveRCWH(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	event := whevent.Event
+	Logger.Debugf("got RC event %s %s", event.Type, event.AppUserID)
 	switch event.Type {
 	case "INITIAL_PURCHASE":
 		// add the user's temp_id to the db

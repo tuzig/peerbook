@@ -92,19 +92,23 @@ func GetICEServers() ([]webrtc.ICEServer, error) {
 			servers[i].Username, servers[i].Credential = genCredential(server.Username)
 		}
 	}
-	twilioServers, err := getTwilio()
-	if err != nil {
-		Logger.Errorf("Failed to get ICE servers from twilio: %s", err)
+	if os.Getenv("TWILIO_AUTH_TOKEN") != "" {
+		twilioServers, err := getTwilio()
+		if err != nil {
+			Logger.Errorf("Failed to get ICE servers from twilio: %s", err)
+		} else {
+			servers = append(servers, twilioServers...)
+		}
+		for _, s := range servers {
+			iceservers = append(iceservers, webrtc.ICEServer{
+				URLs:           []string{s.Urls},
+				Username:       s.Username,
+				Credential:     s.Credential,
+				CredentialType: webrtc.ICECredentialTypePassword,
+			})
+		}
 	} else {
-		servers = append(servers, twilioServers...)
-	}
-	for _, s := range servers {
-		iceservers = append(iceservers, webrtc.ICEServer{
-			URLs:           []string{s.Urls},
-			Username:       s.Username,
-			Credential:     s.Credential,
-			CredentialType: webrtc.ICECredentialTypePassword,
-		})
+		Logger.Warn("TWILIO_AUTH_TOKEN not set, using local TURN server")
 	}
 	return iceservers, nil
 }
