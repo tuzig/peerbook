@@ -222,13 +222,17 @@ func (c *Conn) SendPeerList() error {
 	if err != nil {
 		return fmt.Errorf("Failed to get peer list: %w", err)
 	}
+
+	var m []byte
 	if ps != nil && len(*ps) > 0 {
-		m, err := json.Marshal(map[string]interface{}{"peers": ps})
-		if err != nil {
-			return fmt.Errorf("Failed to marshal peer list: %w", err)
-		}
-		c.send <- m
+		m, err = json.Marshal(map[string]interface{}{"peers": ps})
+	} else {
+		m, err = json.Marshal(map[string]interface{}{"peers": []string{}})
 	}
+	if err != nil {
+		return fmt.Errorf("Failed to marshal peer list: %w", err)
+	}
+	c.send <- m
 	return nil
 }
 
