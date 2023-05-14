@@ -119,6 +119,8 @@ func TestSignalingAcrossUsers(t *testing.T) {
 	require.Contains(t, pl, "peers")
 	peers := pl["peers"].([]interface{})
 	require.Equal(t, 1, len(peers))
+	uid := pl["uid"].(string)
+	require.Equal(t, "j", uid)
 	err = wsA.ReadJSON(&pl)
 	require.Nil(t, err)
 	require.Contains(t, pl, "peer_update")
@@ -177,12 +179,14 @@ func TestValidSignaling(t *testing.T) {
 	err = wsA.ReadJSON(&m)
 	require.Nil(t, err)
 	require.Contains(t, m, "peers")
+	require.Contains(t, m, "uid")
 	err = wsA.ReadJSON(&m)
 	require.Nil(t, err)
 	require.Contains(t, m, "peer_update")
 	err = wsB.ReadJSON(&m)
 	require.Nil(t, err)
 	require.Contains(t, m, "peers")
+	require.Contains(t, m, "uid")
 	err = wsB.ReadJSON(&m)
 	require.Nil(t, err)
 	require.Contains(t, m, "peer_update")
@@ -421,6 +425,7 @@ func TestHTTPPeerVerification(t *testing.T) {
 	require.Equal(t, float64(200), m["code"], "got msg %v", m)
 	err = ws.ReadJSON(&m)
 	require.Contains(t, m, "peers", "got msg %v", m)
+	require.Contains(t, m, "uid")
 	peers := m["peers"].([]interface{})
 	require.Equal(t, 2, len(peers), "got msg %v", m)
 	require.Nil(t, err)
@@ -567,13 +572,17 @@ func TestValidatePeerNPublish(t *testing.T) {
 	err = wsA.ReadJSON(&s)
 	require.Nil(t, err)
 	require.Equal(t, 401, s.Code)
+	// TODO: use this is the code as well
+	var pl struct {
+		Peers *PeerList `json:"peers"`
+		UID   string    `json:"uid"`
+	}
 	// get the peers list on B
-	var pl map[string]*PeerList
 	time.Sleep(time.Second / 100)
 	err = wsB.ReadJSON(&pl)
 	require.Nil(t, err)
-	require.Contains(t, pl, "peers")
-	require.Equal(t, 2, len(*pl["peers"]))
+	require.Equal(t, "j", pl.UID)
+	require.Equal(t, 2, len(*pl.Peers))
 	// authenticate both A & B
 	resp, err := http.PostForm("http://127.0.0.1:17777/pb/avalidtoken",
 		url.Values{"A": {"checked"}, "B": {"checked"}, "otp": {otp}})
@@ -589,7 +598,8 @@ func TestValidatePeerNPublish(t *testing.T) {
 	require.Equal(t, 200, s2.Code, "go msg: %s", s.Text)
 	err = wsA.ReadJSON(&pl)
 	require.Nil(t, err, "ReadJSON returned err: %s", err)
-	require.Contains(t, pl, "peers")
+	require.NotNil(t, pl.Peers)
+	require.NotEmpty(t, pl.UID)
 }
 func TestGoodOTP2(t *testing.T) {
 	startTest(t)

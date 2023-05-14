@@ -196,7 +196,10 @@ func VerifyPeer(fp string, verified bool) error {
 			if err != nil {
 				return err
 			}
-			return SendMessage(fp, map[string]interface{}{"peers": ps})
+			return SendMessage(fp, map[string]interface{}{
+				"peers": ps,
+				"uid":   user,
+			})
 		}
 	} else {
 		rc.Do("HSET", key, "verified", "0")
