@@ -165,7 +165,7 @@ func TestRevenuCatWH(t *testing.T) {
 	err = db.Connect("127.0.0.1:6379")
 	require.NoError(t, err)
 	msg := RCWebhookEvent{
-		Event: RCEvent{AppUserID: "123", Type: "INITIAL_PURCHASE"},
+		Event: RCEvent{AppUserID: "temp123", Type: "INITIAL_PURCHASE"},
 	}
 	body, err := json.Marshal(msg)
 	req, err := http.NewRequest("POST", "/rcwh", bytes.NewReader(body))
@@ -174,7 +174,7 @@ func TestRevenuCatWH(t *testing.T) {
 	handler := http.HandlerFunc(serveRCWH)
 	handler.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code)
-	v, err := redisDouble.Get("tempid:123")
+	v, err := redisDouble.Get("tempid:temp123")
 	require.NoError(t, err)
 	require.Equal(t, "1", v)
 }

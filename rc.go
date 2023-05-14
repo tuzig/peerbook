@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 )
 
 type subscriberAttributes map[string]subscriberAttribute
@@ -66,12 +67,20 @@ func serveRCWH(w http.ResponseWriter, r *http.Request) {
 	event := whevent.Event
 	switch event.Type {
 	case "RENEWAL", "INITIAL_PURCHASE", "UNCANCELLATION":
-		// add the user's temp_id to the db
-		Logger.Infof("adding temp id %s", event.AppUserID)
-		db.AddTempID(event.AppUserID)
+
+		if isTemp(event.AppUserID) {
+			Logger.Infof("adding temp id %s", event.AppUserID)
+			db.AddTempID(event.AppUserID)
+		} else {
+			Logger.Infof("got RC subscription renewal %s", event.AppUserID)
+		}
 	case "EXPIRATION", "CANCELLATION":
 		// mark the user as inactive
 		Logger.Infof("got RC subscription expired %s", event.AppUserID)
 		db.SetUserActive(event.AppUserID, false)
 	}
+}
+func isTemp(s string) bool {
+	match, _ := regexp.MatchString("^[0-9]+$", s)
+	return !match
 }
