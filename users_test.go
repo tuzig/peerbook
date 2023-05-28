@@ -309,7 +309,7 @@ func TestPingCommand(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, byte('1'), result[0])
 }
-func TestAuthorizeCommand(t *testing.T) {
+func TestVerfifyCommand(t *testing.T) {
 	var err error
 	redisDouble, err = miniredis.Run()
 	require.NoError(t, err)
@@ -333,7 +333,7 @@ func TestAuthorizeCommand(t *testing.T) {
 	// make sure the peer is marked as verified
 	require.Equal(t, "1", redisDouble.HGet("peer:B", "verified"))
 }
-func TestBadOTPAuthorizeCommand(t *testing.T) {
+func TestBadOTPVerfifyCommand(t *testing.T) {
 	var err error
 	redisDouble, err = miniredis.Run()
 	require.NoError(t, err)
@@ -348,6 +348,31 @@ func TestBadOTPAuthorizeCommand(t *testing.T) {
 	require.Equal(t, "0", string(result[0]))
 	require.Nil(t, cmd)
 	require.Equal(t, "0", redisDouble.HGet("peer:B", "verified"))
+}
+func TestVerifyFreshPeer(t *testing.T) {
+	var err error
+	Logger = zaptest.NewLogger(t).Sugar()
+	redisDouble, err = miniredis.Run()
+	require.NoError(t, err)
+	err = db.Connect("127.0.0.1:6379")
+	redisDouble.FlushAll()
+	redisDouble.SetAdd("user:j", "A")
+	redisDouble.HSet("u:j", "email", "j@example.com")
+	redisDouble.HSet("peer:A", "fp", "A", "user", "j", "name", "fucked up", "kind", "client", "verified", "1")
+	ok, err := getUserKey("j")
+	require.NoError(t, err)
+	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
+	require.NoError(t, err)
+	cmd, f, err := RunCommand([]string{"verify", "B", otp}, nil, nil, 0, "A")
+	require.NoError(t, err)
+	require.Nil(t, cmd)
+	// read the response from f
+	result, err := ioutil.ReadAll(f)
+	require.NoError(t, err)
+	// make sure the response starts with "Authorized"
+	require.Equal(t, "1", string(result[0]))
+	// make sure the peer is marked as verified
+	require.Equal(t, "1", redisDouble.HGet("peer:B", "verified"))
 }
 func TestRegisterCommandWithExistingUser(t *testing.T) {
 	var err error

@@ -174,33 +174,13 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 		Logger.Debug("verifying peer")
 		target := command[1]
 		otp := command[2]
-		// check the fingerprint is in the db
-		exists, err := db.PeerExists(target)
+		// get the uid of the admin
+		uID, err := db.GetUID4FP(fp)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to check peer exists - %s", err)
-		}
-		if !exists {
-			return nil, nil, fmt.Errorf("peer does not exist")
-		}
-		clientPeer, err := GetPeer(fp)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to get peer - %s", err)
-		}
-		if clientPeer == nil {
-			return nil, nil, fmt.Errorf("failed to get client's peer")
-		}
-		targetPeer, err := GetPeer(target)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to get peer - %s", err)
-		}
-		if targetPeer == nil {
-			return nil, nil, fmt.Errorf("failed to get client's peer")
-		}
-		if targetPeer.User != clientPeer.User {
-			return nil, nil, fmt.Errorf("target peer is not owned by client")
+			return nil, nil, fmt.Errorf("failed to get user id - %s", err)
 		}
 		// validate the OTP
-		s, err := getUserSecret(clientPeer.User)
+		s, err := getUserSecret(uID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to get user secret - %s", err)
 		}
@@ -209,16 +189,43 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 		}
 		ret := "0"
 		if !totp.Validate(otp, s) {
-			Logger.Debug("Wrong otp")
+			Logger.Debug("Verify cmd got bad otp")
 		} else {
+			ret = "1"
+		}
+		f := NewRWC([]byte(ret))
+		if ret == "0" {
+			return nil, f, nil
+		}
+		// check the fingerprint is in the db
+		exists, err := db.PeerExists(target)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to check peer exists - %s", err)
+		}
+		if !exists {
+			peer := NewPeer(target, "", uID, "server")
+			peer.Verified = true
+			err = db.AddPeer(peer)
+			if err != nil {
+				return nil, nil, fmt.Errorf("peer does not exist")
+			}
+		} else {
+			peer, err := GetPeer(target)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get peer - %s", err)
+			}
+			if peer == nil {
+				return nil, nil, fmt.Errorf("failed to get client's peer")
+			}
+			if peer.User != uID {
+				return nil, nil, fmt.Errorf("target peer is not owned by client")
+			}
 			err = VerifyPeer(target, true)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to verify peer - %s", err)
 			}
-			Logger.Debugf("verifying peer: %s", target)
-			ret = "1"
 		}
-		f := NewRWC([]byte(ret))
+		Logger.Debugf("Verified peer: %s", target)
 		return nil, f, nil
 	case "ping":
 		// ping can be used to check if the server is alive
