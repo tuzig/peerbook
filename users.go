@@ -130,34 +130,27 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 	case "register":
 		email := command[1]
 		peerName := command[2]
-		exists, err := db.PeerExists(fp)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to check peer exists - %s", err)
-		}
-		if !exists {
-			return nil, nil, fmt.Errorf("peer does not exist")
-		}
-		peer, err := GetPeer(fp)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to get peer - %s", err)
-		}
-		if peer == nil {
-			return nil, nil, fmt.Errorf("failed to get peer")
-		}
-		uID := peer.User
-		if uID == "" {
-			uID = GenerateUserID()
-			Logger.Infof("Generated new user ID: %s", uID)
-			peer.SetUser(uID)
-		} else {
-			Logger.Infof("Using existing user ID: %s", uID)
-		}
-		err = db.AddUser(email, uID)
+		/*
+			exists, err := db.PeerExists(fp)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to check peer exists - %s", err)
+			}
+			if exists {
+				return nil, nil, fmt.Errorf("peer already registered")
+			}
+		*/
+
+		uid := GenerateUserID()
+		err = db.AddUser(email, uid)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to add user - %s", err)
 		}
-		peer.setName(peerName)
-
+		Logger.Infof("Generated new user ID: %s", uid)
+		peer = NewPeer(fp, peerName, uid, "client")
+		err = db.AddPeer(peer)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to add peer: %s", err)
+		}
 		sixel, err := GetQRSixel(uID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to generate QR code - %s", err)
@@ -175,8 +168,8 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 		Logger.Debugf("succesful registration with response: %s", msg)
 		f := NewRWC(msg)
 		return nil, f, nil
-	case "authorize":
-		Logger.Debug("authorizing peer")
+	case "verify":
+		Logger.Debug("verifying peer")
 		target := command[1]
 		otp := command[2]
 		// check the fingerprint is in the db
@@ -220,7 +213,7 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to verify peer - %s", err)
 			}
-			Logger.Debugf("authorized peer: %s", target)
+			Logger.Debugf("verifying peer: %s", target)
 			ret = "1"
 		}
 		f := NewRWC([]byte(ret))
