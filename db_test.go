@@ -106,3 +106,16 @@ func TestDoubleAddUser(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "h", redisDouble.HGet("u:123", "email"))
 }
+func TestGetUID4FP(t *testing.T) {
+	startTest(t)
+	redisDouble.HSet("peer:foo", "fp", "foo", "name", "fucked up", "online", "1", "user", "123456")
+	uid, err := db.GetUID4FP("foo")
+	require.NoError(t, err)
+	require.Equal(t, uid, "123456")
+}
+func TestGetUID4FPInvalid(t *testing.T) {
+	startTest(t)
+	uid, err := db.GetUID4FP("BADWOLF")
+	require.Error(t, err)
+	require.Equal(t, uid, "")
+}

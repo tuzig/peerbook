@@ -350,6 +350,18 @@ func (d *DBType) GetEmail(uID string) (string, error) {
 	return email, nil
 }
 
+// GetUID4FP returns the user id of a peer's fingerprint
+func (d *DBType) GetUID4FP(fp string) (string, error) {
+	key := fmt.Sprintf("peer:%s", fp)
+	conn := d.pool.Get()
+	defer conn.Close()
+	uid, err := redis.String(conn.Do("HGET", key, "user"))
+	if err != nil {
+		return "", fmt.Errorf("Failed to get %s: %w", key, err)
+	}
+	return uid, nil
+}
+
 // GetUserID returns the user id of an email
 func (d *DBType) GetUserID(email string) (string, error) {
 	key := fmt.Sprintf("id:%s", email)

@@ -130,26 +130,28 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 	case "register":
 		email := command[1]
 		peerName := command[2]
-		/*
-			exists, err := db.PeerExists(fp)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to check peer exists - %s", err)
-			}
-			if exists {
-				return nil, nil, fmt.Errorf("peer already registered")
-			}
-		*/
-
-		uid := GenerateUserID()
-		err = db.AddUser(email, uid)
+		exists, err := db.PeerExists(fp)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to add user - %s", err)
+			return nil, nil, fmt.Errorf("failed to check peer exists - %s", err)
 		}
-		Logger.Infof("Generated new user ID: %s", uid)
-		peer = NewPeer(fp, peerName, uid, "client")
-		err = db.AddPeer(peer)
-		if err != nil {
-			return nil, fmt.Errorf("Failed to add peer: %s", err)
+		var uID string
+		if !exists {
+			uID = GenerateUserID()
+			err := db.AddUser(email, uID)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to add user - %s", err)
+			}
+			Logger.Infof("Generated new user ID: %s", uID)
+			peer := NewPeer(fp, peerName, uID, "client")
+			err = db.AddPeer(peer)
+			if err != nil {
+				return nil, nil, fmt.Errorf("Failed to add peer: %s", err)
+			}
+		} else {
+			uID, err = db.GetUID4FP(fp)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get user id - %s", err)
+			}
 		}
 		sixel, err := GetQRSixel(uID)
 		if err != nil {
