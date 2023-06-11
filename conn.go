@@ -318,7 +318,7 @@ func ConnFromQ(q url.Values) (*Conn, error) {
 		}
 	} else {
 		// field validation & sync
-		if peer.Name != name {
+		if name != "" && peer.Name != name {
 			peer.setName(name)
 		}
 		if peer.User == "" {
