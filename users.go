@@ -151,10 +151,10 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 		} else {
 			uID, err = db.GetUID4FP(fp)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to get user id - %s", err)
+				return nil, nil, fmt.Errorf("ping failed to get user id - %s", err)
 			}
 		}
-		Logger.Debugf("before generating sixel", uID)
+		Logger.Debugf("before generating sixel: %s", uID)
 		sixel, err := GetQRSixel(uID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to generate QR code - %s", err)
@@ -235,7 +235,11 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 		// check it against the user's secret and will echo 0 if it's
 		// valid and 1 if it's not
 		if len(command) < 2 {
-			f := NewRWC([]byte("pong"))
+			uID, err := db.GetUID4FP(fp)
+			if err != nil || uID == "" {
+				uID = "TBD"
+			}
+			f := NewRWC([]byte(uID))
 			return nil, f, nil
 		}
 		otp := command[1]

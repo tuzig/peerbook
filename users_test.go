@@ -284,12 +284,15 @@ func TestPingBadOTPCommand(t *testing.T) {
 func TestForPong(t *testing.T) {
 	var err error
 	redisDouble, err = miniredis.Run()
+	redisDouble.SetAdd("user:j", "A")
+	redisDouble.HSet("u:j", "email", "j@example.com")
+	redisDouble.HSet("peer:A", "fp", "A", "user", "j", "name", "fucked up", "kind", "client", "verified", "1")
 	require.NoError(t, err)
 	err = db.Connect("127.0.0.1:6379")
 	_, f, err := RunCommand([]string{"ping"}, nil, nil, 0, "A")
 	result, err := ioutil.ReadAll(f)
 	require.NoError(t, err)
-	require.Equal(t, "pong", string(result))
+	require.Equal(t, "j", string(result))
 }
 func TestPingCommand(t *testing.T) {
 	var err error

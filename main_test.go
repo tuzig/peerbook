@@ -578,7 +578,7 @@ func TestValidatePeerNPublish(t *testing.T) {
 		UID   string    `json:"uid"`
 	}
 	// get the peers list on B
-	time.Sleep(time.Second / 100)
+	time.Sleep(time.Second / 10)
 	err = wsB.ReadJSON(&pl)
 	require.Nil(t, err)
 	require.Equal(t, "j", pl.UID)
