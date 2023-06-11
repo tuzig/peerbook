@@ -130,6 +130,7 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 	case "register":
 		email := command[1]
 		peerName := command[2]
+		Logger.Debugf("Got register cmd: %s %s", email, peerName)
 		exists, err := db.PeerExists(fp)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to check peer exists - %s", err)
@@ -137,11 +138,11 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 		var uID string
 		if !exists {
 			uID = GenerateUserID()
+			Logger.Debugf("Generated new user ID: %s", uID)
 			err := db.AddUser(email, uID)
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to add user - %s", err)
 			}
-			Logger.Infof("Generated new user ID: %s", uID)
 			peer := NewPeer(fp, peerName, uID, "client")
 			err = db.AddPeer(peer)
 			if err != nil {
@@ -153,6 +154,7 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 				return nil, nil, fmt.Errorf("failed to get user id - %s", err)
 			}
 		}
+		Logger.Debugf("before generating sixel", uID)
 		sixel, err := GetQRSixel(uID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to generate QR code - %s", err)
