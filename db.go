@@ -122,6 +122,18 @@ func (d *DBType) Close() error {
 	// return d.conn.Close()
 }
 
+// SetPeerUser sets a peer's user
+func (d *DBType) SetPeerUser(fp, user string) error {
+	key := fmt.Sprintf("peer:%s", fp)
+	conn := d.pool.Get()
+	defer conn.Close()
+	_, err := conn.Do("HSET", key, "user", user)
+	if err != nil {
+		return fmt.Errorf("Failed to set peer %q user: %w", fp, err)
+	}
+	return nil
+}
+
 // AddPeer adds or updates a peer
 func (d *DBType) AddPeer(peer *Peer) error {
 	conn := d.getConn()

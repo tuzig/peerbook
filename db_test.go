@@ -119,3 +119,10 @@ func TestGetUID4FPInvalid(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, uid, "")
 }
+func TestSetPeerUser(t *testing.T) {
+	startTest(t)
+	redisDouble.HSet("peer:bar", "fp", "bar", "user", "")
+	err := db.SetPeerUser("bar", "JRandom")
+	require.Nil(t, err)
+	require.Equal(t, "JRandom", redisDouble.HGet("peer:bar", "user"))
+}

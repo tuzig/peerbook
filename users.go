@@ -131,28 +131,29 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 		email := command[1]
 		peerName := command[2]
 		Logger.Debugf("Got register cmd: %s %s", email, peerName)
-		exists, err := db.PeerExists(fp)
+		uID, err := db.GetUID4FP(fp)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to check peer exists - %s", err)
-		}
-		var uID string
-		if !exists {
-			uID = GenerateUserID()
-			Logger.Debugf("Generated new user ID: %s", uID)
-			err := db.AddUser(email, uID)
+			// create the user and the peer
+			uID, err = GenerateUser(email)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to add user - %s", err)
+				return nil, nil, fmt.Errorf("Failed to generate user: %s", err)
 			}
 			peer := NewPeer(fp, peerName, uID, "client")
 			err = db.AddPeer(peer)
 			if err != nil {
 				return nil, nil, fmt.Errorf("Failed to add peer: %s", err)
 			}
-		} else {
-			uID, err = db.GetUID4FP(fp)
+		} else if uID == "" {
+			uID, err = GenerateUser(email)
 			if err != nil {
-				return nil, nil, fmt.Errorf("ping failed to get user id - %s", err)
+				return nil, nil, fmt.Errorf("Failed to generate user: %s", err)
 			}
+			err = db.SetPeerUser(fp, uID)
+			if err != nil {
+				return nil, nil, fmt.Errorf("Failed to add peer: %s", err)
+			}
+		} else {
+			Logger.Debugf("Peer %s already exists: %s", fp, uID)
 		}
 		Logger.Debugf("before generating sixel: %s", uID)
 		sixel, err := GetQRSixel(uID)
@@ -304,6 +305,7 @@ func (r *RWC) Close() error {
 }
 
 // GenerateUserID generates a 10 digit long, base 10 random user ID
-func GenerateUserID() string {
-	return strconv.Itoa(rand.Intn(9000000000) + 1000000000)
+func GenerateUser(email string) (string, error) {
+	uID := strconv.Itoa(rand.Intn(9000000000) + 1000000000)
+	return uID, db.AddUser(email, uID)
 }
