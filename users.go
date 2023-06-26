@@ -138,7 +138,7 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 			if err != nil {
 				return nil, nil, fmt.Errorf("Failed to generate user: %s", err)
 			}
-			peer := NewPeer(fp, peerName, uID, "client")
+			peer := NewPeer(fp, peerName, uID, "terminal7")
 			err = db.AddPeer(peer)
 			if err != nil {
 				return nil, nil, fmt.Errorf("Failed to add peer: %s", err)
@@ -206,7 +206,7 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 			return nil, nil, fmt.Errorf("failed to check peer exists - %s", err)
 		}
 		if !exists {
-			peer := NewPeer(target, "", uID, "server")
+			peer := NewPeer(target, "", uID, "webexec")
 			peer.Verified = true
 			err = db.AddPeer(peer)
 			if err != nil {
