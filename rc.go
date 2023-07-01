@@ -65,6 +65,7 @@ func serveRCWH(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	event := whevent.Event
+	Logger.Infof("got RC webhook event %s %v", event.Type, event)
 	switch event.Type {
 	case "RENEWAL", "INITIAL_PURCHASE", "UNCANCELLATION":
 
