@@ -77,7 +77,7 @@ func GetUsersPeers(uid string) (*PeerList, error) {
 		p, err := GetPeer(fp)
 		if err != nil {
 			Logger.Warnf("Failed to read peer: %w", err)
-		} else if p.Kind == "webexec" {
+		} else {
 			l = append(l, p)
 		}
 	}
