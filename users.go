@@ -74,11 +74,11 @@ func tempUIDActive(uid string, rcURL string) (bool, error) {
 // Returns true if any of the tokens
 // are authorized.
 func (a *UsersAuth) IsAuthorized(tokens ...string) bool {
-	if len(tokens) >= 2 {
+	if len(tokens) >= 2  && tokens[1] != "" {
 		bearer := tokens[1]
 		url := a.rcURL
 		if url == "" {
-			url = os.Getenv("REVENUECAT_HOST")
+			url = os.Getenv("REVENUECAT_URL")
 			if url == "" {
 				url = "https://api.revenuecat.com"
 			}
