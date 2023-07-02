@@ -78,7 +78,10 @@ func (a *UsersAuth) IsAuthorized(tokens ...string) bool {
 		bearer := tokens[1]
 		url := a.rcURL
 		if url == "" {
-			url = "https://api.revenuecat.com"
+			url = os.Getenv("REVENUECAT_HOST")
+			if url == "" {
+				url = "https://api.revenuecat.com"
+			}
 		}
 		active, err := tempUIDActive(bearer, url)
 		Logger.Debugf("checked if bearer exists: %s %b", bearer, active)
