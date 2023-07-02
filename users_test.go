@@ -6,9 +6,11 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"path"
 	"testing"
 	"time"
 
@@ -197,17 +199,83 @@ func TestBackendAuthorized(t *testing.T) {
 	b := NewUsersAuth()
 	require.True(t, b.IsAuthorized("foo"))
 }
+
+var rcMockResponse string = `{
+	  "request_date": "2023-07-01T18:54:46Z",
+	  "request_date_ms": 1688237686989,
+	  "subscriber": {
+		"entitlements": {
+		  "peerbook": {
+			"expires_date": "2023-07-01T19:03:06Z",
+			"grace_period_expires_date": null,
+			"product_identifier": "peerbook_monthly",
+			"purchase_date": "2023-07-01T18:48:06Z"
+		  }
+		},
+		"subscriptions": {
+		  "peerbook_monthly": {
+			"auto_resume_date": null,
+			"billing_issues_detected_at": null,
+			"expires_date": "2023-07-01T19:03:06Z",
+			"grace_period_expires_date": null,
+			"is_sandbox": true,
+			"original_purchase_date": "2023-02-21T20:12:09Z",
+			"ownership_type": "PURCHASED",
+			"period_type": "normal",
+			"purchase_date": "2023-07-01T18:48:06Z",
+			"refunded_at": null,
+			"store": "app_store",
+			"unsubscribe_detected_at": null
+		  }
+		},
+		"first_seen": "2023-06-27T05:41:40Z",
+		"last_seen": "2023-07-01T17:40:19Z",
+		"management_url": "https://apps.apple.com/account/subscriptions",
+		"non_subscriptions": {},
+		"original_app_user_id": "foo",
+		"original_application_version": "1.0",
+		"original_purchase_date": "2013-08-01T07:00:00Z",
+		"other_purchases": {},
+		"subscriber_attributes": {
+		  "$attConsentStatus": {
+			"updated_at_ms": 1687847082538,
+			"value": "notDetermined"
+		  }
+		}
+	  }
+	}`
+var lastPath string
+
+func rcHandler(w http.ResponseWriter, r *http.Request) {
+	lastPath = path.Base(r.URL.Path)
+	fmt.Fprint(w, rcMockResponse)
+}
+func testTempUIDActive(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(rcHandler))
+
+	active, err := tempUIDActive("foo", server.URL)
+	require.NoError(t, err)
+	require.True(t, active)
+	require.Equal(t, fmt.Sprintf("%s/v1/subscribers/foo", server.URL), lastPath)
+	active, err = tempUIDActive("bar", server.URL)
+	require.False(t, active)
+}
+
 func TestBackendAuthorizeByBearer(t *testing.T) {
 	var err error
+
+	// Create a new instance of the test HTTP server
+	server := httptest.NewServer(http.HandlerFunc(rcHandler))
+	defer server.Close()
 	Logger = zaptest.NewLogger(t).Sugar()
 	redisDouble, err = miniredis.Run()
-	redisDouble.HSet("peer:foo", "fp", "foo", "verified", "0")
-	redisDouble.Set("tempid:bar", "1")
+	redisDouble.HSet("peer:bar", "fp", "foo", "verified", "0")
 	require.NoError(t, err)
 	err = db.Connect("127.0.0.1:6379")
 	require.NoError(t, err)
 	b := NewUsersAuth()
-	require.True(t, b.IsAuthorized("foo", "bar"))
+	b.rcURL = server.URL
+	require.True(t, b.IsAuthorized("bar", "foo"))
 	verified, err := IsVerified("foo")
 	require.NoError(t, err)
 	require.False(t, verified)

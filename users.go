@@ -10,6 +10,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -20,11 +21,52 @@ import (
 )
 
 type UsersAuth struct {
+	rcURL string
 }
 
 // NewUsersAuth creates a new UsersAuth
 func NewUsersAuth() *UsersAuth {
 	return &UsersAuth{}
+}
+
+func tempUIDActive(uid string, rcURL string) (bool, error) {
+
+	type Subscription struct{}
+	type Subscriber struct {
+		Subscriptions map[string]Subscription `json:"subscriptions"`
+	}
+	type RCData struct {
+		Subscriber Subscriber `json:"subscriber"`
+	}
+
+	// Unmarshal the JSON data into the defined structures
+	var data RCData
+	url := fmt.Sprintf("%s/v1/subscribers/%s", rcURL, url.QueryEscape(uid))
+
+	req, _ := http.NewRequest("GET", url, nil)
+
+	req.Header.Add("accept", "application/json")
+	apiKey := os.Getenv("REVENUECAT_API_KEY")
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", apiKey))
+
+	res, _ := http.DefaultClient.Do(req)
+	// extract the active entitlemtns
+
+	defer res.Body.Close()
+	body, _ := io.ReadAll(res.Body)
+
+	err := json.Unmarshal([]byte(body), &data)
+	if err != nil {
+		return false, fmt.Errorf("Error parsing revenurecat JSON: %s\n%s", err, body)
+	}
+
+	// Check if any key in subscriptions starts with "peerbook"
+	active := false
+	for key := range data.Subscriber.Subscriptions {
+		active = active || strings.HasPrefix(key, "peerbook")
+	}
+
+	return active, nil
 }
 
 // IsAuthorized is called by the http handler to checks if a peer is
@@ -34,23 +76,21 @@ func NewUsersAuth() *UsersAuth {
 func (a *UsersAuth) IsAuthorized(tokens ...string) bool {
 	if len(tokens) >= 2 {
 		bearer := tokens[1]
-		exists, err := db.tempIDExists(bearer)
-		Logger.Debugf("checked if bearer exists: %s %b", bearer, exists)
+		url := a.rcURL
+		if url == "" {
+			url = "https://api.revenuecat.com"
+		}
+		active, err := tempUIDActive(bearer, url)
+		Logger.Debugf("checked if bearer exists: %s %b", bearer, active)
 		if err != nil {
-			Logger.Error("error checking if temp id exists", err)
+			Logger.Errorf("error checking if temp id is active %s", err)
 			return false
 		}
-		if exists {
+		if active {
 			// token matched a temp id, so we can let the peer in, just this once
 			return true
-			//TODO: remove the temp id
-			/*
-				err = db.RemoveTempID(t)
-				if err != nil {
-					Logger.Error("error removing temp id", err)
-				}
-			*/
 		}
+		// token didn't match a temp id, so we need to check the fingerprint
 	}
 	fp := tokens[0]
 	peer, err := GetPeer(fp)
