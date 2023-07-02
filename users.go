@@ -52,9 +52,13 @@ func tempUIDActive(uid string, rcURL string) (bool, error) {
 	res, _ := http.DefaultClient.Do(req)
 	// extract the active entitlemtns
 
+	if res.StatusCode != 200 {
+		return false, fmt.Errorf("Error getting tempUIDActive from revenuecat: %s", res.Status)
+	}
 	defer res.Body.Close()
 	body, _ := io.ReadAll(res.Body)
 
+	Logger.Debugf("tempUIDActive got from revenuecat: %s", body)
 	err := json.Unmarshal([]byte(body), &data)
 	if err != nil {
 		return false, fmt.Errorf("Error parsing revenurecat JSON: %s\n%s", err, body)
@@ -74,7 +78,7 @@ func tempUIDActive(uid string, rcURL string) (bool, error) {
 // Returns true if any of the tokens
 // are authorized.
 func (a *UsersAuth) IsAuthorized(tokens ...string) bool {
-	if len(tokens) >= 2  && tokens[1] != "" {
+	if len(tokens) >= 2 && tokens[1] != "" {
 		bearer := tokens[1]
 		url := a.rcURL
 		if url == "" {
