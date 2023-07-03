@@ -32,9 +32,13 @@ func NewUsersAuth() *UsersAuth {
 
 func isUIDActive(uid string, rcURL string) (bool, error) {
 
-	type Subscription struct {
-		expires_date string `json:"expires_date"`
-	}
+	type Subscription map[string]json.RawMessage
+	/*
+		type Subscription struct {
+			auto_resume_date string `json:auto_resume_date`
+			expires_date     string `json:"expires_date"`
+		}
+	*/
 	type Subscriber struct {
 		Subscriptions map[string]Subscription `json:"subscriptions"`
 	}
@@ -59,7 +63,6 @@ func isUIDActive(uid string, rcURL string) (bool, error) {
 	defer res.Body.Close()
 	body, _ := io.ReadAll(res.Body)
 	err := json.Unmarshal([]byte(body), &data)
-	fmt.Printf("body: %s\ndata: %v", body, data.Subscriber.Subscriptions)
 	if err != nil {
 		return false, fmt.Errorf("Error parsing revenurecat JSON: %s\n%s", err, body)
 	}
@@ -70,16 +73,22 @@ func isUIDActive(uid string, rcURL string) (bool, error) {
 		if !strings.HasPrefix(key, "peerbook") {
 			continue
 		}
-		expires_date := data.Subscriber.Subscriptions[key].expires_date
+		var expires_date string
+		err := json.Unmarshal(data.Subscriber.Subscriptions[key]["expires_date"], &expires_date)
+		if err != nil {
+			Logger.Warnf("Error parsing subscriber data: %s", err)
+			Logger.Warnf("--> body:", body)
+			continue
+		}
 		if expires_date == "" {
 			continue
 		}
 		fmt.Printf("expires_date: %v\n", data.Subscriber.Subscriptions[key])
-		date, err := time.Parse(layout, data.Subscriber.Subscriptions[key].expires_date)
+		date, err := time.Parse(layout, expires_date)
 		if err != nil {
 			return false, fmt.Errorf("Error parsing date: %s", err)
 		}
-		if !date.Before(currentTime) {
+		if currentTime.Before(date) {
 			return true, nil
 		}
 	}
@@ -121,7 +130,7 @@ func (a *UsersAuth) IsAuthorized(tokens ...string) bool {
 	if peer != nil && peer.Verified {
 		active, err := isUIDActive(peer.User, rcURL)
 		if err != nil {
-			Logger.Errorf("error checking if uid is active %s", err)
+			Logger.Warnf("error checking if uid is active %s", err)
 			return false
 		}
 		return active
