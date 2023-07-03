@@ -226,7 +226,7 @@ var rcMockResponse string = `{
 		  "peerbook_monthly": {
 			"auto_resume_date": null,
 			"billing_issues_detected_at": null,
-			"expires_date": "2023-07-01T19:03:06Z",
+			"expires_date": "2123-07-01T19:03:06Z",
 			"grace_period_expires_date": null,
 			"is_sandbox": true,
 			"original_purchase_date": "2023-02-21T20:12:09Z",

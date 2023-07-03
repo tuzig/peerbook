@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/creack/pty"
 	"github.com/mattn/go-sixel"
@@ -31,16 +32,18 @@ func NewUsersAuth() *UsersAuth {
 
 func isUIDActive(uid string, rcURL string) (bool, error) {
 
-	type Subscription struct{}
+	type Subscription struct {
+		expires_date string `json:"expires_date"`
+	}
 	type Subscriber struct {
 		Subscriptions map[string]Subscription `json:"subscriptions"`
 	}
 	type RCData struct {
 		Subscriber Subscriber `json:"subscriber"`
 	}
-
 	// Unmarshal the JSON data into the defined structures
 	var data RCData
+	// getting the expires_date from the suscription
 	url := fmt.Sprintf("%s/v1/subscribers/%s", rcURL, url.QueryEscape(uid))
 
 	req, _ := http.NewRequest("GET", url, nil)
@@ -56,12 +59,29 @@ func isUIDActive(uid string, rcURL string) (bool, error) {
 	defer res.Body.Close()
 	body, _ := io.ReadAll(res.Body)
 	err := json.Unmarshal([]byte(body), &data)
+	fmt.Printf("body: %s\ndata: %v", body, data.Subscriber.Subscriptions)
 	if err != nil {
 		return false, fmt.Errorf("Error parsing revenurecat JSON: %s\n%s", err, body)
 	}
 	active := false
+	currentTime := time.Now().UTC()
+	layout := "2006-01-02T15:04:05Z"
 	for key := range data.Subscriber.Subscriptions {
-		active = active || strings.HasPrefix(key, "peerbook")
+		if !strings.HasPrefix(key, "peerbook") {
+			continue
+		}
+		expires_date := data.Subscriber.Subscriptions[key].expires_date
+		if expires_date == "" {
+			continue
+		}
+		fmt.Printf("expires_date: %v\n", data.Subscriber.Subscriptions[key])
+		date, err := time.Parse(layout, data.Subscriber.Subscriptions[key].expires_date)
+		if err != nil {
+			return false, fmt.Errorf("Error parsing date: %s", err)
+		}
+		if !date.Before(currentTime) {
+			return true, nil
+		}
 	}
 
 	return active, nil
