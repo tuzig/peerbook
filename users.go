@@ -29,7 +29,7 @@ func NewUsersAuth() *UsersAuth {
 	return &UsersAuth{}
 }
 
-func tempUIDActive(uid string, rcURL string) (bool, error) {
+func isUIDActive(uid string, rcURL string) (bool, error) {
 
 	type Subscription struct{}
 	type Subscriber struct {
@@ -50,21 +50,15 @@ func tempUIDActive(uid string, rcURL string) (bool, error) {
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", apiKey))
 
 	res, _ := http.DefaultClient.Do(req)
-	// extract the active entitlemtns
-
 	if res.StatusCode != 200 {
-		return false, fmt.Errorf("Error getting tempUIDActive from revenuecat: %s", res.Status)
+		return false, fmt.Errorf("Error getting isUIDActive from revenuecat: %s", res.Status)
 	}
 	defer res.Body.Close()
 	body, _ := io.ReadAll(res.Body)
-
-	Logger.Debugf("tempUIDActive got from revenuecat: %s", body)
 	err := json.Unmarshal([]byte(body), &data)
 	if err != nil {
 		return false, fmt.Errorf("Error parsing revenurecat JSON: %s\n%s", err, body)
 	}
-
-	// Check if any key in subscriptions starts with "peerbook"
 	active := false
 	for key := range data.Subscriber.Subscriptions {
 		active = active || strings.HasPrefix(key, "peerbook")
@@ -78,16 +72,16 @@ func tempUIDActive(uid string, rcURL string) (bool, error) {
 // Returns true if any of the tokens
 // are authorized.
 func (a *UsersAuth) IsAuthorized(tokens ...string) bool {
+	rcURL := a.rcURL
+	if rcURL == "" {
+		rcURL = os.Getenv("REVENUECAT_URL")
+		if rcURL == "" {
+			rcURL = "https://api.revenuecat.com"
+		}
+	}
 	if len(tokens) >= 2 && tokens[1] != "" {
 		bearer := tokens[1]
-		url := a.rcURL
-		if url == "" {
-			url = os.Getenv("REVENUECAT_URL")
-			if url == "" {
-				url = "https://api.revenuecat.com"
-			}
-		}
-		active, err := tempUIDActive(bearer, url)
+		active, err := isUIDActive(bearer, rcURL)
 		Logger.Debugf("checked if bearer exists: %s %b", bearer, active)
 		if err != nil {
 			Logger.Errorf("error checking if temp id is active %s", err)
@@ -104,8 +98,13 @@ func (a *UsersAuth) IsAuthorized(tokens ...string) bool {
 	if err != nil {
 		Logger.Warnf("error getting peer %s: %s", fp, err)
 	}
-	if peer != nil {
-		return peer.Verified
+	if peer != nil && peer.Verified {
+		active, err := isUIDActive(peer.User, rcURL)
+		if err != nil {
+			Logger.Errorf("error checking if uid is active %s", err)
+			return false
+		}
+		return active
 	}
 	return false
 }

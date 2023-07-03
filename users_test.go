@@ -20,6 +20,13 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
+var lastPath string
+
+func rcHandler(w http.ResponseWriter, r *http.Request) {
+	lastPath = path.Base(r.URL.Path)
+	fmt.Fprint(w, rcMockResponse)
+}
+
 /*
 // test the register endpoint
 
@@ -191,12 +198,15 @@ func TestBackendUnauthorized(t *testing.T) {
 }
 func TestBackendAuthorized(t *testing.T) {
 	var err error
+	server := httptest.NewServer(http.HandlerFunc(rcHandler))
+	defer server.Close()
 	redisDouble, err = miniredis.Run()
 	redisDouble.HSet("peer:foo", "fp", "foo", "verified", "1")
 	require.NoError(t, err)
 	err = db.Connect("127.0.0.1:6379")
 	require.NoError(t, err)
 	b := NewUsersAuth()
+	b.rcURL = server.URL
 	require.True(t, b.IsAuthorized("foo"))
 }
 
@@ -244,20 +254,15 @@ var rcMockResponse string = `{
 		}
 	  }
 	}`
-var lastPath string
 
-func rcHandler(w http.ResponseWriter, r *http.Request) {
-	lastPath = path.Base(r.URL.Path)
-	fmt.Fprint(w, rcMockResponse)
-}
 func testTempUIDActive(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(rcHandler))
-
-	active, err := tempUIDActive("foo", server.URL)
+	defer server.Close()
+	active, err := isUIDActive("foo", server.URL)
 	require.NoError(t, err)
 	require.True(t, active)
 	require.Equal(t, fmt.Sprintf("%s/v1/subscribers/foo", server.URL), lastPath)
-	active, err = tempUIDActive("bar", server.URL)
+	active, err = isUIDActive("bar", server.URL)
 	require.False(t, active)
 }
 
