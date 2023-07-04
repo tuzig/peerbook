@@ -66,6 +66,7 @@ func serveRCWH(w http.ResponseWriter, r *http.Request) {
 	}
 	event := whevent.Event
 	Logger.Infof("got RC webhook event %s %v", event.Type, event)
+	/* TODO: handle expiration for connected peers
 	switch event.Type {
 	case "RENEWAL", "INITIAL_PURCHASE", "UNCANCELLATION":
 
@@ -80,6 +81,7 @@ func serveRCWH(w http.ResponseWriter, r *http.Request) {
 		Logger.Infof("got RC subscription expired %s", event.AppUserID)
 		db.SetUserActive(event.AppUserID, false)
 	}
+	*/
 }
 func isTemp(s string) bool {
 	match, _ := regexp.MatchString("^[0-9]+$", s)

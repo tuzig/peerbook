@@ -169,27 +169,9 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 
 func (c *Conn) welcomeUnverified() {
 	err := c.sendStatus(http.StatusUnauthorized, fmt.Errorf(
-		"Unverified peer, please check your email to verify"))
+		"Unverified peer, please use Terminal7 to verify or at https://peerbook.io"))
 	if err != nil {
 		Logger.Errorf("Failed to send status message: %s", err)
-	}
-	if c.User == "" {
-		return
-	}
-	email, err := db.GetEmail(c.User)
-	if err != nil {
-		Logger.Errorf("Failed to get email for user: %s err %s", c.User, err)
-		return
-	}
-	if email == "" {
-		return
-	}
-	err = sendAuthEmail(email, c.User)
-	if err != nil {
-		Logger.Errorf("Failed to send email: %s", err)
-		c.sendStatus(http.StatusInternalServerError, fmt.Errorf(
-			"Failed to send email: %s", err))
-		return
 	}
 }
 

@@ -33,12 +33,6 @@ func NewUsersAuth() *UsersAuth {
 func isUIDActive(uid string, rcURL string) (bool, error) {
 
 	type Subscription map[string]json.RawMessage
-	/*
-		type Subscription struct {
-			auto_resume_date string `json:auto_resume_date`
-			expires_date     string `json:"expires_date"`
-		}
-	*/
 	type Subscriber struct {
 		Subscriptions map[string]Subscription `json:"subscriptions"`
 	}
