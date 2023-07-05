@@ -50,13 +50,16 @@ func isUIDActive(uid string, rcURL string) (bool, error) {
 	apiKey := os.Getenv("REVENUECAT_API_KEY")
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", apiKey))
 
-	res, _ := http.DefaultClient.Do(req)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("Error getting isUIDActive from revenuecat: %s", err)
+	}
 	if res.StatusCode != 200 {
 		return false, fmt.Errorf("Error getting isUIDActive from revenuecat: %s", res.Status)
 	}
 	defer res.Body.Close()
 	body, _ := io.ReadAll(res.Body)
-	err := json.Unmarshal([]byte(body), &data)
+	err = json.Unmarshal([]byte(body), &data)
 	if err != nil {
 		return false, fmt.Errorf("Error parsing revenurecat JSON: %s\n%s", err, body)
 	}
