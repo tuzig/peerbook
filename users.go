@@ -304,12 +304,19 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 		// if given an argument, it assumes it'n an OTP and will
 		// check it against the user's secret and will echo 0 if it's
 		// valid and 1 if it's not
+		Logger.Debug("Got a ping")
 		if len(command) < 2 {
 			uID, err := db.GetUID4FP(fp)
+			if err != nil {
+				Logger.Debugf("+-> failed to get user id - %s", err)
+			} else {
+				Logger.Debugf("+-> got user id %s", uID)
+			}
 			if err != nil || uID == "" {
 				uID = "TBD"
 			}
 			f := NewRWC([]byte(uID))
+			Logger.Debugf("+-> returning %s", uID)
 			return nil, f, nil
 		}
 		otp := command[1]

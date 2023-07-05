@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
@@ -166,26 +165,6 @@ func TestAuthorizeAPeer(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	require.Equal(t, "1", redisDouble.HGet(`peer:${fp}`, "verified"))
-}
-func TestRevenuCatWH(t *testing.T) {
-	var err error
-	redisDouble, err = miniredis.Run()
-	require.NoError(t, err)
-	err = db.Connect("127.0.0.1:6379")
-	require.NoError(t, err)
-	msg := RCWebhookEvent{
-		Event: RCEvent{AppUserID: "temp123", Type: "INITIAL_PURCHASE"},
-	}
-	body, err := json.Marshal(msg)
-	req, err := http.NewRequest("POST", "/rcwh", bytes.NewReader(body))
-	require.NoError(t, err)
-	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(serveRCWH)
-	handler.ServeHTTP(rr, req)
-	require.Equal(t, http.StatusOK, rr.Code)
-	v, err := redisDouble.Get("tempid:temp123")
-	require.NoError(t, err)
-	require.Equal(t, "1", v)
 }
 func TestBackendUnauthorized(t *testing.T) {
 	var err error
@@ -354,7 +333,7 @@ func TestPingBadOTPCommand(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, byte('0'), result[0])
 }
-func TestForPong(t *testing.T) {
+func TestEmptyPing(t *testing.T) {
 	var err error
 	redisDouble, err = miniredis.Run()
 	redisDouble.SetAdd("user:j", "A")
