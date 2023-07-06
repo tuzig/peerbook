@@ -80,7 +80,7 @@ func isUIDActive(uid string, rcURL string) (bool, error) {
 		if expires_date == "" {
 			continue
 		}
-		fmt.Printf("expires_date: %v\n", data.Subscriber.Subscriptions[key])
+		Logger.Debugf("expires_date: %s now %s", expires_date, currentTime.Format(layout))
 		date, err := time.Parse(layout, expires_date)
 		if err != nil {
 			return false, fmt.Errorf("Error parsing date: %s", err)
@@ -114,10 +114,8 @@ func (a *UsersAuth) IsAuthorized(tokens ...string) bool {
 			return false
 		}
 		if active {
-			// token matched a temp id, so we can let the peer in, just this once
 			return true
 		}
-		// token didn't match a temp id, so we need to check the fingerprint
 	}
 	fp := tokens[0]
 	peer, err := GetPeer(fp)
