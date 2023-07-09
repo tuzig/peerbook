@@ -54,11 +54,12 @@ func isUIDActive(uid string, rcURL string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("Error getting isUIDActive from revenuecat: %s", err)
 	}
-	if res.StatusCode != 200 {
-		return false, fmt.Errorf("Error getting isUIDActive from revenuecat: %s", res.Status)
-	}
 	defer res.Body.Close()
 	body, _ := io.ReadAll(res.Body)
+	if res.StatusCode != 200 {
+		return false, fmt.Errorf("Error getting isUIDActive from revenuecat: %s body: %s", res.Status, body)
+	}
+	Logger.Debugf("got revenurecat response: ", string(body))
 	err = json.Unmarshal([]byte(body), &data)
 	if err != nil {
 		return false, fmt.Errorf("Error parsing revenurecat JSON: %s\n%s", err, body)
