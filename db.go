@@ -12,9 +12,10 @@ import (
 	"github.com/gomodule/redigo/redis"
 )
 
-const TokenLen = 30      // in Bytes, four times that in base64 and urls
-const TokenTTL = 300     // in Seconds
-const EmailInterval = 60 // in Seconds
+const TokenLen = 30           // in Bytes, four times that in base64 and urls
+const TokenTTL = 300          // in Seconds
+const SubscriberTTL = 30 * 60 // in Seconds
+const EmailInterval = 60      // in Seconds
 const MaxPeersPerUser = 10
 const UserIDLength = 10
 
@@ -407,5 +408,22 @@ func (d *DBType) SetUserActive(UserID string, active bool) error {
 	defer conn.Close()
 	key := fmt.Sprintf("u:%s", UserID)
 	_, err := conn.Do("HSET", key, "active", active)
+	return err
+}
+
+// IsSubscribed returns true if the user is subscribed
+func (d *DBType) IsSubscribed(UserID string) (bool, error) {
+	conn := d.pool.Get()
+	defer conn.Close()
+	key := fmt.Sprintf("subscribe:%s", UserID)
+	return redis.Bool(conn.Do("EXISTS", key))
+}
+
+// SetSubscribed sets the user as subscribed
+func (d *DBType) SetSubscribed(UserID string) error {
+	conn := d.pool.Get()
+	defer conn.Close()
+	key := fmt.Sprintf("subscriber:%s", UserID)
+	_, err := conn.Do("SET", key, "1", "EX", SubscriberTTL)
 	return err
 }

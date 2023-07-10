@@ -39,7 +39,14 @@ func isUIDActive(uid string, rcURL string) (bool, error) {
 	type RCData struct {
 		Subscriber Subscriber `json:"subscriber"`
 	}
-	// Unmarshal the JSON data into the defined structures
+	// check if the uid exists in redis where it is stored for a few minutes
+	exists, err := db.IsSubscribed(uid)
+	if err != nil {
+		return false, fmt.Errorf("Error checking if uid exists: %s", err)
+	}
+	if exists {
+		return true, nil
+	}
 	var data RCData
 	// getting the expires_date from the suscription
 	url := fmt.Sprintf("%s/v1/subscribers/%s", rcURL, url.QueryEscape(uid))
@@ -64,7 +71,6 @@ func isUIDActive(uid string, rcURL string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("Error parsing revenurecat JSON: %s\n%s", err, body)
 	}
-	active := false
 	currentTime := time.Now().UTC()
 	layout := "2006-01-02T15:04:05Z"
 	for key := range data.Subscriber.Subscriptions {
@@ -87,11 +93,14 @@ func isUIDActive(uid string, rcURL string) (bool, error) {
 			return false, fmt.Errorf("Error parsing date: %s", err)
 		}
 		if currentTime.Before(date) {
+			err = db.SetSubscribed(uid)
+			if err != nil {
+				Logger.Warnf("Error setting uid as subscribed: %s", err)
+			}
 			return true, nil
 		}
 	}
-
-	return active, nil
+	return false, nil
 }
 
 // IsAuthorized is called by the http handler to checks if a peer is
