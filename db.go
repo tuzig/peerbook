@@ -12,10 +12,10 @@ import (
 	"github.com/gomodule/redigo/redis"
 )
 
-const TokenLen = 30           // in Bytes, four times that in base64 and urls
-const TokenTTL = 300          // in Seconds
-const SubscriberTTL = 30 * 60 // in Seconds
-const EmailInterval = 60      // in Seconds
+const TokenLen = 30          // in Bytes, four times that in base64 and urls
+const TokenTTL = 300         // in Seconds
+const SubscriberTTL = 3 * 60 // in Seconds
+const EmailInterval = 60     // in Seconds
 const MaxPeersPerUser = 10
 const UserIDLength = 10
 
@@ -415,7 +415,7 @@ func (d *DBType) SetUserActive(UserID string, active bool) error {
 func (d *DBType) IsSubscribed(UserID string) (bool, error) {
 	conn := d.pool.Get()
 	defer conn.Close()
-	key := fmt.Sprintf("subscribe:%s", UserID)
+	key := fmt.Sprintf("subscriber:%s", UserID)
 	return redis.Bool(conn.Do("EXISTS", key))
 }
 

@@ -126,3 +126,13 @@ func TestSetPeerUser(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, "JRandom", redisDouble.HGet("peer:bar", "user"))
 }
+func TestSubscribed(t *testing.T) {
+	startTest(t)
+	db.SetSubscribed("1234")
+	subscribed, err := db.IsSubscribed("1234")
+	require.NoError(t, err)
+	require.True(t, subscribed)
+	subscribed, err = db.IsSubscribed("123")
+	require.NoError(t, err)
+	require.False(t, subscribed)
+}

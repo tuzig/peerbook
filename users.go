@@ -39,12 +39,12 @@ func isUIDActive(uid string, rcURL string) (bool, error) {
 	type RCData struct {
 		Subscriber Subscriber `json:"subscriber"`
 	}
-	// check if the uid exists in redis where it is stored for a few minutes
-	exists, err := db.IsSubscribed(uid)
+	// check if the uid is cached in redis
+	subscribed, err := db.IsSubscribed(uid)
 	if err != nil {
-		return false, fmt.Errorf("Error checking if uid exists: %s", err)
+		return false, fmt.Errorf("Error checking if uid subscribed: %s", err)
 	}
-	if exists {
+	if subscribed {
 		return true, nil
 	}
 	var data RCData
