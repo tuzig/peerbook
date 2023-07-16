@@ -7,7 +7,9 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -51,10 +53,10 @@ func startTest(t *testing.T) {
 	}
 	time.Sleep(time.Millisecond * 10)
 }
-func openWS(url string) (*websocket.Conn, error) {
+func openWS(url string) (*websocket.Conn, *http.Response, error) {
 	time.Sleep(time.Millisecond)
-	ws, _, err := cstDialer.Dial(url, nil)
-	return ws, err
+	ws, resp, err := cstDialer.Dial(url, nil)
+	return ws, resp, err
 }
 func newClient(t *testing.T) (*webrtc.PeerConnection, *webrtc.Certificate, error) {
 	secretKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -80,8 +82,12 @@ func TestBadConnectionRequest(t *testing.T) {
 }
 func TestUnknownFingerprint(t *testing.T) {
 	startTest(t)
+	// setup a mock revenuecat server
+	server := httptest.NewServer(http.HandlerFunc(rcNotActiveHandler))
+	defer server.Close()
+	os.Setenv("REVENUECAT_URL", server.URL)
 	// create client, connect to the hu
-	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=BADWOLF&uid=1234567890")
+	ws, _, err := openWS("ws://127.0.0.1:17777/ws?fp=BADWOLF&uid=1234567890")
 	require.Nil(t, err)
 	var m map[string]interface{}
 	err = ws.ReadJSON(&m)
@@ -98,14 +104,18 @@ func TestSignalingAcrossUsers(t *testing.T) {
 		"user", "h", "verified", "1")
 	redisDouble.SetAdd("user:j", "A")
 	redisDouble.SetAdd("user:h", "B")
+	// setup a mock revenuecat server
+	server := httptest.NewServer(http.HandlerFunc(rcHandler))
+	defer server.Close()
+	os.Setenv("REVENUECAT_URL", server.URL)
 	// create client, connect to the hu
-	wsA, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&uid=j")
+	wsA, _, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&uid=j")
 	require.Nil(t, err)
 	defer wsA.Close()
 	if err = wsA.SetReadDeadline(time.Now().Add(ReadTimeout)); err != nil {
 		t.Fatalf("SetReadDeadline: %v", err)
 	}
-	wsB, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&uid=h")
+	wsB, _, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&uid=h")
 	require.Nil(t, err)
 	defer wsB.Close()
 	if err = wsB.SetReadDeadline(time.Now().Add(ReadTimeout)); err != nil {
@@ -161,14 +171,18 @@ func TestValidSignaling(t *testing.T) {
 		"user", "j", "verified", "1", "online", "0")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
 		"user", "j", "verified", "1", "online", "0")
+	// setup a mock revenuecat server
+	server := httptest.NewServer(http.HandlerFunc(rcHandler))
+	defer server.Close()
+	os.Setenv("REVENUECAT_URL", server.URL)
 	// create client, connect to the hu
-	wsA, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&uid=j")
+	wsA, _, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&uid=j")
 	require.Nil(t, err)
 	defer wsA.Close()
 	if err = wsA.SetReadDeadline(time.Now().Add(ReadTimeout)); err != nil {
 		t.Fatalf("SetReadDeadline: %v", err)
 	}
-	wsB, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&uid=j")
+	wsB, _, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&uid=j")
 	require.Nil(t, err)
 	defer wsB.Close()
 	if err = wsB.SetReadDeadline(time.Now().Add(ReadTimeout)); err != nil {
@@ -300,7 +314,11 @@ func TestGetUsersList(t *testing.T) {
 		"user", "j", "verified", "0")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "alpha",
 		"user", "j", "verified", "1")
-	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&uid=j&kind=lay")
+	// setup a mock revenuecat server
+	server := httptest.NewServer(http.HandlerFunc(rcHandler))
+	defer server.Close()
+	os.Setenv("REVENUECAT_URL", server.URL)
+	ws, _, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&uid=j&kind=lay")
 	require.Nil(t, err)
 	defer ws.Close()
 	authU := fmt.Sprintf("http://127.0.0.1:17777/pb/%s", url.PathEscape(token))
@@ -398,8 +416,12 @@ func TestHTTPPeerVerification(t *testing.T) {
 	require.Nil(t, err)
 	redisDouble.Set("secret:j", ok.Secret())
 	redisDouble.Set("QRVerified:j", "1")
+	// setup a mock revenuecat server
+	server := httptest.NewServer(http.HandlerFunc(rcHandler))
+	defer server.Close()
+	os.Setenv("REVENUECAT_URL", server.URL)
 	// connect using websockets
-	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&uid=j")
+	ws, _, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&uid=j")
 	require.Nil(t, err)
 	defer ws.Close()
 	if err = ws.SetReadDeadline(time.Now().Add(ReadTimeout)); err != nil {
@@ -453,8 +475,12 @@ func TestVerifyUnverified(t *testing.T) {
 }
 func TestWSNew(t *testing.T) {
 	startTest(t)
+	// setup a mock revenuecat server
+	server := httptest.NewServer(http.HandlerFunc(rcHandler))
+	defer server.Close()
+	os.Setenv("REVENUECAT_URL", server.URL)
 	// setup the fixture - a user, his token and two peers
-	ws, err := openWS("ws://127.0.0.1:17777/ws?fp=Z&name=foo&uid=j&kind=server")
+	ws, _, err := openWS("ws://127.0.0.1:17777/ws?fp=Z&name=foo&uid=j&kind=server")
 	var m map[string]interface{}
 	err = ws.ReadJSON(&m)
 	require.Nil(t, err)
@@ -554,14 +580,18 @@ func TestValidatePeerNPublish(t *testing.T) {
 	require.Nil(t, err)
 	redisDouble.Set("secret:j", ok.Secret())
 	redisDouble.Set("QRVerified:j", "1")
+	// setup a mock revenuecat server
+	server := httptest.NewServer(http.HandlerFunc(rcHandler))
+	defer server.Close()
+	os.Setenv("REVENUECAT_URL", server.URL)
 	// connect both peers using websockets
-	wsA, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&uid=j")
+	wsA, _, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&uid=j")
 	require.Nil(t, err)
 	defer wsA.Close()
 	if err = wsA.SetReadDeadline(time.Now().Add(ReadTimeout)); err != nil {
 		t.Fatalf("SetReadDeadline: %v", err)
 	}
-	wsB, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&uid=j")
+	wsB, _, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&uid=j")
 	require.Nil(t, err)
 	defer wsB.Close()
 	if err = wsB.SetReadDeadline(time.Now().Add(ReadTimeout)); err != nil {
@@ -755,7 +785,11 @@ func TestDisconnectReconnect(t *testing.T) {
 	redisDouble.SetAdd("user:j", "A", "B")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "1")
-	ws1, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&uid=j")
+	// setup a mock revenuecat server
+	server := httptest.NewServer(http.HandlerFunc(rcHandler))
+	defer server.Close()
+	os.Setenv("REVENUECAT_URL", server.URL)
+	ws1, _, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&uid=j")
 	require.Nil(t, err)
 	time.Sleep(time.Millisecond * 50)
 	online := redisDouble.HGet("peer:A", "online")
@@ -764,7 +798,7 @@ func TestDisconnectReconnect(t *testing.T) {
 	time.Sleep(time.Millisecond * 50)
 	online = redisDouble.HGet("peer:A", "online")
 	require.Equal(t, "0", online)
-	ws2, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&uid=j")
+	ws2, _, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&uid=j")
 	require.Nil(t, err)
 	time.Sleep(time.Millisecond * 50)
 	online = redisDouble.HGet("peer:A", "online")

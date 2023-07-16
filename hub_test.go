@@ -1,6 +1,9 @@
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -26,9 +29,12 @@ func TestPeersNotifications(t *testing.T) {
 	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
 		"user", "j", "verified", "0")
 	redisDouble.SAdd("user:j", "A", "B")
-	wsA, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&uid=j")
+	server := httptest.NewServer(http.HandlerFunc(rcHandler))
+	defer server.Close()
+	os.Setenv("REVENUECAT_URL", server.URL)
+	wsA, _, err := openWS("ws://127.0.0.1:17777/ws?fp=A&name=foo&kind=lay&uid=j")
 	defer wsA.Close()
-	wsB, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&uid=j")
+	wsB, _, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&uid=j")
 	require.Nil(t, err)
 	defer wsB.Close()
 	if err := wsA.SetReadDeadline(time.Now().Add(time.Second / 100)); err != nil {

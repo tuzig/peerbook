@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/gomodule/redigo/redis"
@@ -149,7 +150,11 @@ func SendMessage(tfp string, msg interface{}) error {
 func serveWs(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	Logger.Infof("Got a new peer request: %v", q)
-	conn, err := ConnFromQ(q)
+	rcURL := os.Getenv("REVENUECAT_URL")
+	if rcURL == "" {
+		rcURL = "https://api.revenuecat.com"
+	}
+	conn, err := ConnFromQ(q, rcURL)
 	if err != nil {
 		Logger.Errorf("Failed creating a Conn: %s", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -280,7 +285,7 @@ loop:
 //		It first looks for an existing peer based on the fingerprint.
 //	 If found, it will reconcile the input fields and throw errors.
 //	 If it's a fresh peer it will be added to the database.
-func ConnFromQ(q url.Values) (*Conn, error) {
+func ConnFromQ(q url.Values, rcURL string) (*Conn, error) {
 	fp := q.Get("fp")
 	name := q.Get("name")
 	uid := q.Get("uid")
@@ -292,7 +297,8 @@ func ConnFromQ(q url.Values) (*Conn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get peer: %w", err)
 	}
-	if peer == nil {
+	// FP can be empty because of redisDouble used in testing
+	if peer == nil || peer.FP == "" {
 		peer = NewPeer(fp, name, uid, kind)
 		err = db.AddPeer(peer)
 		if err != nil {
@@ -304,16 +310,23 @@ func ConnFromQ(q url.Values) (*Conn, error) {
 			peer.setName(name)
 		}
 		if peer.User == "" {
-			Logger.Warn("peer user id empty")
-			peer = NewPeer(fp, name, uid, kind)
-			err = db.AddPeer(peer)
+			return nil, fmt.Errorf("Peer user id empty %v", peer)
+			/*
+				Logger.Warn("peer user id empty")
+				peer = NewPeer(fp, name, uid, kind)
+				err = db.AddPeer(peer)
+				if err != nil {
+					return nil, fmt.Errorf("Failed to add peer: %s", err)
+				}
+			*/
+		} else {
+			active, err := isUIDActive(peer.User, rcURL)
 			if err != nil {
-				return nil, fmt.Errorf("Failed to add peer: %s", err)
+				return nil, fmt.Errorf("Failed to check if uid active: %s", err)
 			}
-		}
-		if uid != "" && peer.User != uid {
-			Logger.Warnf(
-				"Ignoring request uid %s as db has %s for fp %s", uid, peer.User, fp)
+			if !active {
+				return nil, fmt.Errorf("UID %s not active", peer.User)
+			}
 		}
 	}
 	return NewConn(peer)

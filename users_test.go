@@ -21,6 +21,11 @@ import (
 
 var lastPath string
 
+func rcNotActiveHandler(w http.ResponseWriter, r *http.Request) {
+	lastPath = path.Base(r.URL.Path)
+	fmt.Fprint(w, rcNotActiveResponse)
+}
+
 func rcHandler(w http.ResponseWriter, r *http.Request) {
 	lastPath = path.Base(r.URL.Path)
 	fmt.Fprint(w, rcMockResponse)
@@ -189,6 +194,27 @@ func TestBackendAuthorized(t *testing.T) {
 	require.True(t, b.IsAuthorized("foo"))
 }
 
+var rcNotActiveResponse string = `{
+	  "request_date": "2023-07-01T18:54:46Z",
+	  "request_date_ms": 1688237686989,
+	  "subscriber": {
+		"subscriptions": {},
+		"first_seen": "2023-06-27T05:41:40Z",
+		"last_seen": "2023-07-01T17:40:19Z",
+		"management_url": "https://apps.apple.com/account/subscriptions",
+		"non_subscriptions": {},
+		"original_app_user_id": "foo",
+		"original_application_version": "1.0",
+		"original_purchase_date": "2013-08-01T07:00:00Z",
+		"other_purchases": {},
+		"subscriber_attributes": {
+		  "$attConsentStatus": {
+			"updated_at_ms": 1687847082538,
+			"value": "notDetermined"
+		  }
+		}
+	  }
+	}`
 var rcMockResponse string = `{
 	  "request_date": "2023-07-01T18:54:46Z",
 	  "request_date_ms": 1688237686989,
