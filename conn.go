@@ -334,6 +334,14 @@ func ConnFromQ(q url.Values, rcURL string) (*Conn, error) {
 					return nil, fmt.Errorf("Failed to add peer: %s", err)
 				}
 			*/
+		} else {
+			active, err := isUIDActive(peer.User, rcURL)
+			if err != nil {
+				return nil, fmt.Errorf("Failed to check if uid active: %s", err)
+			}
+			if !active {
+				return nil, fmt.Errorf("UID %s not active", peer.User)
+			}
 		}
 	}
 	return NewConn(peer, rcURL)
