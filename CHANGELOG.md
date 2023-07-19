@@ -11,13 +11,16 @@ and the release workflow reads it to set github's release notes.
 
 ## Unreleased
 
-
 ### Added 
 
-- A WebRTC endpoint, `/we`, for admin commands:
- - register <email> <peer_name>
- - verify <target_cingerprint> <otp>
- - ping [otp]
+- A WebRTC endpoint, `/we`, for admin commands.
+The client authenticates either through an Authorization header or if
+its fingerprint is recognized. Here are the supported commands:
+ - register <email> <peer_name> - once per user, returning a user id and a sixel QR code
+ - verify <fingerprint> <otp>
+ - ping [otp] - returning user id
+- RevenueCat based authorization - supporting both Android and iPadOS
+
 
 ## [1.2]
 
