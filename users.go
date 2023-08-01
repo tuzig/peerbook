@@ -309,6 +309,10 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 			}
 		}
 		Logger.Debugf("Verified peer: %s", target)
+		err = db.SetSubscribed(uID)
+		if err != nil {
+			return nil, nil, fmt.Errorf("Failed to set user as subscribed: %s", err)
+		}
 		return nil, f, nil
 	case "ping":
 		// ping can be used to check if the server is alive
