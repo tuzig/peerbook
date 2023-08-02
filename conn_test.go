@@ -15,7 +15,7 @@ func TestSetPublicKey(t *testing.T) {
 	_, err := miniredis.Run()
 	require.NoError(t, err)
 	peer := NewPeer("A", "foo", "j", "client")
-	c, err := NewConn(peer)
+	c, err := NewConn(peer, "")
 	require.NoError(t, err)
 	require.NotNil(t, c)
 }

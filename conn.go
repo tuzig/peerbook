@@ -25,12 +25,13 @@ const (
 )
 
 type Conn struct {
-	WS       *websocket.Conn
-	FP       string
-	Verified bool
-	send     chan []byte
-	User     string
-	Kind     string
+	WS         *websocket.Conn
+	FP         string
+	Verified   bool
+	UserActive bool
+	send       chan []byte
+	User       string
+	Kind       string
 }
 
 // PeerUpdate is a struct for peer update messages
@@ -172,11 +173,23 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 	hub.register <- conn
 }
 
-func (c *Conn) welcomeUnverified() {
-	err := c.sendStatus(http.StatusUnauthorized, fmt.Errorf(
-		"Unverified peer, please use Terminal7 to verify or at https://peerbook.io"))
-	if err != nil {
-		Logger.Errorf("Failed to send status message: %s", err)
+func (c *Conn) Welcome() {
+	if c.Verified && c.UserActive {
+		c.SendPeerList()
+	} else {
+		msg := fmt.Errorf(
+			"Unverified peer, please use Terminal7 to verify or at https://peerbook.io")
+		if c.UserActive {
+			msg = fmt.Errorf("Subscription inactive, please use Terminal7 to renew your subscription")
+		}
+		err := c.sendStatus(http.StatusUnauthorized, msg)
+		if err != nil {
+			Logger.Errorf("Failed to send status message: %s", err)
+		}
+	}
+
+	if err := c.SetOnline(true); err != nil {
+		Logger.Errorf("Failed setting a peer as online: %s", err)
 	}
 }
 
@@ -319,23 +332,26 @@ func ConnFromQ(q url.Values, rcURL string) (*Conn, error) {
 					return nil, fmt.Errorf("Failed to add peer: %s", err)
 				}
 			*/
-		} else {
-			active, err := isUIDActive(peer.User, rcURL)
-			if err != nil {
-				return nil, fmt.Errorf("Failed to check if uid active: %s", err)
-			}
-			if !active {
-				return nil, fmt.Errorf("UID %s not active", peer.User)
-			}
 		}
 	}
-	return NewConn(peer)
+	return NewConn(peer, rcURL)
 }
-func NewConn(peer *Peer) (*Conn, error) {
+func NewConn(peer *Peer, rcURL string) (*Conn, error) {
+	verified := peer.Verified
+	userActive := false
+	if rcURL != "" && verified {
+		var err error
+		userActive, err = isUIDActive(peer.User, rcURL)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to check if uid active: %s", err)
+		}
+	}
+
 	c := &Conn{FP: peer.FP,
-		Verified: peer.Verified,
-		User:     peer.User,
-		send:     make(chan []byte, SendBufSize),
+		Verified:   verified,
+		User:       peer.User,
+		send:       make(chan []byte, SendBufSize),
+		UserActive: userActive,
 	}
 	return c, nil
 }
