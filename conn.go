@@ -32,12 +32,14 @@ type Conn struct {
 	send       chan []byte
 	User       string
 	Kind       string
+	Name       string
 }
 
 // PeerUpdate is a struct for peer update messages
 type PeerUpdate struct {
-	Verified bool `redis:"verified" json:"verified"`
-	Online   bool `redis:"online" json:"online"`
+	Verified bool   `redis:"verified" json:"verified"`
+	Online   bool   `redis:"online" json:"online"`
+	Name     string `redis:"name" json:"name"`
 	// TODO: should we add the authorization token?
 }
 
@@ -202,13 +204,13 @@ func (c *Conn) SetOnline(o bool) error {
 		return err
 	}
 	// publish the peer update
-	return SendPeerUpdate(rc, c.User, c.FP, c.Verified, o)
+	return SendPeerUpdate(rc, c.User, c.FP, c.Verified, o, c.Name)
 }
 
-func SendPeerUpdate(rc redis.Conn, user string, fp string, verified bool, online bool) error {
+func SendPeerUpdate(rc redis.Conn, user string, fp string, verified bool, online bool, name string) error {
 	m, err := json.Marshal(map[string]interface{}{
 		"source_fp":   fp,
-		"peer_update": PeerUpdate{Verified: verified, Online: online},
+		"peer_update": PeerUpdate{Verified: verified, Online: online, Name: name},
 	})
 	key := fmt.Sprintf("peers:%s", user)
 	if _, err = rc.Do("PUBLISH", key, m); err != nil {
@@ -352,7 +354,8 @@ func NewConn(peer *Peer, rcURL string) (*Conn, error) {
 		User:       peer.User,
 		send:       make(chan []byte, SendBufSize),
 		UserActive: userActive,
-		Kind:	   peer.Kind,
+		Kind:       peer.Kind,
+		Name:       peer.Name,
 	}
 	return c, nil
 }
