@@ -209,10 +209,13 @@ func VerifyPeer(fp string, verified bool) error {
 			if err != nil {
 				return err
 			}
-			return SendMessage(fp, map[string]interface{}{
+			err = SendMessage(fp, map[string]interface{}{
 				"peers": ps,
 				"uid":   user,
 			})
+			if err != nil {
+				Logger.Warnf("Failed to send peers to %q: %w", fp, err)
+			}				
 		}
 	} else {
 		rc.Do("HSET", key, "verified", "0")
