@@ -352,6 +352,7 @@ func NewConn(peer *Peer, rcURL string) (*Conn, error) {
 		User:       peer.User,
 		send:       make(chan []byte, SendBufSize),
 		UserActive: userActive,
+		Kind:	   peer.Kind,
 	}
 	return c, nil
 }
