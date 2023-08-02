@@ -212,7 +212,8 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 		peerName := command[2]
 		Logger.Debugf("Got register cmd: %s %s", email, peerName)
 		uID, err := db.GetUID4FP(fp)
-		if err != nil {
+		Logger.Debugf("got uid %q for %q", uID, fp)
+		if uID == "" {
 			// create the user and the peer
 			uID, err = GenerateUser(email)
 			if err != nil {
@@ -223,16 +224,7 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 			if err != nil {
 				return nil, nil, fmt.Errorf("Failed to add peer: %s", err)
 			}
-		} else if uID == "" {
-			uID, err = GenerateUser(email)
-			if err != nil {
-				return nil, nil, fmt.Errorf("Failed to generate user: %s", err)
-			}
-			err = db.SetPeerUser(fp, uID)
-			if err != nil {
-				return nil, nil, fmt.Errorf("Failed to add peer: %s", err)
-			}
-		} else {
+		}  else {
 			Logger.Debugf("Peer %s already exists: %s", fp, uID)
 		}
 		Logger.Debugf("before generating sixel: %s", uID)
