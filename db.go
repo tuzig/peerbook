@@ -215,7 +215,7 @@ func VerifyPeer(fp string, verified bool) error {
 			})
 			if err != nil {
 				Logger.Warnf("Failed to send peers to %q: %w", fp, err)
-			}				
+			}
 		}
 	} else {
 		rc.Do("HSET", key, "verified", "0")
@@ -224,12 +224,12 @@ func VerifyPeer(fp string, verified bool) error {
 				"peer's verification was revoked"})
 		}
 	}
-	user, err := redis.String(rc.Do("HGET", key, "user"))
+	peer, err := GetPeer(fp)
 	if err != nil {
-		return fmt.Errorf("Failed to hget user from %s: %w", key, err)
+		return fmt.Errorf("Failed to get peer %s: %w", fp, err)
 	}
 	// publish the peer's state
-	return SendPeerUpdate(rc, user, fp, verified, online)
+	return SendPeerUpdate(rc, peer.User, fp, verified, online, peer.Name)
 }
 func (d *DBType) canSendEmail(email string) bool {
 	key := fmt.Sprintf("dontsend:%s", email)
