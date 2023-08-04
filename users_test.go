@@ -84,7 +84,7 @@ func rcHandler(w http.ResponseWriter, r *http.Request) {
 		require.NoError(t, err)
 		userID := m["ID"]
 		// get the secret from the db and generate a code
-		secret, err := getUserSecret(userID)
+		secret, err := db.getUserSecret(userID)
 		require.NoError(t, err)
 		otp, err := totp.GenerateCode(secret, time.Now())
 		require.Nil(t, err)
@@ -468,7 +468,6 @@ func TestQRSixel(t *testing.T) {
 	err = db.Connect("127.0.0.1:6379")
 	// to generate a sixel image we need a user with a QR code
 	redisDouble.SetAdd("user:j", "A", "B")
-	redisDouble.HSet("u:j", "email", "j@example.com")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "1", "online", "0")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "foo", "kind", "lay",
@@ -480,7 +479,7 @@ func TestQRSixel(t *testing.T) {
 	require.Nil(t, err)
 	// otp, err := totp.GenerateCode(ok.Secret(), time.Now())
 	// require.Nil(t, err)
-	redisDouble.Set("secret:j", ok.Secret())
+	redisDouble.HSet("u:j", "email", "j@example.com", "secret", ok.Secret())
 	sixel, err := GetQRSixel("j")
 	require.NoError(t, err)
 	require.NotEmpty(t, sixel)
