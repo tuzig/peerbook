@@ -248,10 +248,10 @@ func (d *DBType) canSendEmail(email string) bool {
 	return true
 }
 func (d *DBType) SetQRVerified(uid string) error {
-	key := fmt.Sprintf("QRVerified:%s", uid)
+	key := fmt.Sprintf("u:%s", uid)
 	conn := d.getConn()
 	defer conn.Close()
-	_, err := conn.Do("SET", key, "1")
+	_, err := conn.Do("HSET", key, "QRVerified", "1")
 	return err
 }
 func (d *DBType) getConn() redis.Conn {
@@ -261,10 +261,10 @@ func (d *DBType) getConn() redis.Conn {
 	return conn
 }
 func (d *DBType) IsQRVerified(uid string) bool {
-	key := fmt.Sprintf("QRVerified:%s", uid)
+	key := fmt.Sprintf("u:%s", uid)
 	conn := d.getConn()
 	defer conn.Close()
-	seen, err := redis.Bool(conn.Do("EXISTS", key))
+	seen, err := redis.Bool(conn.Do("HGET", key, "QRVerified"))
 	if err != nil {
 		Logger.Warnf("failed to check if key %q exists", key)
 		return false
