@@ -10,6 +10,7 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gomodule/redigo/redis"
+	"github.com/pquerna/otp/totp"
 )
 
 const TokenLen = 30          // in Bytes, four times that in base64 and urls
@@ -429,4 +430,29 @@ func (d *DBType) SetSubscribed(UserID string) error {
 	key := fmt.Sprintf("subscriber:%s", UserID)
 	_, err := conn.Do("SET", key, "1", "EX", SubscriberTTL)
 	return err
+}
+func (d *DBType) getUserSecret(user string) (string, error) {
+	var secret string
+	conn := d.pool.Get()
+	defer conn.Close()
+	key := fmt.Sprintf("u:%s", user)
+	secret, err := redis.String(conn.Do("HGet", key, "secret"))
+	if err == redis.ErrNil {
+		ok, err := totp.Generate(totp.GenerateOpts{
+			Issuer:      "PeerBook",
+			AccountName: user,
+		})
+		if err != nil {
+			return "", fmt.Errorf("Failed to generate a TOTP key: %s", err)
+		}
+		// all is well, save the secret
+		secret = ok.Secret()
+		_, err = conn.Do("HSET", key, "secret", secret)
+		if err != nil {
+			return "", fmt.Errorf("Failed to save the user's secret")
+		}
+	} else if err != nil {
+		return "", err
+	}
+	return secret, nil
 }

@@ -27,7 +27,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gomodule/redigo/redis"
 	"github.com/pion/webrtc/v3"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
@@ -100,13 +99,6 @@ func (p *PeerChanged) Error() string {
 	return "Peer exists with different properties"
 }
 
-// NoSecret is an error
-type NewSecret struct{}
-
-func (e *NewSecret) Error() string {
-	return "Couldn't find a secret, generated a new one"
-}
-
 // getUIDFromRequest It works assuming a valid token is the second
 // url part
 func getUIDFromRequest(r *http.Request) (string, error) {
@@ -175,7 +167,7 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 		}
 		otp := r.Form.Get("otp")
 		// validate otp based on user's secret
-		s, err := getUserSecret(user)
+		s, err := db.getUserSecret(user)
 		if err != nil {
 			msg := fmt.Sprintf("Failed to get user's OTP secret: %s", err)
 			http.Error(w, msg, http.StatusBadRequest)
@@ -605,7 +597,7 @@ func sendAuthEmail(email string, uid string) error {
 }
 
 func getUserKey(user string) (*otp.Key, error) {
-	s, err := getUserSecret(user)
+	s, err := db.getUserSecret(user)
 	if err != nil {
 		return nil, err
 	}
@@ -617,32 +609,6 @@ func getUserKey(user string) (*otp.Key, error) {
 	return otp.NewKeyFromURL(u)
 
 }
-func getUserSecret(user string) (string, error) {
-	var secret string
-	conn := db.pool.Get()
-	defer conn.Close()
-	key := fmt.Sprintf("secret:%s", user)
-	secret, err := redis.String(conn.Do("Get", key))
-	if err == redis.ErrNil {
-		ok, err := totp.Generate(totp.GenerateOpts{
-			Issuer:      "PeerBook",
-			AccountName: user,
-		})
-		if err != nil {
-			return "", fmt.Errorf("Failed to generate a TOTP key: %s", err)
-		}
-		// all is well, save the secret
-		secret = ok.Secret()
-		_, err = conn.Do("SET", key, secret)
-		if err != nil {
-			return "", fmt.Errorf("Failed to save the user's secret")
-		}
-	} else if err != nil {
-		return "", err
-	}
-	return secret, nil
-}
-
 func goHome(w http.ResponseWriter, r *http.Request, msg string) {
 	a := fmt.Sprintf("/?m=%s", url.PathEscape(msg))
 	http.Redirect(w, r, a, http.StatusSeeOther)
@@ -669,7 +635,7 @@ If you lost your device please use the account-recovery channel on our discord s
 			msg = fmt.Sprintf("Bad Form: %s", err)
 			goto render
 		}
-		s, err := getUserSecret(user)
+		s, err := db.getUserSecret(user)
 		if err != nil {
 			msg = fmt.Sprintf("Failed to get user's secret: %s", err)
 			goto render
