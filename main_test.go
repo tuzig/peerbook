@@ -305,9 +305,8 @@ func TestGetUsersList(t *testing.T) {
 	startTest(t)
 	token := "=a+valid/token="
 	// setup the fixture - a user, his token and two peers
-	redisDouble.HSet("u:j", "email", "j@example.com")
+	redisDouble.HSet("u:j", "email", "j@example.com", "secert", "AVERYSECRETTOKEN")
 	redisDouble.SetAdd("user:j", "A", "B")
-	redisDouble.Set("secret:j", "AVERYSECRETTOKEN")
 	redisDouble.Set("QRVerified:j", "1")
 	redisDouble.Set(fmt.Sprintf("token:%s", token), "j")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "zulu",
@@ -400,7 +399,6 @@ func TestGetUsersList(t *testing.T) {
 func TestHTTPPeerVerification(t *testing.T) {
 	startTest(t)
 	// setup the fixture - a user, his token, otp secret and two peers
-	redisDouble.HSet("u:j", "email", "j@example.com")
 	redisDouble.SetAdd("user:j", "A", "B")
 	redisDouble.Set("token:avalidtoken", "j")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
@@ -414,7 +412,7 @@ func TestHTTPPeerVerification(t *testing.T) {
 	require.Nil(t, err)
 	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
 	require.Nil(t, err)
-	redisDouble.Set("secret:j", ok.Secret())
+	redisDouble.HSet("u:j", "email", "j@example.com", "secret", ok.Secret())
 	redisDouble.Set("QRVerified:j", "1")
 	// setup a mock revenuecat server
 	server := httptest.NewServer(http.HandlerFunc(rcHandler))
@@ -565,7 +563,6 @@ func TestValidatePeerNPublish(t *testing.T) {
 	startTest(t)
 	// setup the fixture - a user, his token and two peers
 	redisDouble.Set("token:avalidtoken", "j")
-	redisDouble.HSet("u:j", "email", "j@example.com")
 	redisDouble.SetAdd("user:j", "A", "B")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "0", "online", "0")
@@ -578,7 +575,7 @@ func TestValidatePeerNPublish(t *testing.T) {
 	require.Nil(t, err)
 	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
 	require.Nil(t, err)
-	redisDouble.Set("secret:j", ok.Secret())
+	redisDouble.HSet("u:j", "email", "j@example.com", "secret", ok.Secret())
 	redisDouble.Set("QRVerified:j", "1")
 	// setup a mock revenuecat server
 	server := httptest.NewServer(http.HandlerFunc(rcHandler))
@@ -649,7 +646,7 @@ func TestGoodOTP2(t *testing.T) {
 	defer rc.Close()
 	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
 	require.Nil(t, err)
-	redisDouble.Set("secret:j", ok.Secret())
+	redisDouble.HSet("u:j", "secret", ok.Secret())
 	redisDouble.Set("QRVerified:j", "1")
 	resp, err := http.PostForm("http://127.0.0.1:17777/pb/avalidtoken",
 		url.Values{"rmrf": {"checked"}, "otp": {otp}})
@@ -713,7 +710,7 @@ func TestBadOTP(t *testing.T) {
 		AccountName: "j",
 	})
 	require.Nil(t, err)
-	redisDouble.Set("secret:j", ok.Secret())
+	redisDouble.HSet("u:j", "user", ok.Secret())
 	redisDouble.Set("QRVerified:j", "1")
 	resp, err := http.PostForm("http://127.0.0.1:17777/pb/avalidtoken",
 		url.Values{"rmrf": {"checked"}, "otp": {"98989898"}})
@@ -772,7 +769,7 @@ func TestBadValidateOTP(t *testing.T) {
 func TestUserSecret(t *testing.T) {
 	startTest(t)
 	time.Sleep(time.Second / 100)
-	s, err := getUserSecret("j")
+	s, err := db.getUserSecret("j")
 	otp, err := totp.GenerateCode(s, time.Now())
 	require.Nil(t, err)
 	v := totp.Validate(otp, s)

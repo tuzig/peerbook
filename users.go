@@ -255,7 +255,7 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 			return nil, nil, fmt.Errorf("failed to get user id - %s", err)
 		}
 		// validate the OTP
-		s, err := getUserSecret(uID)
+		s, err := db.getUserSecret(uID)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to get user secret - %s", err)
 		}
@@ -343,7 +343,7 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 			return nil, nil, fmt.Errorf("failed to get peer")
 		}
 		// validate the OTP
-		s, err := getUserSecret(peer.User)
+		s, err := db.getUserSecret(peer.User)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to get user secret - %s", err)
 		}
