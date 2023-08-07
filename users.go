@@ -74,7 +74,7 @@ func isUIDActive(uid string, rcURL string) (bool, error) {
 	currentTime := time.Now().UTC()
 	layout := "2006-01-02T15:04:05Z"
 	for key := range data.Subscriber.Subscriptions {
-		if !strings.HasPrefix(key, "peerbook") {
+		if !strings.Contains(key, "peerbook") {
 			continue
 		}
 		var expires_date string
@@ -224,7 +224,7 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 			if err != nil {
 				return nil, nil, fmt.Errorf("Failed to add peer: %s", err)
 			}
-		}  else {
+		} else {
 			Logger.Debugf("Peer %s already exists: %s", fp, uID)
 		}
 		Logger.Debugf("before generating sixel: %s", uID)
