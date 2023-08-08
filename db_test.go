@@ -39,6 +39,16 @@ func TestAddPeer(t *testing.T) {
 	require.Equal(t, "Yosi", pd.Name)
 	redisDouble.Del("user:j")
 }
+func TestAddSameNamePeer(t *testing.T) {
+	startTest(t)
+	redisDouble.SAdd("user:j", "foo", "bar")
+	peer := &Peer{FP: "publickey", Name: "Yosi", User: "J",
+		CreatedOn: time.Now().Unix()}
+	err := db.AddPeer(peer)
+	require.Nil(t, err)
+	err = db.AddPeer(peer)
+	require.ErrorContains(t, err, "Peer name already exists")
+}
 func TestGetUserList(t *testing.T) {
 	startTest(t)
 	redisDouble.HSet("peer:foo", "name", "fucked up", "user", "j")

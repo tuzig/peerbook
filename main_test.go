@@ -400,9 +400,9 @@ func TestHTTPPeerVerification(t *testing.T) {
 	// setup the fixture - a user, his token, otp secret and two peers
 	redisDouble.SetAdd("user:j", "A", "B")
 	redisDouble.Set("token:avalidtoken", "j")
-	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
+	redisDouble.HSet("peer:A", "fp", "A", "name", "a foo", "kind", "lay",
 		"user", "j", "verified", "1", "online", "0")
-	redisDouble.HSet("peer:B", "fp", "B", "name", "foo", "kind", "lay",
+	redisDouble.HSet("peer:B", "fp", "B", "name", "b foo", "kind", "lay",
 		"user", "j", "verified", "0", "online", "0")
 	ok, err := totp.Generate(totp.GenerateOpts{
 		Issuer:      "Peerbbook",

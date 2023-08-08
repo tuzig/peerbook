@@ -351,7 +351,8 @@ func serveVerify(w http.ResponseWriter, r *http.Request) {
 	} else {
 		peer, err = GetPeer(fp)
 		if err != nil {
-			msg := fmt.Sprintf("Failed to get peer: %s", err)
+			// turn err to a string
+			msg := fmt.Sprintf("%s", err)
 			Logger.Errorf(msg)
 			m, _ := json.Marshal(map[string]string{"m": msg})
 			http.Error(w, string(m), http.StatusInternalServerError)

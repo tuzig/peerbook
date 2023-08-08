@@ -149,6 +149,20 @@ func (d *DBType) AddPeer(peer *Peer) error {
 		if len(values) == MaxPeersPerUser {
 			return fmt.Errorf("User has too many peers")
 		}
+		for _, v := range values {
+			// check if the peer's name already exists
+			fp, err := redis.String(v, nil)
+			if err != nil {
+				return fmt.Errorf("Failed to convert peer %q: %w", v, err)
+			}
+			otherPeer, err := GetPeer(fp)
+			if err != nil {
+				return fmt.Errorf("Failed to get peer %q: %w", fp, err)
+			}
+			if otherPeer.Name == peer.Name {
+				return fmt.Errorf("Peer name already exists")
+			}
+		}
 		_, err = conn.Do("SADD", key, peer.FP)
 		if err != nil {
 			// get the key's kind
