@@ -14,6 +14,7 @@ func TestTooManyPeers(t *testing.T) {
 			FP:   fmt.Sprintf("%2d", i+1),
 			User: "j",
 			Kind: "foo",
+			Name: fmt.Sprintf("p%03d", i),
 		}
 		err := db.AddPeer(&p)
 		require.Nil(t, err)
