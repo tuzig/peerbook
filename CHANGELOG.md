@@ -19,7 +19,9 @@ its fingerprint is recognized. Here are the supported commands:
  - register <email> <peer_name> - once per user, returning a user id and a sixel QR code
  - verify <fingerprint> <otp>
  - ping [otp] - returning user id
-- RevenueCat based authorization - supporting both Android and iPadOS
+- RevenueCat based authorization - supporting both Android and iOS clients
+- base64 16 char long user id
+
 
 
 ## [1.2] - 2023-1-10
