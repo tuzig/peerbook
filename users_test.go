@@ -310,7 +310,7 @@ func TestRegisterCommand(t *testing.T) {
 	err = json.Unmarshal(b, &m)
 	require.NoError(t, err)
 	require.Contains(t, m, "ID")
-	require.Equal(t, 10, len(m["ID"]))
+	require.Equal(t, 16, len(m["ID"]))
 	require.Contains(t, m, "QR")
 	// make sure the m["ID"] is in the db
 	email := redisDouble.HGet("u:"+m["ID"], "email")

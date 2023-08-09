@@ -12,7 +12,6 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
 	"time"
 
@@ -393,6 +392,11 @@ func (r *RWC) Close() error {
 
 // GenerateUserID generates a 10 digit long, base 10 random user ID
 func GenerateUser(email string) (string, error) {
-	uID := strconv.Itoa(rand.Intn(9000000000) + 1000000000)
+	bytes := make([]byte, 12)
+	_, err := rand.Read(bytes)
+	if err != nil {
+		return "", err
+	}
+	uID := base64.StdEncoding.EncodeToString(bytes)
 	return uID, db.AddUser(email, uID)
 }
