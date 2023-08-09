@@ -188,7 +188,7 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 				for _, p := range *peers {
 					conn.Do("DEL", p.Key())
 				}
-				key := fmt.Sprintf("user:%s", user)
+				key := fmt.Sprintf("userset:%s", user)
 				conn.Do("DEL", key)
 				conn.Close()
 				data.Peers = nil
