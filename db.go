@@ -92,7 +92,7 @@ func (d *DBType) GetToken(token string) (string, error) {
 // GetPeers gets a user from redis
 func (d *DBType) GetPeers(uid string) (*DBUser, error) {
 	var r DBUser
-	key := fmt.Sprintf("user:%s", uid)
+	key := fmt.Sprintf("userset:%s", uid)
 	conn := d.getConn()
 	defer conn.Close()
 	values, err := redis.Values(conn.Do("SMEMBERS", key))
@@ -141,7 +141,7 @@ func (d *DBType) AddPeer(peer *Peer) error {
 	conn := d.getConn()
 	defer conn.Close()
 	if peer.User != "" {
-		key := fmt.Sprintf("user:%s", peer.User)
+		key := fmt.Sprintf("userset:%s", peer.User)
 		values, err := redis.Values(conn.Do("SMEMBERS", key))
 		if err != nil {
 			return fmt.Errorf("Failed to read user %q list: %w", peer.User, err)
@@ -262,7 +262,7 @@ func (d *DBType) canSendEmail(email string) bool {
 	return true
 }
 func (d *DBType) SetQRVerified(uid string) error {
-	key := fmt.Sprintf("u:%s", uid)
+	key := fmt.Sprintf("user:%s", uid)
 	conn := d.getConn()
 	defer conn.Close()
 	_, err := conn.Do("HSET", key, "QRVerified", "1")
@@ -275,7 +275,7 @@ func (d *DBType) getConn() redis.Conn {
 	return conn
 }
 func (d *DBType) IsQRVerified(uid string) bool {
-	key := fmt.Sprintf("u:%s", uid)
+	key := fmt.Sprintf("user:%s", uid)
 	conn := d.getConn()
 	defer conn.Close()
 	seen, err := redis.Bool(conn.Do("HGET", key, "QRVerified"))
@@ -356,8 +356,8 @@ func (d *DBType) tempIDExists(id string) (bool, error) {
 func (d *DBType) AddUser(email string, uid string) error {
 	conn := d.pool.Get()
 	defer conn.Close()
-	idkey := fmt.Sprintf("u:%s", uid)
-	key := fmt.Sprintf("id:%s", email)
+	idkey := fmt.Sprintf("user:%s", uid)
+	key := fmt.Sprintf("uid:%s", email)
 	_, err := conn.Do("SET", key, uid)
 	if err != nil {
 		return fmt.Errorf("Failed to set %s: %w", key, err)
@@ -371,7 +371,7 @@ func (d *DBType) AddUser(email string, uid string) error {
 
 // GetEmail returns the email of a user
 func (d *DBType) GetEmail(uID string) (string, error) {
-	key := fmt.Sprintf("u:%s", uID)
+	key := fmt.Sprintf("user:%s", uID)
 	conn := d.pool.Get()
 	defer conn.Close()
 	email, err := redis.String(conn.Do("HGET", key, "email"))
@@ -395,7 +395,7 @@ func (d *DBType) GetUID4FP(fp string) (string, error) {
 
 // GetUserID returns the user id of an email
 func (d *DBType) GetUserID(email string) (string, error) {
-	key := fmt.Sprintf("id:%s", email)
+	key := fmt.Sprintf("uid:%s", email)
 	conn := d.pool.Get()
 	defer conn.Close()
 	id, err := redis.String(conn.Do("GET", key))
@@ -424,7 +424,7 @@ func (d *DBType) AddTempID(tempID string) error {
 func (d *DBType) SetUserActive(UserID string, active bool) error {
 	conn := d.pool.Get()
 	defer conn.Close()
-	key := fmt.Sprintf("u:%s", UserID)
+	key := fmt.Sprintf("user:%s", UserID)
 	_, err := conn.Do("HSET", key, "active", active)
 	return err
 }
@@ -449,7 +449,7 @@ func (d *DBType) getUserSecret(user string) (string, error) {
 	var secret string
 	conn := d.pool.Get()
 	defer conn.Close()
-	key := fmt.Sprintf("u:%s", user)
+	key := fmt.Sprintf("user:%s", user)
 	secret, err := redis.String(conn.Do("HGet", key, "secret"))
 	if err == redis.ErrNil {
 		ok, err := totp.Generate(totp.GenerateOpts{

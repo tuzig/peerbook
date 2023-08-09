@@ -23,7 +23,7 @@ func TestGetPeer(t *testing.T) {
 }
 func TestAddPeer(t *testing.T) {
 	startTest(t)
-	redisDouble.SAdd("user:j", "foo", "bar")
+	redisDouble.SAdd("userset:j", "foo", "bar")
 	peer := &Peer{FP: "publickey", Name: "Yosi", User: "J",
 		CreatedOn: time.Now().Unix()}
 	err := db.AddPeer(peer)
@@ -37,11 +37,11 @@ func TestAddPeer(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, "publickey", pd.FP)
 	require.Equal(t, "Yosi", pd.Name)
-	redisDouble.Del("user:j")
+	redisDouble.Del("userset:j")
 }
 func TestAddSameNamePeer(t *testing.T) {
 	startTest(t)
-	redisDouble.SAdd("user:j", "foo", "bar")
+	redisDouble.SAdd("userset:j", "foo", "bar")
 	peer := &Peer{FP: "publickey", Name: "Yosi", User: "J",
 		CreatedOn: time.Now().Unix()}
 	err := db.AddPeer(peer)
@@ -53,7 +53,7 @@ func TestGetUserList(t *testing.T) {
 	startTest(t)
 	redisDouble.HSet("peer:foo", "name", "fucked up", "user", "j")
 	redisDouble.HSet("peer:bar", "name", "behind a. recognition", "user", "j")
-	redisDouble.SAdd("user:j", "foo", "bar")
+	redisDouble.SAdd("userset:j", "foo", "bar")
 	list, err := GetUsersPeers("j")
 	require.Nil(t, err)
 	require.Equal(t, "fucked up", (*list)[1].Name)
@@ -63,7 +63,7 @@ func TestVerifyPeer(t *testing.T) {
 	startTest(t)
 	redisDouble.HSet("peer:bar", "fp", "bar", "name", "behind a. recognition",
 		"user", "j", "online", "0")
-	redisDouble.SAdd("user:j", "bar")
+	redisDouble.SAdd("userset:j", "bar")
 	list, err := GetUsersPeers("j")
 	require.Nil(t, err)
 	peer := (*list)[0]
@@ -102,10 +102,10 @@ func TestAddUser(t *testing.T) {
 	err := db.AddUser("j", "123")
 	require.NoError(t, err)
 	// ensure the new user is added to the db
-	dbID, err := redisDouble.Get("id:j")
+	dbID, err := redisDouble.Get("uid:j")
 	require.NoError(t, err)
 	require.Equal(t, "123", dbID)
-	dbEmail := redisDouble.HGet("u:123", "email")
+	dbEmail := redisDouble.HGet("user:123", "email")
 	require.Equal(t, "j", dbEmail)
 }
 func TestDoubleAddUser(t *testing.T) {
@@ -114,7 +114,7 @@ func TestDoubleAddUser(t *testing.T) {
 	require.NoError(t, err)
 	err = db.AddUser("h", "123")
 	require.NoError(t, err)
-	require.Equal(t, "h", redisDouble.HGet("u:123", "email"))
+	require.Equal(t, "h", redisDouble.HGet("user:123", "email"))
 }
 func TestGetUID4FP(t *testing.T) {
 	startTest(t)
