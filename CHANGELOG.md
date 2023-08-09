@@ -9,7 +9,7 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
-## Unreleased
+## [1.3] - 2023-8-9
 
 ### Added 
 
@@ -22,7 +22,7 @@ its fingerprint is recognized. Here are the supported commands:
 - RevenueCat based authorization - supporting both Android and iPadOS
 
 
-## [1.2]
+## [1.2] - 2023-1-10
 
 ### Added
 
