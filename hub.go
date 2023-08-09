@@ -27,7 +27,6 @@ func (h *Hub) run() {
 			Logger.Infof("Unregistering %s", c.FP)
 			if err := c.SetOnline(false); err != nil {
 				Logger.Errorf("Failed setting a peer as offline: %s", err)
-				continue
 			}
 		}
 	}

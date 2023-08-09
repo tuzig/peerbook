@@ -176,9 +176,6 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *Conn) Welcome() {
-	if err := c.SetOnline(true); err != nil {
-		Logger.Errorf("Failed setting a peer as online: %s", err)
-	}
 	if c.Verified && c.UserActive {
 		c.SendPeerList()
 	} else {
@@ -192,7 +189,9 @@ func (c *Conn) Welcome() {
 			Logger.Errorf("Failed to send status message: %s", err)
 		}
 	}
-
+	if err := c.SetOnline(true); err != nil {
+		Logger.Errorf("Failed setting a peer as online: %s", err)
+	}
 }
 
 // SetOnline sets the related peer's online redis and notifies peers
