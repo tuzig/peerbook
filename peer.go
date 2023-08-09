@@ -60,7 +60,7 @@ type AnswerMessage struct {
 
 func NewPeer(fp string, name string, user string, kind string) *Peer {
 	return &Peer{FP: fp, Name: name, Kind: kind, CreatedOn: time.Now().Unix(),
-		User: user, Verified: false, Online: false,
+		User: user, Verified: false, Online: true,
 		AuthToken: RandomString(AuthTokenLen),
 	}
 }
