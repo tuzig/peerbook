@@ -22,13 +22,13 @@ func TestSetPeerOnline(t *testing.T) {
 }
 func TestPeersNotifications(t *testing.T) {
 	startTest(t)
-	redisDouble.SetAdd("user:j", "A", "B")
-	redisDouble.HSet("u:j", "email", "j@example.com")
+	redisDouble.SetAdd("userset:j", "A", "B")
+	redisDouble.HSet("user:j", "email", "j@example.com")
 	redisDouble.HSet("peer:A", "fp", "A", "name", "foo", "kind", "lay",
 		"user", "j", "verified", "1")
 	redisDouble.HSet("peer:B", "fp", "B", "name", "bar", "kind", "lay",
 		"user", "j", "verified", "0")
-	redisDouble.SAdd("user:j", "A", "B")
+	redisDouble.SAdd("userset:j", "A", "B")
 	server := httptest.NewServer(http.HandlerFunc(rcHandler))
 	defer server.Close()
 	os.Setenv("REVENUECAT_URL", server.URL)
