@@ -99,7 +99,7 @@ func rcHandler(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, userID, redisDouble.HGet("peer:456", "user"))
 		dbemail := redisDouble.HGet(fmt.Sprintf("user:%s", userID), "email")
 		require.Equal(t, "wile@acme.com", dbemail)
-		dbuser, err := redisDouble.Get("id:wile@acme.com")
+		dbuser, err := redisDouble.Get("uid:wile@acme.com")
 		require.NoError(t, err)
 		require.Equal(t, userID, dbuser)
 	}
