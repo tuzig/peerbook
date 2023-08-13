@@ -303,6 +303,40 @@ func verify(fp string, target string, otp string) (*exec.Cmd, io.ReadWriteCloser
 	}
 	return nil, f, nil
 }
+func deletePeer(fp string, target string, otp string) (*exec.Cmd, io.ReadWriteCloser, error) {
+	sameUser, err := db.IsSameUser(fp, target)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to check if same user - %s", err)
+	}
+	if !sameUser {
+		return nil, nil, fmt.Errorf("target does not belong to the user")
+	}
+	peer, err := GetPeer(target)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get peer - %s", err)
+	}
+	if peer == nil {
+		return nil, nil, fmt.Errorf("failed to get peer")
+	}
+	// validate the OTP
+	s, err := db.getUserSecret(peer.User)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get user secret - %s", err)
+	}
+	if s == "" {
+		return nil, nil, fmt.Errorf("failed to get user secret")
+	}
+	ret := "0"
+	if totp.Validate(otp, s) {
+		ret = "1"
+		err := db.DeletePeer(fp)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to delete peer - %s", err)
+		}
+	}
+	f := NewRWC([]byte(ret))
+	return nil, f, err
+}
 func ping(fp string, otp string) (*exec.Cmd, io.ReadWriteCloser, error) {
 	if otp == "" {
 		uID, err := db.GetUID4FP(fp)
@@ -349,12 +383,39 @@ func ping(fp string, otp string) (*exec.Cmd, io.ReadWriteCloser, error) {
 	f := NewRWC([]byte(ret))
 	return nil, f, err
 }
+func rename(fp string, target string, name string) (*exec.Cmd, io.ReadWriteCloser, error) {
+	// check both fp and target belong to the same user
+	sameUser, err := db.IsSameUser(fp, target)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to check same user - %s", err)
+	}
+	if !sameUser {
+		return nil, nil, fmt.Errorf("target does not belong to the user")
+	}
+	err = db.RenamePeer(target, name)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to update peer - %s", err)
+	}
+	f := NewRWC([]byte("1"))
+	return nil, f, nil
+}
+
 func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID int, fp string) (*exec.Cmd, io.ReadWriteCloser, error) {
 	switch command[0] {
+	case "delete":
+		Logger.Debug("deleting peer")
+		target := command[1]
+		otp := command[2]
+		return deletePeer(fp, target, otp)
 	case "register":
 		email := command[1]
 		peerName := command[2]
 		return register(fp, email, peerName)
+	case "rename":
+		Logger.Debug("verifying peer")
+		target := command[1]
+		name := command[2]
+		return rename(fp, target, name)
 	case "verify":
 		Logger.Debug("verifying peer")
 		target := command[1]

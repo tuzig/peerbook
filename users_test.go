@@ -484,3 +484,81 @@ func TestQRSixel(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, sixel)
 }
+func TestDeleteCommand(t *testing.T) {
+	var err error
+	Logger = zaptest.NewLogger(t).Sugar()
+	redisDouble, err = miniredis.Run()
+	require.NoError(t, err)
+	err = db.Connect("127.0.0.1:6379")
+	redisDouble.SetAdd("userset:j", "A", "B")
+	redisDouble.HSet("user:j", "email", "j@example.com")
+	redisDouble.HSet("peer:A", "fp", "A", "user", "j", "name", "fucked up", "kind", "client", "verified", "1")
+	redisDouble.HSet("peer:B", "fp", "B", "user", "j", "name", "fucked up", "kind", "server", "verified", "0")
+	ok, err := getUserKey("j")
+	require.NoError(t, err)
+	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
+	require.NoError(t, err)
+	cmd, f, err := RunCommand([]string{"delete", "B", otp}, nil, nil, 0, "A")
+	require.NoError(t, err)
+	require.Nil(t, cmd)
+	// read the response from f
+	result, err := ioutil.ReadAll(f)
+	require.NoError(t, err)
+	// make sure the response starts with "Authorized"
+	require.Equal(t, "1", string(result[0]))
+	// make sure the peer is marked as verified
+	require.Equal(t, false, redisDouble.Exists("peer:B"))
+}
+func TestDeleteCommandBadOTP(t *testing.T) {
+	var err error
+	Logger = zaptest.NewLogger(t).Sugar()
+	redisDouble, err = miniredis.Run()
+	require.NoError(t, err)
+	err = db.Connect("127.0.0.1:6379")
+	redisDouble.SetAdd("userset:j", "A", "B")
+	redisDouble.HSet("user:j", "email", "j@example.com")
+	redisDouble.HSet("peer:A", "fp", "A", "user", "j", "name", "fucked up", "kind", "client", "verified", "1")
+	redisDouble.HSet("peer:B", "fp", "B", "user", "j", "name", "fucked up", "kind", "server", "verified", "0")
+	cmd, f, err := RunCommand([]string{"delete", "B", "123456"}, nil, nil, 0, "A")
+	require.NoError(t, err)
+	require.Nil(t, cmd)
+	// read the response from f
+	result, err := ioutil.ReadAll(f)
+	require.NoError(t, err)
+	// make sure the response starts with "Authorized"
+	require.Equal(t, "0", string(result[0]))
+	// make sure the peer is marked as verified
+	require.Equal(t, true, redisDouble.Exists("peer:B"))
+}
+func TestRenameCommand(t *testing.T) {
+	var err error
+	Logger = zaptest.NewLogger(t).Sugar()
+	redisDouble, err = miniredis.Run()
+	require.NoError(t, err)
+	err = db.Connect("127.0.0.1:6379")
+	redisDouble.SetAdd("userset:j", "A", "B")
+	redisDouble.HSet("user:j", "email", "j@example.com")
+	redisDouble.HSet("peer:A", "fp", "A", "user", "j", "name", "fucked up", "kind", "client", "verified", "1")
+	redisDouble.HSet("peer:B", "fp", "B", "user", "j", "name", "fucked up", "kind", "server", "verified", "0")
+	_, f, err := RunCommand([]string{"rename", "A", "behind all"}, nil, nil, 0, "A")
+	result, err := ioutil.ReadAll(f)
+	require.NoError(t, err)
+	require.Equal(t, byte('1'), result[0])
+	require.Equal(t, "behind all", redisDouble.HGet(`peer:A`, "name"))
+}
+func TestRenameCommandBadTarget(t *testing.T) {
+	var err error
+	Logger = zaptest.NewLogger(t).Sugar()
+	redisDouble, err = miniredis.Run()
+	require.NoError(t, err)
+	err = db.Connect("127.0.0.1:6379")
+	redisDouble.SetAdd("userse:j", "A")
+	redisDouble.HSet("user:j", "email", "j@example.com")
+	redisDouble.HSet("peer:A", "fp", "A", "user", "j", "name", "fucked up", "kind", "client", "verified", "1")
+	redisDouble.HSet("peer:B", "fp", "B", "user", "j", "name", "fucked up", "kind", "server", "verified", "0")
+	_, f, err := RunCommand([]string{"rename", "B", "behind all"}, nil, nil, 0, "A")
+	result, err := ioutil.ReadAll(f)
+	require.NoError(t, err)
+	require.Equal(t, byte('0'), result[0])
+	require.Equal(t, "fucked up", redisDouble.HGet(`peer:B`, "name"))
+}

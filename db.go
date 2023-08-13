@@ -136,6 +136,17 @@ func (d *DBType) SetPeerUser(fp, user string) error {
 	return nil
 }
 
+func (d *DBType) RenamePeer(fp string, name string) error {
+	key := fmt.Sprintf("peer:%s", fp)
+	conn := d.pool.Get()
+	defer conn.Close()
+	_, err := conn.Do("HSET", key, "name", name)
+	if err != nil {
+		return fmt.Errorf("Failed to set peer %q user: %w", fp, err)
+	}
+	return nil
+}
+
 // AddPeer adds or updates a peer
 func (d *DBType) AddPeer(peer *Peer) error {
 	conn := d.getConn()
@@ -324,6 +335,24 @@ func (d *DBType) GetICEServers() ([]ICEServer, error) {
 		ret = append(ret, info)
 	}
 	return ret, nil
+}
+
+func (d *DBType) IsSameUser(fp1 string, fp2 string) (bool, error) {
+	uID1, err := db.GetUID4FP(fp1)
+	if err != nil {
+		return false, fmt.Errorf("failed to get user id - %s", err)
+	}
+	if uID1 == "" {
+		return false, fmt.Errorf("failed to get user id")
+	}
+	uID2, err := db.GetUID4FP(fp2)
+	if err != nil {
+		return false, fmt.Errorf("failed to get user id - %s", err)
+	}
+	if uID2 == "" {
+		return false, fmt.Errorf("failed to get user id")
+	}
+	return uID1 == uID2, nil
 }
 
 // DeletePeer deletes a peer from the database
