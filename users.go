@@ -203,163 +203,174 @@ func serveAuthorize(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func register(fp string, email string, peerName string) (*exec.Cmd, io.ReadWriteCloser, error) {
+	Logger.Debugf("Got register cmd: %s %s", email, peerName)
+	uID, err := db.GetUID4FP(fp)
+	Logger.Debugf("got uid %q for %q", uID, fp)
+	if uID == "" {
+		// create the user and the peer
+		uID, err = GenerateUser(email)
+		if err != nil {
+			return nil, nil, fmt.Errorf("Failed to generate user: %s", err)
+		}
+		peer := NewPeer(fp, peerName, uID, "terminal7")
+		err = db.AddPeer(peer)
+		if err != nil {
+			return nil, nil, fmt.Errorf("Failed to add peer: %s", err)
+		}
+	} else {
+		Logger.Debugf("Peer %s already exists: %s", fp, uID)
+	}
+	Logger.Debugf("before generating sixel: %s", uID)
+	sixel, err := GetQRSixel(uID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to generate QR code - %s", err)
+	}
+	resp := map[string]string{
+		// TODO: add the QR code
+		"QR": sixel,
+		"ID": uID,
+	}
+	// turn into a string
+	msg, err := json.Marshal(resp)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal json - %s", err)
+	}
+	Logger.Debugf("succesful registration with response: %s", msg)
+	f := NewRWC(msg)
+	return nil, f, nil
+}
+func verify(fp string, target string, otp string) (*exec.Cmd, io.ReadWriteCloser, error) {
+	// get the uid of the admin
+	uID, err := db.GetUID4FP(fp)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get user id - %s", err)
+	}
+	// validate the OTP
+	s, err := db.getUserSecret(uID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get user secret - %s", err)
+	}
+	if s == "" {
+		return nil, nil, fmt.Errorf("failed to get user secret")
+	}
+	ret := "0"
+	if !totp.Validate(otp, s) {
+		Logger.Debug("Verify cmd got bad otp")
+	} else {
+		ret = "1"
+	}
+	f := NewRWC([]byte(ret))
+	if ret == "0" {
+		return nil, f, nil
+	}
+	// check the fingerprint is in the db
+	exists, err := db.PeerExists(target)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to check peer exists - %s", err)
+	}
+	if !exists {
+		peer := NewPeer(target, "", uID, "webexec")
+		peer.Verified = true
+		err = db.AddPeer(peer)
+		if err != nil {
+			return nil, nil, fmt.Errorf("peer does not exist")
+		}
+	} else {
+		peer, err := GetPeer(target)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get peer - %s", err)
+		}
+		if peer == nil {
+			return nil, nil, fmt.Errorf("failed to get client's peer")
+		}
+		if peer.User != uID {
+			return nil, nil, fmt.Errorf("target peer is not owned by client")
+		}
+		err = VerifyPeer(target, true)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to verify peer - %s", err)
+		}
+	}
+	Logger.Debugf("Verified peer: %s", target)
+	err = db.SetQRVerified(uID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Failed to set user's QR as verified: %s", err)
+	}
+	err = db.SetSubscribed(uID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Failed to set user as subscribed: %s", err)
+	}
+	return nil, f, nil
+}
+func ping(fp string, otp string) (*exec.Cmd, io.ReadWriteCloser, error) {
+	if otp == "" {
+		uID, err := db.GetUID4FP(fp)
+		if err != nil {
+			Logger.Debugf("+-> failed to get user id - %s", err)
+		} else {
+			Logger.Debugf("+-> got user id %s", uID)
+		}
+		if err != nil || uID == "" {
+			uID = "TBD"
+		}
+		f := NewRWC([]byte(uID))
+		Logger.Debugf("+-> returning %s", uID)
+		return nil, f, nil
+	}
+	// check the fingerprint is in the db
+	exists, err := db.PeerExists(fp)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to check peer exists - %s", err)
+	}
+	if !exists {
+		return nil, nil, fmt.Errorf("peer does not exist")
+	}
+	peer, err := GetPeer(fp)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get peer - %s", err)
+	}
+	if peer == nil {
+		return nil, nil, fmt.Errorf("failed to get peer")
+	}
+	// validate the OTP
+	s, err := db.getUserSecret(peer.User)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get user secret - %s", err)
+	}
+	if s == "" {
+		return nil, nil, fmt.Errorf("failed to get user secret")
+	}
+	ret := "0"
+	if totp.Validate(otp, s) {
+		ret = "1"
+		VerifyPeer(fp, true)
+	}
+	f := NewRWC([]byte(ret))
+	return nil, f, err
+}
 func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID int, fp string) (*exec.Cmd, io.ReadWriteCloser, error) {
-
 	switch command[0] {
 	case "register":
 		email := command[1]
 		peerName := command[2]
-		Logger.Debugf("Got register cmd: %s %s", email, peerName)
-		uID, err := db.GetUID4FP(fp)
-		Logger.Debugf("got uid %q for %q", uID, fp)
-		if uID == "" {
-			// create the user and the peer
-			uID, err = GenerateUser(email)
-			if err != nil {
-				return nil, nil, fmt.Errorf("Failed to generate user: %s", err)
-			}
-			peer := NewPeer(fp, peerName, uID, "terminal7")
-			err = db.AddPeer(peer)
-			if err != nil {
-				return nil, nil, fmt.Errorf("Failed to add peer: %s", err)
-			}
-		} else {
-			Logger.Debugf("Peer %s already exists: %s", fp, uID)
-		}
-		Logger.Debugf("before generating sixel: %s", uID)
-		sixel, err := GetQRSixel(uID)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to generate QR code - %s", err)
-		}
-		resp := map[string]string{
-			// TODO: add the QR code
-			"QR": sixel,
-			"ID": uID,
-		}
-		// turn into a string
-		msg, err := json.Marshal(resp)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to marshal json - %s", err)
-		}
-		Logger.Debugf("succesful registration with response: %s", msg)
-		f := NewRWC(msg)
-		return nil, f, nil
+		return register(fp, email, peerName)
 	case "verify":
 		Logger.Debug("verifying peer")
 		target := command[1]
 		otp := command[2]
-		// get the uid of the admin
-		uID, err := db.GetUID4FP(fp)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to get user id - %s", err)
-		}
-		// validate the OTP
-		s, err := db.getUserSecret(uID)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to get user secret - %s", err)
-		}
-		if s == "" {
-			return nil, nil, fmt.Errorf("failed to get user secret")
-		}
-		ret := "0"
-		if !totp.Validate(otp, s) {
-			Logger.Debug("Verify cmd got bad otp")
-		} else {
-			ret = "1"
-		}
-		f := NewRWC([]byte(ret))
-		if ret == "0" {
-			return nil, f, nil
-		}
-		// check the fingerprint is in the db
-		exists, err := db.PeerExists(target)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to check peer exists - %s", err)
-		}
-		if !exists {
-			peer := NewPeer(target, "", uID, "webexec")
-			peer.Verified = true
-			err = db.AddPeer(peer)
-			if err != nil {
-				return nil, nil, fmt.Errorf("peer does not exist")
-			}
-		} else {
-			peer, err := GetPeer(target)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to get peer - %s", err)
-			}
-			if peer == nil {
-				return nil, nil, fmt.Errorf("failed to get client's peer")
-			}
-			if peer.User != uID {
-				return nil, nil, fmt.Errorf("target peer is not owned by client")
-			}
-			err = VerifyPeer(target, true)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to verify peer - %s", err)
-			}
-		}
-		Logger.Debugf("Verified peer: %s", target)
-		err = db.SetQRVerified(uID)
-		if err != nil {
-			return nil, nil, fmt.Errorf("Failed to set user's QR as verified: %s", err)
-		}
-		err = db.SetSubscribed(uID)
-		if err != nil {
-			return nil, nil, fmt.Errorf("Failed to set user as subscribed: %s", err)
-		}
-		return nil, f, nil
+		return verify(fp, target, otp)
 	case "ping":
 		// ping can be used to check if the server is alive
 		// if given an argument, it assumes it'n an OTP and will
 		// check it against the user's secret and will echo 0 if it's
 		// valid and 1 if it's not
 		Logger.Debug("Got a ping")
-		if len(command) < 2 {
-			uID, err := db.GetUID4FP(fp)
-			if err != nil {
-				Logger.Debugf("+-> failed to get user id - %s", err)
-			} else {
-				Logger.Debugf("+-> got user id %s", uID)
-			}
-			if err != nil || uID == "" {
-				uID = "TBD"
-			}
-			f := NewRWC([]byte(uID))
-			Logger.Debugf("+-> returning %s", uID)
-			return nil, f, nil
+		var otp string
+		if len(command) > 1 {
+			otp = command[1]
 		}
-		otp := command[1]
-		// check the fingerprint is in the db
-		exists, err := db.PeerExists(fp)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to check peer exists - %s", err)
-		}
-		if !exists {
-			return nil, nil, fmt.Errorf("peer does not exist")
-		}
-		peer, err := GetPeer(fp)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to get peer - %s", err)
-		}
-		if peer == nil {
-			return nil, nil, fmt.Errorf("failed to get peer")
-		}
-		// validate the OTP
-		s, err := db.getUserSecret(peer.User)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to get user secret - %s", err)
-		}
-		if s == "" {
-			return nil, nil, fmt.Errorf("failed to get user secret")
-		}
-		ret := "0"
-		if totp.Validate(otp, s) {
-			ret = "1"
-			VerifyPeer(fp, true)
-		}
-		f := NewRWC([]byte(ret))
-		return nil, f, err
+		return ping(fp, otp)
 	}
 	Logger.Debugf("Got unknown command: %s", command)
 	return nil, nil, fmt.Errorf("Unknown peerbook command")
