@@ -357,10 +357,18 @@ func (d *DBType) IsSameUser(fp1 string, fp2 string) (bool, error) {
 
 // DeletePeer deletes a peer from the database
 func (d *DBType) DeletePeer(fp string) error {
+	uID, err := d.GetUID4FP(fp)
+	if err != nil {
+		return fmt.Errorf("failed to get user id - %s", err)
+	}
 	key := fmt.Sprintf("peer:%s", fp)
 	conn := d.pool.Get()
 	defer conn.Close()
-	_, err := conn.Do("DEL", key)
+	_, err = conn.Do("SREM", fmt.Sprintf("userset:%s", uID), fp)
+	if err != nil {
+		return err
+	}
+	_, err = conn.Do("DEL", key)
 	return err
 }
 
