@@ -9,6 +9,12 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
+## [1.3.1] - 2023-8-14
+
+### Fixed 
+
+- Private turn credentials
+
 ## [1.3] - 2023-8-9
 
 ### Added 

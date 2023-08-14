@@ -35,7 +35,7 @@ func genCredential(username string) (string, string) {
 	}
 	h := hmac.New(sha1.New, []byte(secretKey))
 	timestamp := now().Add(24 * time.Hour).Unix()
-	compuser := fmt.Sprintf("%s:%d", username, timestamp)
+	compuser := fmt.Sprintf("%d:%s", timestamp, username)
 	_, _ = h.Write([]byte(compuser))
 	// return the compound username and the base64 encoded HMAC-SHA1
 	return compuser, base64.StdEncoding.EncodeToString(h.Sum(nil))
