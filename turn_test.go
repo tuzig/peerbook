@@ -51,11 +51,11 @@ func TestTurn(t *testing.T) {
 	now = func() time.Time { return time.Unix(1234567890, 0) }
 	username, credential := genCredential("foo")
 	// it should be 24 hours after 1234567890
-	require.Equal(t, "foo:1234654290", username)
+	require.Equal(t, "1234654290:foo", username)
 	decoded, err := base64.StdEncoding.DecodeString(credential)
 	require.Nil(t, err)
 	mac := hmac.New(sha1.New, []byte("thisisatest"))
-	mac.Write([]byte("foo:1234654290"))
+	mac.Write([]byte("1234654290:foo"))
 	expectedMAC := mac.Sum(nil)
 	// the compound username should be "foo:1234654290"
 	require.True(t, hmac.Equal(decoded, expectedMAC))
