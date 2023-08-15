@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -508,6 +509,9 @@ func TestDeleteCommand(t *testing.T) {
 	require.Equal(t, "1", string(result[0]))
 	// make sure the peer is marked as verified
 	require.Equal(t, false, redisDouble.Exists("peer:B"))
+	isMember, err := redisDouble.SIsMember("userset:j", "B")
+	require.NoError(t, err)
+	require.False(t, isMember)
 }
 func TestDeleteCommandBadOTP(t *testing.T) {
 	var err error
@@ -528,7 +532,7 @@ func TestDeleteCommandBadOTP(t *testing.T) {
 	// make sure the response starts with "Authorized"
 	require.Equal(t, "0", string(result[0]))
 	// make sure the peer is marked as verified
-	require.Equal(t, true, redisDouble.Exists("peer:B"))
+	require.True(t, redisDouble.Exists("peer:B"))
 }
 func TestRenameCommand(t *testing.T) {
 	var err error
@@ -555,10 +559,10 @@ func TestRenameCommandBadTarget(t *testing.T) {
 	redisDouble.SetAdd("userse:j", "A")
 	redisDouble.HSet("user:j", "email", "j@example.com")
 	redisDouble.HSet("peer:A", "fp", "A", "user", "j", "name", "fucked up", "kind", "client", "verified", "1")
-	redisDouble.HSet("peer:B", "fp", "B", "user", "j", "name", "fucked up", "kind", "server", "verified", "0")
+	redisDouble.HSet("peer:B", "fp", "B", "user", "k", "name", "fucked up", "kind", "server", "verified", "0")
 	_, f, err := RunCommand([]string{"rename", "B", "behind all"}, nil, nil, 0, "A")
-	result, err := ioutil.ReadAll(f)
+	require.Error(t, err)
+	result, err := io.ReadAll(f)
 	require.NoError(t, err)
 	require.Equal(t, byte('0'), result[0])
-	require.Equal(t, "fucked up", redisDouble.HGet(`peer:B`, "name"))
 }

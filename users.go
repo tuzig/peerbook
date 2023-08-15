@@ -329,7 +329,7 @@ func deletePeer(fp string, target string, otp string) (*exec.Cmd, io.ReadWriteCl
 	ret := "0"
 	if totp.Validate(otp, s) {
 		ret = "1"
-		err := db.DeletePeer(fp)
+		err := db.DeletePeer(target)
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to delete peer - %s", err)
 		}
@@ -401,26 +401,29 @@ func rename(fp string, target string, name string) (*exec.Cmd, io.ReadWriteClose
 }
 
 func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID int, fp string) (*exec.Cmd, io.ReadWriteCloser, error) {
+	var err error
+	var f io.ReadWriteCloser
+	var cmd *exec.Cmd
 	switch command[0] {
 	case "delete":
 		Logger.Debug("deleting peer")
 		target := command[1]
 		otp := command[2]
-		return deletePeer(fp, target, otp)
+		cmd, f, err = deletePeer(fp, target, otp)
 	case "register":
 		email := command[1]
 		peerName := command[2]
-		return register(fp, email, peerName)
+		cmd, f, err = register(fp, email, peerName)
 	case "rename":
 		Logger.Debug("verifying peer")
 		target := command[1]
 		name := command[2]
-		return rename(fp, target, name)
+		cmd, f, err = rename(fp, target, name)
 	case "verify":
 		Logger.Debug("verifying peer")
 		target := command[1]
 		otp := command[2]
-		return verify(fp, target, otp)
+		cmd, f, err = verify(fp, target, otp)
 	case "ping":
 		// ping can be used to check if the server is alive
 		// if given an argument, it assumes it'n an OTP and will
@@ -431,10 +434,15 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 		if len(command) > 1 {
 			otp = command[1]
 		}
-		return ping(fp, otp)
+		cmd, f, err = ping(fp, otp)
+	default:
+		Logger.Debugf("Got unknown command: %s", command)
+		return nil, nil, fmt.Errorf("Unknown peerbook command")
 	}
-	Logger.Debugf("Got unknown command: %s", command)
-	return nil, nil, fmt.Errorf("Unknown peerbook command")
+	if err != nil {
+		return nil, NewRWC([]byte("0")), err
+	}
+	return cmd, f, nil
 }
 
 type RWC struct {
