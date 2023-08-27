@@ -231,18 +231,31 @@ func sendVerifyEmail(email string, fp string) error {
 		"Subject":            {"A peer is waiting your approval"},
 		"X-SES-MESSAGE-TAGS": {"genre=auth_email"},
 	})
-
+	err = sendEmail(m)
+	if err != nil {
+		return fmt.Errorf("Failed to send email: %s", err)
+	}
+	Logger.Infof("Email sent to %s", email)
+	return nil
+}
+func sendEmail(m *gomail.Message) error {
 	host := os.Getenv("PB_SMTP_HOST")
+	port := os.Getenv("PB_SMTP_PORT")
+	if port == "" {
+		port = "587"
+	}
+	portInt, err := strconv.Atoi(port)
+	if err != nil {
+		return fmt.Errorf("Failed to convert port to int: %s", err)
+	}
 	user := os.Getenv("PB_SMTP_USER")
 	pass := os.Getenv("PB_SMTP_PASS")
-	d := gomail.NewPlainDialer(host, 587, user, pass)
+	d := gomail.NewPlainDialer(host, portInt, user, pass)
 
 	// Display an error message if something goes wrong; otherwise,
 	// display a message confirming that the message was sent.
 	if err := d.DialAndSend(m); err != nil {
 		Logger.Errorf("Failed to send email: %s", err)
-	} else {
-		Logger.Infof("Sent email to %q", email)
 	}
 	return nil
 }
@@ -729,29 +742,13 @@ func sendAuthEmail(email string, uid string) error {
 		"X-SES-MESSAGE-TAGS": {"genre=auth_email"},
 	})
 
-	host := os.Getenv("PB_SMTP_HOST")
-	port := os.Getenv("PB_SMTP_PORT")
-	if port == "" {
-		port = "587"
-	}
-	portInt, err := strconv.Atoi(port)
+	err = sendEmail(m)
 	if err != nil {
-		return fmt.Errorf("Failed to convert port to int: %s", err)
+		return fmt.Errorf("Failed to send email: %s", err)
 	}
-	user := os.Getenv("PB_SMTP_USER")
-	pass := os.Getenv("PB_SMTP_PASS")
-	d := gomail.NewPlainDialer(host, portInt, user, pass)
-
-	// Display an error message if something goes wrong; otherwise,
-	// display a message confirming that the message was sent.
-	if err := d.DialAndSend(m); err != nil {
-		Logger.Errorf("Failed to send email: %s", err)
-	} else {
-		Logger.Infof("Sent email to %q", email)
-	}
+	Logger.Infof("Email sent to %s", email)
 	return nil
 }
-
 func getUserKey(user string) (*otp.Key, error) {
 	s, err := db.getUserSecret(user)
 	if err != nil {
