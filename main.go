@@ -221,13 +221,13 @@ func sendVerifyEmail(email string, fp string) error {
 	if err != nil {
 		return fmt.Errorf("Failed to execute template: %s", err)
 	}
-	m.SetBody("text/plain", p.String())
+	m.SetBody("text/plain", p.String(), gomail.SetPartEncoding(gomail.Unencoded))
 	var h bytes.Buffer
 	err = htmlT.Execute(&h, context)
 	if err != nil {
 		return fmt.Errorf("Failed to execute template: %s", err)
 	}
-	m.AddAlternative("text/html", h.String())
+	m.AddAlternative("text/html", h.String(), gomail.SetPartEncoding(gomail.Unencoded))
 
 	m.SetHeaders(map[string][]string{
 		"From":               {m.FormatAddress("support@tuzig.com", "PeerBook Support")},
@@ -731,13 +731,13 @@ func sendAuthEmail(email string, uid string) error {
 	if err != nil {
 		return fmt.Errorf("Failed to execute template: %s", err)
 	}
-	m.SetBody("text/plain", p.String())
+	m.SetBody("text/plain", p.String(), gomail.SetPartEncoding(gomail.Unencoded))
 	var h bytes.Buffer
 	err = htmlT.Execute(&h, clickL)
 	if err != nil {
 		return fmt.Errorf("Failed to execute template: %s", err)
 	}
-	m.AddAlternative("text/html", h.String())
+	m.AddAlternative("text/html", h.String(), gomail.SetPartEncoding(gomail.Unencoded))
 
 	m.SetHeaders(map[string][]string{
 		"From":               {m.FormatAddress("support@tuzig.com", "PeerBook Support")},
