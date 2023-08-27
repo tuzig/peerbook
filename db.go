@@ -125,7 +125,7 @@ func (d *DBType) Close() error {
 }
 
 // SetPeerUser sets a peer's user
-func (d *DBType) SetPeerUser(fp, user string) error {
+func (d *DBType) SetPeerUser(fp string, user string) error {
 	key := fmt.Sprintf("peer:%s", fp)
 	conn := d.pool.Get()
 	defer conn.Close()

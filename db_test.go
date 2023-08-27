@@ -135,6 +135,9 @@ func TestSetPeerUser(t *testing.T) {
 	err := db.SetPeerUser("bar", "JRandom")
 	require.Nil(t, err)
 	require.Equal(t, "JRandom", redisDouble.HGet("peer:bar", "user"))
+	userSet, err := redisDouble.Members("userset:JRandom")
+	require.NoError(t, err)
+	require.Equal(t, userSet[0], "bar")
 }
 func TestSubscribed(t *testing.T) {
 	startTest(t)

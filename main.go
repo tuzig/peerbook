@@ -142,7 +142,7 @@ func serveLogin(w http.ResponseWriter, r *http.Request) {
 	email := ""
 	user := req.User
 	// check if user is an email address
-	if strings.Contains(req.User, "@") {
+	if strings.Contains(user, "@") {
 		// get the user id from the email
 		email = req.User
 		user, err = db.GetUserID(email)
