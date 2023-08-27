@@ -185,6 +185,10 @@ func serveLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	err = sendVerifyEmail(email, req.FP)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to send email: %s", err), http.StatusInternalServerError)
+		return
+	}
 
 	// retrun a status code of 201
 	http.Error(w, fmt.Sprintf("Email sent to %s", email), http.StatusCreated)
