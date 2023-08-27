@@ -178,10 +178,9 @@ func serveLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Wrong One Time Password, please try again", http.StatusUnauthorized)
 		return
 	}
-	// check if the peer exists
-	p, err := GetPeer(req.FP)
-	if err != nil || p == nil {
-		http.Error(w, fmt.Sprintf("Failed to get peer: %s", err), http.StatusUnauthorized)
+	err = db.SetPeerUser(req.FP, user)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to set peer: %s", err), http.StatusUnauthorized)
 		return
 	}
 	err = sendVerifyEmail(email, req.FP)

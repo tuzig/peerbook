@@ -133,6 +133,11 @@ func (d *DBType) SetPeerUser(fp, user string) error {
 	if err != nil {
 		return fmt.Errorf("Failed to set peer %q user: %w", fp, err)
 	}
+	key = fmt.Sprintf("userset:%s", user)
+	_, err = conn.Do("SADD", key, fp)
+	if err != nil {
+		return fmt.Errorf("Failed to set peer %q user: %w", fp, err)
+	}
 	return nil
 }
 
