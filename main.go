@@ -145,23 +145,19 @@ func serveLogin(w http.ResponseWriter, r *http.Request) {
 		// get the user id from the email
 		email = req.User
 		user, err = db.GetUserID(email)
-		if err != nil {
-			http.Error(w, "Failed to get user id", http.StatusInternalServerError)
-			return
-		}
-		if user == "" {
-			http.Error(w, "User not found", http.StatusUnauthorized)
+		if err != nil || user == "" {
+			http.Error(w, "Invalid Credentials", http.StatusUnauthorized)
 			return
 		}
 	} else {
 		// get the email from the user id
 		email, err = db.GetEmail(req.User)
-		if err != nil {
-			http.Error(w, "Failed to get email", http.StatusInternalServerError)
+		if err != nil || email == "" {
+			http.Error(w, "Invalid Credentials", http.StatusUnauthorized)
 			return
 		}
 		if email == "" {
-			http.Error(w, "User not found", http.StatusUnauthorized)
+			http.Error(w, "Invalid Credentials", http.StatusUnauthorized)
 			return
 		}
 	}
@@ -174,21 +170,17 @@ func serveLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s == "" {
-		http.Error(w, `{"m": "User has no OTP configured"}`, http.StatusUnauthorized)
+		http.Error(w, "User has no OTP configured", http.StatusUnauthorized)
 		return
 	}
 	if !totp.Validate(req.OTP, s) {
-		http.Error(w, `{"m": "Wrong One Time Password, please try again"}`, http.StatusUnauthorized)
+		http.Error(w, "Wrong One Time Password, please try again", http.StatusUnauthorized)
 		return
 	}
 	// check if the peer exists
 	p, err := GetPeer(req.FP)
-	if err != nil {
-		http.Error(w, fmt.Sprintf(`{"m": "Failed to get peer: %s"}`, err), http.StatusInternalServerError)
-		return
-	}
-	if p == nil {
-		http.Error(w, `{"m": "Peer not found"}`, http.StatusNotFound)
+	if err != nil || p == nil {
+		http.Error(w, fmt.Sprintf("Failed to get peer: %s", err), http.StatusUnauthorized)
 		return
 	}
 	sendVerifyEmail(email, req.FP)
