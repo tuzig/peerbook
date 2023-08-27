@@ -224,7 +224,11 @@ func VerifyPeer(fp string, verified bool) error {
 	if verified {
 		rc.Do("HSET", key, "verified", "1")
 		if online {
-			SendMessage(fp, StatusMessage{200, "peer is verified"})
+			uid, err := db.GetUID4FP(fp)
+			if err != nil {
+				return fmt.Errorf("Failed to get user id - %s", err)
+			}
+			SendMessage(fp, StatusMessage{200, uid})
 			Logger.Infof("Sent a 200 to %q - a newly verified peer", fp)
 			user, err := redis.String(rc.Do("HGET", key, "user"))
 			if err != nil {

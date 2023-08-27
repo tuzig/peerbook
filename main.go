@@ -99,9 +99,9 @@ func (p *PeerChanged) Error() string {
 	return "Peer exists with different properties"
 }
 
-// getUIDFromRequest It works assuming a valid token is the second
+// getStrFromEncodedPath It works assuming a valid token is the second
 // url part
-func getUIDFromRequest(r *http.Request) (string, error) {
+func getStrFromEncodedPath(r *http.Request) (string, error) {
 	i := strings.IndexRune(r.URL.Path[1:], '/')
 	t := r.URL.Path[i+2:]
 	token, err := url.PathUnescape(t)
@@ -116,8 +116,146 @@ func getUIDFromRequest(r *http.Request) (string, error) {
 	return user, nil
 }
 
+func serveLogin(w http.ResponseWriter, r *http.Request) {
+	// esnure it's a post request
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	// get the json from the request body
+	var req struct {
+		User string `json:"user"`
+		OTP  string `json:"otp"`
+		FP   string `json:"fp"`
+	}
+	dec := json.NewDecoder(r.Body)
+	err := dec.Decode(&req)
+	if err != nil {
+		http.Error(w, "Bad JSON", http.StatusBadRequest)
+		return
+	}
+	if req.User == "" || req.OTP == "" || req.FP == "" {
+		http.Error(w, "Missing user, otp or fp", http.StatusBadRequest)
+		return
+	}
+	email := ""
+	user := req.User
+	// check if user is an email address
+	if strings.Contains(req.User, "@") {
+		// get the user id from the email
+		email = req.User
+		user, err = db.GetUserID(email)
+		if err != nil {
+			http.Error(w, "Failed to get user id", http.StatusInternalServerError)
+			return
+		}
+		if user == "" {
+			http.Error(w, "User not found", http.StatusUnauthorized)
+			return
+		}
+	} else {
+		// get the email from the user id
+		email, err = db.GetEmail(req.User)
+		if err != nil {
+			http.Error(w, "Failed to get email", http.StatusInternalServerError)
+			return
+		}
+		if email == "" {
+			http.Error(w, "User not found", http.StatusUnauthorized)
+			return
+		}
+	}
+
+	// validate otp based on user's secret
+	s, err := db.getUserSecret(user)
+	if err != nil {
+		http.Error(w, "Failed to get user's OTP secret", http.StatusInternalServerError)
+		Logger.Errorf("Failed to get user's OTP secret: %s", err)
+		return
+	}
+	if s == "" {
+		http.Error(w, `{"m": "User has no OTP configured"}`, http.StatusUnauthorized)
+		return
+	}
+	if !totp.Validate(req.OTP, s) {
+		http.Error(w, `{"m": "Wrong One Time Password, please try again"}`, http.StatusUnauthorized)
+		return
+	}
+	// check if the peer exists
+	p, err := GetPeer(req.FP)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(`{"m": "Failed to get peer: %s"}`, err), http.StatusInternalServerError)
+		return
+	}
+	if p == nil {
+		http.Error(w, `{"m": "Peer not found"}`, http.StatusNotFound)
+		return
+	}
+	sendVerifyEmail(email, req.FP)
+
+	// retrun a status code of 201
+	http.Error(w, fmt.Sprintf("Email sent to %s", email), http.StatusCreated)
+
+}
+func sendVerifyEmail(email string, fp string) error {
+	if !db.canSendEmail(email) {
+		return fmt.Errorf("Throttling prevented sending email to %q", email)
+	}
+	Logger.Infof("Sending verification email to: %s for %s", email, fp)
+	m := gomail.NewMessage()
+	clickL, err := createTempURL(fp, "verify", false)
+	if err != nil {
+		return fmt.Errorf("Failed to create temp URL: %s", err)
+	}
+	htmlT, err := template.ParseFS(tFS, "templates/verify_client_email.html.tmpl")
+	if err != nil {
+		return fmt.Errorf("Failed to parse the html template: %s", err)
+	}
+	plainT, err := template.ParseFS(tFS, "templates/verify_client_email.plain.tmpl")
+	if err != nil {
+		return fmt.Errorf("Failed to parse the plain template: %s", err)
+	}
+	context := struct {
+		URL     string
+		HomeURL string
+	}{URL: clickL, HomeURL: os.Getenv("PB_HOME_URL")}
+	var p bytes.Buffer
+	err = plainT.Execute(&p, context)
+	if err != nil {
+		return fmt.Errorf("Failed to execute template: %s", err)
+	}
+	m.SetBody("text/plain", p.String())
+	var h bytes.Buffer
+	err = htmlT.Execute(&h, context)
+	if err != nil {
+		return fmt.Errorf("Failed to execute template: %s", err)
+	}
+	m.AddAlternative("text/html", h.String())
+
+	m.SetHeaders(map[string][]string{
+		"From":               {m.FormatAddress("support@tuzig.com", "PeerBook Support")},
+		"To":                 {email},
+		"Subject":            {"A peer is waiting your approval"},
+		"X-SES-MESSAGE-TAGS": {"genre=auth_email"},
+	})
+
+	host := os.Getenv("PB_SMTP_HOST")
+	user := os.Getenv("PB_SMTP_USER")
+	pass := os.Getenv("PB_SMTP_PASS")
+	d := gomail.NewPlainDialer(host, 587, user, pass)
+
+	// Display an error message if something goes wrong; otherwise,
+	// display a message confirming that the message was sent.
+	if err := d.DialAndSend(m); err != nil {
+		Logger.Errorf("Failed to send email: %s", err)
+	} else {
+		Logger.Infof("Sent email to %q", email)
+	}
+	return nil
+}
+
 func serveAuthPage(w http.ResponseWriter, r *http.Request) {
-	user, err := getUIDFromRequest(r)
+	user, err := getStrFromEncodedPath(r)
 	if err != nil {
 		goHome(w, r, "Stale token, please try again")
 		Logger.Warnf("Failed to get user from req: %s", err)
@@ -316,7 +454,22 @@ func serveHitMe(w http.ResponseWriter, r *http.Request) {
 // the peer's user id and whether it's verified.
 func serveVerify(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		if r.Method != "GET" {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		fp, err := getStrFromEncodedPath(r)
+		if err != nil {
+			http.Error(w, "Stale token, please try again", http.StatusUnauthorized)
+			Logger.Warnf("Failed to get user from req: %s", err)
+			return
+		}
+		err = VerifyPeer(fp, true)
+		if err != nil {
+			msg := fmt.Sprintf("Failed to verify peer: %s", err)
+			Logger.Errorf(msg)
+			http.Error(w, msg, http.StatusInternalServerError)
+		}
 		return
 	}
 	var req map[string]string
@@ -509,6 +662,7 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 	http.HandleFunc("/qr/", serveQR)
 	http.HandleFunc("/rcwh", serveRCWH)
 	http.HandleFunc("/we", webexecHandler.HandleConnect)
+	http.HandleFunc("/login", serveLogin)
 
 	go func() {
 		defer wg.Done() // let main know we are done cleaning up
@@ -618,7 +772,7 @@ func goHome(w http.ResponseWriter, r *http.Request, msg string) {
 func serveQR(w http.ResponseWriter, r *http.Request) {
 	var msg string
 
-	user, err := getUIDFromRequest(r)
+	user, err := getStrFromEncodedPath(r)
 	if err != nil {
 		goHome(w, r, "Stale token, please try again")
 		Logger.Warnf("Failed to get user from req: %s", err)
