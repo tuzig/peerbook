@@ -23,6 +23,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -183,7 +184,7 @@ func serveLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Failed to get peer: %s", err), http.StatusUnauthorized)
 		return
 	}
-	sendVerifyEmail(email, req.FP)
+	err = sendVerifyEmail(email, req.FP)
 
 	// retrun a status code of 201
 	http.Error(w, fmt.Sprintf("Email sent to %s", email), http.StatusCreated)
@@ -729,9 +730,17 @@ func sendAuthEmail(email string, uid string) error {
 	})
 
 	host := os.Getenv("PB_SMTP_HOST")
+	port := os.Getenv("PB_SMTP_PORT")
+	if port == "" {
+		port = "587"
+	}
+	portInt, err := strconv.Atoi(port)
+	if err != nil {
+		return fmt.Errorf("Failed to convert port to int: %s", err)
+	}
 	user := os.Getenv("PB_SMTP_USER")
 	pass := os.Getenv("PB_SMTP_PASS")
-	d := gomail.NewPlainDialer(host, 587, user, pass)
+	d := gomail.NewPlainDialer(host, portInt, user, pass)
 
 	// Display an error message if something goes wrong; otherwise,
 	// display a message confirming that the message was sent.
