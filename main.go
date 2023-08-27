@@ -456,6 +456,27 @@ func serveHitMe(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 }
+func serveVerifyClient(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	fp, err := getStrFromEncodedPath(r)
+	if err != nil {
+		http.Error(w, "Stale token, please try again", http.StatusUnauthorized)
+		Logger.Warnf("Failed to get user from req: %s", err)
+		return
+	}
+	err = VerifyPeer(fp, true)
+	if err != nil {
+		msg := fmt.Sprintf("Failed to verify peer: %s", err)
+		Logger.Errorf(msg)
+		http.Error(w, msg, http.StatusInternalServerError)
+	}
+	Logger.Infof("Peer %s verified", fp)
+	return
+
+}
 
 // serveVerify is the handler for the /verify endpoint
 // It is used to verify and create a peer.
@@ -464,22 +485,7 @@ func serveHitMe(w http.ResponseWriter, r *http.Request) {
 // the peer's user id and whether it's verified.
 func serveVerify(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
-		if r.Method != "GET" {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		fp, err := getStrFromEncodedPath(r)
-		if err != nil {
-			http.Error(w, "Stale token, please try again", http.StatusUnauthorized)
-			Logger.Warnf("Failed to get user from req: %s", err)
-			return
-		}
-		err = VerifyPeer(fp, true)
-		if err != nil {
-			msg := fmt.Sprintf("Failed to verify peer: %s", err)
-			Logger.Errorf(msg)
-			http.Error(w, msg, http.StatusInternalServerError)
-		}
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	var req map[string]string
@@ -663,6 +669,7 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 	http.HandleFunc("/", serveHome)
 	http.HandleFunc("/pb/", serveAuthPage)
 	http.HandleFunc("/verify", serveVerify)
+	http.HandleFunc("/verify/", serveVerifyClient)
 	http.HandleFunc("/hitme", serveHitMe)
 	http.HandleFunc("/authorize/", serveAuthorize)
 	http.HandleFunc("/ws", serveWs)
