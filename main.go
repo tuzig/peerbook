@@ -463,6 +463,7 @@ func serveVerifyClient(w http.ResponseWriter, r *http.Request) {
 		Logger.Warnf("Failed to get user from req: %s", err)
 		return
 	}
+	Logger.Infof("Handling request to verify peer %s", fp)
 	err = VerifyPeer(fp, true)
 	if err != nil {
 		msg := fmt.Sprintf("Failed to verify peer: %s", err)
