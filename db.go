@@ -126,19 +126,24 @@ func (d *DBType) Close() error {
 
 // SetPeerUser sets a peer's user
 func (d *DBType) SetPeerUser(fp string, user string) error {
-	key := fmt.Sprintf("peer:%s", fp)
+	peerKey := fmt.Sprintf("peer:%s", fp)
 	conn := d.pool.Get()
 	defer conn.Close()
-	_, err := conn.Do("HSET", key, "user", user)
+	Logger.Infof("Setting peer %q user to %q", fp, user)
+	_, err := conn.Do("HSET", peerKey, "user", user, "verified", "0")
 	if err != nil {
 		return fmt.Errorf("Failed to set peer %q user: %w", fp, err)
 	}
-	key = fmt.Sprintf("userset:%s", user)
-	_, err = conn.Do("SADD", key, fp)
+	setKey := fmt.Sprintf("userset:%s", user)
+	_, err = conn.Do("SADD", setKey, fp)
 	if err != nil {
 		return fmt.Errorf("Failed to set peer %q user: %w", fp, err)
 	}
-	return nil
+	peer, err := GetPeer(fp)
+	if err != nil {
+		return fmt.Errorf("Failed to get peer %q name: %w", fp, err)
+	}
+	return SendPeerUpdate(conn, user, fp, false, peer.Online, peer.Name)
 }
 
 func (d *DBType) RenamePeer(fp string, name string) error {

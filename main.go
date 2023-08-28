@@ -135,6 +135,7 @@ func serveLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Bad JSON", http.StatusBadRequest)
 		return
 	}
+	Logger.Infof("Got login request with %v", req)
 	if req.User == "" || req.OTP == "" || req.FP == "" {
 		http.Error(w, "Missing user, otp or fp", http.StatusBadRequest)
 		return
@@ -154,10 +155,6 @@ func serveLogin(w http.ResponseWriter, r *http.Request) {
 		// get the email from the user id
 		email, err = db.GetEmail(req.User)
 		if err != nil || email == "" {
-			http.Error(w, "Invalid Credentials", http.StatusUnauthorized)
-			return
-		}
-		if email == "" {
 			http.Error(w, "Invalid Credentials", http.StatusUnauthorized)
 			return
 		}
