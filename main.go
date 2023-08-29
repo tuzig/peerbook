@@ -128,6 +128,7 @@ func serveLogin(w http.ResponseWriter, r *http.Request) {
 		User string `json:"user"`
 		OTP  string `json:"otp"`
 		FP   string `json:"fp"`
+		Name string `json:"name"`
 	}
 	dec := json.NewDecoder(r.Body)
 	err := dec.Decode(&req)
@@ -175,6 +176,12 @@ func serveLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Wrong One Time Password, please try again", http.StatusUnauthorized)
 		return
 	}
+	err = db.RenamePeer(req.FP, req.Name)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to rename peer: %s", err), http.StatusInternalServerError)
+		return
+	}
+
 	err = db.SetPeerUser(req.FP, user)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to set peer: %s", err), http.StatusUnauthorized)
