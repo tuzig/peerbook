@@ -176,15 +176,33 @@ func serveLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Wrong One Time Password, please try again", http.StatusUnauthorized)
 		return
 	}
-	err = db.RenamePeer(req.FP, req.Name)
+	// check if the peer exists
+	exists, err := db.PeerExists(req.FP)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to rename peer: %s", err), http.StatusInternalServerError)
+		http.Error(w, "Failed to check if peer exists", http.StatusInternalServerError)
+		Logger.Errorf("Failed to check if peer exists: %s", err)
 		return
 	}
-	err = db.SetPeerUser(req.FP, user)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to set peer: %s", err), http.StatusUnauthorized)
-		return
+	if !exists {
+		// create the peer
+		peer := NewPeer(req.FP, req.Name, user, "terminal7")
+		err = db.AddPeer(peer)
+		if err != nil {
+			http.Error(w, "Failed to add peer", http.StatusInternalServerError)
+			Logger.Errorf("Failed to add peer: %s", err)
+			return
+		}
+	} else {
+		err = db.RenamePeer(req.FP, req.Name)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to rename peer: %s", err), http.StatusInternalServerError)
+			return
+		}
+		err = db.SetPeerUser(req.FP, user)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to set peer: %s", err), http.StatusUnauthorized)
+			return
+		}
 	}
 	err = sendVerifyEmail(email, req.FP)
 	if err != nil {

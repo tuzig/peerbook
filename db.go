@@ -134,12 +134,6 @@ func (d *DBType) SetPeerUser(fp string, user string) error {
 	if err != nil {
 		return fmt.Errorf("Failed to set peer %q user: %w", fp, err)
 	}
-	// TODO: Remove the next 4 lines
-	user2, err := conn.Do("HGET", peerKey, "user")
-	if err != nil {
-		return fmt.Errorf("Failed to get peer %q user: %w", fp, err)
-	}
-	Logger.Infof("Peer %q user is now %q", fp, user2)
 	// add the peer to the user's set
 	setKey := fmt.Sprintf("userset:%s", user)
 	_, err = conn.Do("SADD", setKey, fp)
