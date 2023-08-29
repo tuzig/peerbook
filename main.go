@@ -311,7 +311,14 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 	} else {
 		data.Peers = peers
 	}
-	data.User = user
+	email, err := db.GetEmail(user)
+	if err != nil {
+		msg := fmt.Sprintf("Failed to get user email: %s", err)
+		Logger.Error(msg)
+		http.Error(w, msg, http.StatusInternalServerError)
+		return
+	}
+	data.User = email
 	verified := db.IsQRVerified(user)
 	if !verified {
 		// show the QR code
@@ -476,15 +483,40 @@ func serveHitMe(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 }
-func serveVerifyClient(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "GET" {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+func serveVerifyPeer(w http.ResponseWriter, r *http.Request) {
 	fp, err := getStrFromEncodedPath(r)
 	if err != nil {
 		http.Error(w, "Stale token, please try again", http.StatusUnauthorized)
 		Logger.Warnf("Failed to get user from req: %s", err)
+		return
+	}
+	if r.Method == "GET" {
+		tmpl, err := template.ParseFS(tFS, "templates/verify_peer.tmpl", "templates/base.tmpl")
+		if err != nil {
+			msg := fmt.Sprintf("Failed to parse the template: %s", err)
+			http.Error(w, msg, http.StatusInternalServerError)
+			return
+		}
+		peer, err := GetPeer(fp)
+		if err != nil {
+			msg := fmt.Sprintf("Failed to get peer: %s", err)
+			Logger.Errorf(msg)
+			http.Error(w, msg, http.StatusInternalServerError)
+			return
+		}
+		var data struct {
+			Peer    *Peer
+			Message string
+			User    string
+		}
+		data.Peer = peer
+		data.Message = r.URL.Query().Get("m")
+		err = tmpl.Execute(w, data)
+		if err != nil {
+			msg := fmt.Sprintf("Failed to execute the main template: %s", err)
+			Logger.Error(msg)
+			http.Error(w, msg, http.StatusInternalServerError)
+		}
 		return
 	}
 	Logger.Infof("Handling request to verify peer %s", fp)
@@ -495,7 +527,6 @@ func serveVerifyClient(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, msg, http.StatusInternalServerError)
 	}
 	// Send the peer list to the client
-
 	Logger.Infof("Peer %s verified", fp)
 	user, err := db.GetUID4FP(fp)
 	if err != nil {
@@ -518,6 +549,16 @@ func serveVerifyClient(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, msg, http.StatusInternalServerError)
 		return
 	}
+	a, err := createTempURL(user, "pb", true)
+	if err != nil {
+		msg := fmt.Sprintf("Failed to create temp url: %s", err)
+		Logger.Errorf(msg)
+		http.Error(w, msg, http.StatusInternalServerError)
+		return
+	}
+	a = fmt.Sprintf("%s?m=%s", a, url.PathEscape("Peer verified"))
+	http.Redirect(w, r, a, http.StatusSeeOther)
+	return
 }
 
 // serveVerify is the handler for the /verify endpoint
@@ -711,7 +752,7 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 	http.HandleFunc("/", serveHome)
 	http.HandleFunc("/pb/", serveAuthPage)
 	http.HandleFunc("/verify", serveVerify)
-	http.HandleFunc("/verify/", serveVerifyClient)
+	http.HandleFunc("/verify/", serveVerifyPeer)
 	http.HandleFunc("/hitme", serveHitMe)
 	http.HandleFunc("/authorize/", serveAuthorize)
 	http.HandleFunc("/ws", serveWs)

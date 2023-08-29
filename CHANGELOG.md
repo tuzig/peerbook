@@ -14,6 +14,7 @@ and the release workflow reads it to set github's release notes.
 ### Added
 
 - `login` command for web clients support
+- verify peer web page for the above command
 
 ## [1.4] - 2023-8-15
 

@@ -643,7 +643,7 @@ func TestGoodOTP2(t *testing.T) {
 	defer rc.Close()
 	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
 	require.Nil(t, err)
-	redisDouble.HSet("user:j", "secret", ok.Secret(), "QRVerified", "1")
+	redisDouble.HSet("user:j", "secret", ok.Secret(), "QRVerified", "1", "email", "j@h.com")
 	resp, err := http.PostForm("http://127.0.0.1:17777/pb/avalidtoken",
 		url.Values{"rmrf": {"checked"}, "otp": {otp}})
 	require.Nil(t, err)
@@ -705,7 +705,7 @@ func TestBadOTP(t *testing.T) {
 		AccountName: "j",
 	})
 	require.Nil(t, err)
-	redisDouble.HSet("user:j", "user", ok.Secret(), "QRVerified", "1")
+	redisDouble.HSet("user:j", "user", ok.Secret(), "QRVerified", "1", "email", "j@h.com")
 	resp, err := http.PostForm("http://127.0.0.1:17777/pb/avalidtoken",
 		url.Values{"rmrf": {"checked"}, "otp": {"98989898"}})
 	require.Nil(t, err)

@@ -1,0 +1,19 @@
+{{template "base" .}}
+{{define "title"}}{{end}}
+
+{{define "main"}}
+
+<div id="home-container">
+    <h1>Click below to verify peer "{{.Peer.Name}}"</h1>
+    <h3>Born on {{.Peer.CreatedOn}}</h3>
+    <p>
+    or close this tab to leave it unverified
+    </p>
+    <form method="post">
+        <div class="hitme">
+            <button class="button" type="submit" value="submit">Verify</button>
+        </div>
+    </form>
+</div>
+{{end}}
+
