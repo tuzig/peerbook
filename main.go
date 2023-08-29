@@ -181,7 +181,6 @@ func serveLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Failed to rename peer: %s", err), http.StatusInternalServerError)
 		return
 	}
-
 	err = db.SetPeerUser(req.FP, user)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to set peer: %s", err), http.StatusUnauthorized)

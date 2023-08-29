@@ -300,6 +300,7 @@ loop:
 //	 If found, it will reconcile the input fields and throw errors.
 //	 If it's a fresh peer it will be added to the database.
 func ConnFromQ(q url.Values, rcURL string) (*Conn, error) {
+	Logger.Infof("ConnFromQ: %v", q)
 	fp := q.Get("fp")
 	name := q.Get("name")
 	uid := q.Get("uid")
@@ -311,6 +312,7 @@ func ConnFromQ(q url.Values, rcURL string) (*Conn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get peer: %w", err)
 	}
+	Logger.Infof("ConnFromQ: got peer %v", peer)
 	// FP can be empty because of redisDouble used in testing
 	if peer == nil || peer.FP == "" {
 		peer = NewPeer(fp, name, uid, kind)
