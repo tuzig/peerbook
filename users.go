@@ -480,3 +480,23 @@ func GenerateUser(email string) (string, error) {
 	uID := base64.StdEncoding.EncodeToString(bytes)
 	return uID, db.AddUser(email, uID)
 }
+
+func GetPeersMessage(user string) ([]byte, error) {
+	ps, err := GetUsersPeers(user)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get peer list: %w", err)
+	}
+
+	msg := map[string]interface{}{"uid": user}
+	if ps != nil && len(*ps) > 0 {
+		msg["peers"] = ps
+	} else {
+		msg["peers"] = []string{}
+	}
+	var m []byte
+	m, err = json.Marshal(msg)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to marshal peer list: %w", err)
+	}
+	return m, nil
+}

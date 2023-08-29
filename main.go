@@ -494,9 +494,30 @@ func serveVerifyClient(w http.ResponseWriter, r *http.Request) {
 		Logger.Errorf(msg)
 		http.Error(w, msg, http.StatusInternalServerError)
 	}
-	Logger.Infof("Peer %s verified", fp)
-	return
+	// Send the peer list to the client
 
+	Logger.Infof("Peer %s verified", fp)
+	user, err := db.GetUID4FP(fp)
+	if err != nil {
+		msg := fmt.Sprintf("Failed to get user ID: %s", err)
+		Logger.Errorf(msg)
+		http.Error(w, msg, http.StatusInternalServerError)
+		return
+	}
+	m, err := GetPeersMessage(user)
+	if err != nil {
+		msg := fmt.Sprintf("Failed to get peers: %s", err)
+		Logger.Errorf(msg)
+		http.Error(w, msg, http.StatusInternalServerError)
+		return
+	}
+	err = SendMessage(fp, m)
+	if err != nil {
+		msg := fmt.Sprintf("Failed to send message: %s", err)
+		Logger.Errorf(msg)
+		http.Error(w, msg, http.StatusInternalServerError)
+		return
+	}
 }
 
 // serveVerify is the handler for the /verify endpoint
