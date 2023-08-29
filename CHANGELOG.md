@@ -9,12 +9,18 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
+## Unreleased
+
+### Added
+
+- `login` command for web clients support
+
 ## [1.4] - 2023-8-15
 
 ### Added
 
-- rename admin command tor ename a peer
-- delete admin command to delete a peer
+- `rename` admin command to rename a peer
+- `delete` admin command to delete a peer
 
 
 ## [1.3.1] - 2023-8-14
