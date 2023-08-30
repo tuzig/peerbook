@@ -9,12 +9,13 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
-## Unreleased
+## [1.5] - 2023-8-30
 
 ### Added
 
 - `login` command for web clients support
 - verify peer web page for the above command
+- sending peers to clients upon verification
 
 ## [1.4] - 2023-8-15
 
