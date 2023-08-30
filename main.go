@@ -100,6 +100,12 @@ func (p *PeerChanged) Error() string {
 	return "Peer exists with different properties"
 }
 
+// FormatDateInt receives a unix timestamp and returns a formatted date
+// example: 1612345678 -> 2021-02-03 04:05:06
+func FormatDateInt(i int64) string {
+	return time.Unix(i, 0).Format("2006-01-02 15:04:05")
+}
+
 // getStrFromEncodedPath It works assuming a valid token is the second
 // url part
 func getStrFromEncodedPath(r *http.Request) (string, error) {
@@ -491,7 +497,7 @@ func serveVerifyPeer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == "GET" {
-		tmpl, err := template.ParseFS(tFS, "templates/verify_peer.tmpl", "templates/base.tmpl")
+		tmpl, err := template.New("verify_peer.tmpl").Funcs(template.FuncMap{"date": FormatDateInt}).ParseFS(tFS, "templates/verify_peer.tmpl", "templates/base.tmpl")
 		if err != nil {
 			msg := fmt.Sprintf("Failed to parse the template: %s", err)
 			http.Error(w, msg, http.StatusInternalServerError)

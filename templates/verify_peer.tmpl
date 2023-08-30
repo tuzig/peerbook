@@ -5,7 +5,7 @@
 
 <div id="home-container">
     <h1>Click below to verify peer "{{.Peer.Name}}"</h1>
-    <h3>Born on {{.Peer.CreatedOn}}</h3>
+    <h3>Born on {{.Peer.CreatedOn | date  }}</h3>
     <p>
     or close this tab to leave it unverified
     </p>
