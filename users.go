@@ -2,12 +2,13 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
+	"encoding/base32"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"image/png"
 	"io"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
@@ -48,7 +49,7 @@ func isUIDActive(uid string, rcURL string) (bool, error) {
 	}
 	var data RCData
 	// getting the expires_date from the suscription
-	url := fmt.Sprintf("%s/v1/subscribers/%s", rcURL, url.QueryEscape(uid))
+	url := fmt.Sprintf("%s/v1/subscribers/%s", rcURL, uid)
 
 	req, _ := http.NewRequest("GET", url, nil)
 
@@ -470,14 +471,14 @@ func (r *RWC) Close() error {
 	return nil
 }
 
-// GenerateUserID generates a 10 digit long, base 10 random user ID
+// GenerateUserID generates a random user id
 func GenerateUser(email string) (string, error) {
-	bytes := make([]byte, 12)
+	bytes := make([]byte, 10)
 	_, err := rand.Read(bytes)
 	if err != nil {
 		return "", err
 	}
-	uID := base64.StdEncoding.EncodeToString(bytes)
+	uID := base32.StdEncoding.EncodeToString(bytes)
 	return uID, db.AddUser(email, uID)
 }
 
