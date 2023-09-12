@@ -9,6 +9,12 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
+## Unreleased
+
+### Fixed
+
+- restoring revenuecat API url escaping
+
 ## [1.5] - 2023-8-30
 
 ### Added

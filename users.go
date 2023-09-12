@@ -49,7 +49,7 @@ func isUIDActive(uid string, rcURL string) (bool, error) {
 	}
 	var data RCData
 	// getting the expires_date from the suscription
-	url := fmt.Sprintf("%s/v1/subscribers/%s", rcURL, uid)
+	url := fmt.Sprintf("%s/v1/subscribers/%s", rcURL, url.QueryEscape(uid))
 
 	req, _ := http.NewRequest("GET", url, nil)
 
