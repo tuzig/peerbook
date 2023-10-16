@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/base32"
 	"encoding/base64"
@@ -19,6 +20,7 @@ import (
 	"github.com/creack/pty"
 	"github.com/mattn/go-sixel"
 	"github.com/pquerna/otp/totp"
+	"github.com/tuzig/webexec/peers"
 )
 
 type UsersAuth struct {
@@ -405,6 +407,15 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 	var err error
 	var f io.ReadWriteCloser
 	var cmd *exec.Cmd
+	forwardMsg := func() {
+		target := command[1]
+		value := command[2]
+		msg := map[string]interface{}{
+			"source_fp": fp,
+			command[0]:  value,
+		}
+		SendMessage(target, msg)
+	}
 	switch command[0] {
 	case "delete":
 		Logger.Debug("deleting peer")
@@ -436,6 +447,30 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 			otp = command[1]
 		}
 		cmd, f, err = ping(fp, otp)
+	case "offer":
+		// create a connection for the source
+		if connectedPeers[fp] == nil {
+			Logger.Debugf("Creating a new connection for %s", fp)
+			peer, err := GetPeer(fp)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get peer - %s", err)
+			}
+			if peer == nil {
+				return nil, nil, fmt.Errorf("failed to get peer")
+			}
+			webrtcPeer := peers.Peers[fp]
+			if webrtcPeer == nil {
+				return nil, nil, fmt.Errorf("failed to get webrtc peer")
+			}
+			peer.WebRTCPeer = webrtcPeer
+			connectedPeers[fp] = peer
+			go peer.sender(context.Background())
+		}
+		forwardMsg()
+
+	case "candidate":
+		forwardMsg()
+
 	default:
 		Logger.Debugf("Got unknown command: %s", command)
 		return nil, nil, fmt.Errorf("Unknown peerbook command")
