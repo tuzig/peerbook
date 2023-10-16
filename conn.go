@@ -155,7 +155,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 	Logger.Infof("Got a new peer request: %v", q)
 	rcURL := os.Getenv("REVENUECAT_URL")
 	if rcURL == "" {
-		rcURL = "https://api.revenuecat.com"
+		rcURL = DefaultRevenueCatURL
 	}
 	conn, err := ConnFromQ(q, rcURL)
 	if err != nil {

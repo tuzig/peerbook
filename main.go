@@ -42,8 +42,8 @@ const (
 	// SendChanSize is the size of the send channel in messages
 	SendChanSize = 4
 
-	// TODO: remove the api
-	DefaultHomeURL = "https://peerbook.io"
+	DefaultHomeURL       = "https://peerbook.io"
+	DefaultRevenueCatURL = "https://api.revenuecat.com"
 )
 
 // Logger is our global logger
