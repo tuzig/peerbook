@@ -48,9 +48,8 @@ func startTest(t *testing.T) {
 		require.NoError(t, err)
 		go main()
 		mainRunning = true
-	} else {
-		redisDouble.FlushAll()
 	}
+	redisDouble.FlushAll()
 	time.Sleep(time.Millisecond * 10)
 }
 func openWS(url string) (*websocket.Conn, *http.Response, error) {
@@ -88,6 +87,7 @@ func TestUnknownFingerprint(t *testing.T) {
 	os.Setenv("REVENUECAT_URL", server.URL)
 	// create client, connect to the hu
 	ws, _, err := openWS("ws://127.0.0.1:17777/ws?fp=BADWOLF&uid=1234567890")
+	defer ws.Close()
 	require.Nil(t, err)
 	var m map[string]interface{}
 	err = ws.ReadJSON(&m)

@@ -758,6 +758,7 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 		PortMax:           61000,
 		GetICEServers:     GetICEServers,
 		OnCTRLMsg:         OnPeerMsg,
+		OnStateChange:     OnConnectionStateChange,
 	}
 	webexecHandler := httpserver.NewConnectHandler(auth, peerConf, Logger)
 	http.HandleFunc("/", serveHome)

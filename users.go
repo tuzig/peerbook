@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"crypto/rand"
 	"encoding/base32"
 	"encoding/base64"
@@ -20,7 +19,6 @@ import (
 	"github.com/creack/pty"
 	"github.com/mattn/go-sixel"
 	"github.com/pquerna/otp/totp"
-	"github.com/tuzig/webexec/peers"
 )
 
 type UsersAuth struct {
@@ -407,14 +405,21 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 	var err error
 	var f io.ReadWriteCloser
 	var cmd *exec.Cmd
-	forwardMsg := func() {
+	forwardMsg := func() error {
 		target := command[1]
+		exists, err := db.PeerExists(target)
+		if err != nil {
+			return fmt.Errorf("failed to check peer exists - %s", err)
+		}
+		if !exists {
+			return fmt.Errorf("peer does not exist")
+		}
 		value := command[2]
 		msg := map[string]interface{}{
 			"source_fp": fp,
 			command[0]:  value,
 		}
-		SendMessage(target, msg)
+		return SendMessage(target, msg)
 	}
 	switch command[0] {
 	case "delete":
@@ -448,34 +453,22 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 		}
 		cmd, f, err = ping(fp, otp)
 	case "offer":
-		// create a connection for the source
-		if connectedPeers[fp] == nil {
-			Logger.Debugf("Creating a new connection for %s", fp)
-			peer, err := GetPeer(fp)
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to get peer - %s", err)
-			}
-			if peer == nil {
-				return nil, nil, fmt.Errorf("failed to get peer")
-			}
-			webrtcPeer := peers.Peers[fp]
-			if webrtcPeer == nil {
-				return nil, nil, fmt.Errorf("failed to get webrtc peer")
-			}
-			peer.WebRTCPeer = webrtcPeer
-			connectedPeers[fp] = peer
-			go peer.sender(context.Background())
+		err = forwardMsg()
+		if err == nil {
+			f = NewRWC([]byte("1"))
 		}
-		forwardMsg()
-
 	case "candidate":
-		forwardMsg()
+		err = forwardMsg()
+		if err == nil {
+			f = NewRWC([]byte("1"))
+		}
 
 	default:
 		Logger.Debugf("Got unknown command: %s", command)
 		return nil, nil, fmt.Errorf("Unknown peerbook command")
 	}
 	if err != nil {
+		Logger.Debugf("Got error running command %q: %s", command[0], err)
 		return nil, NewRWC([]byte("0")), err
 	}
 	return cmd, f, nil

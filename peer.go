@@ -5,14 +5,11 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"time"
 
-	"github.com/gomodule/redigo/redis"
 	"github.com/gorilla/websocket"
-	"github.com/tuzig/webexec/peers"
 )
 
 const AuthTokenLen = 30 // in Bytes, four times that in base64 and urls
@@ -35,7 +32,6 @@ type Peer struct {
 	LastConnect int64  `redis:"last_connect" json:"last_connect,omitempty"`
 	Online      bool   `redis:"online" json:"online"`
 	AuthToken   string `redis:"auth_token,omitempty" json:"auth_token,omitempty"`
-	WebRTCPeer  *peers.Peer
 }
 type PeerList []*Peer
 
@@ -115,56 +111,4 @@ func (p *Peer) SinceConnect() string {
 		return "-"
 	}
 	return time.Now().Sub(time.Unix(p.LastConnect, 0)).Truncate(time.Second).String()
-}
-func (p *Peer) sender(ctx context.Context) {
-	// A ping is set to the server with this period to test for the health of
-	// the connection and server.
-	const healthCheckPeriod = time.Minute
-	conn := db.pool.Get()
-	defer conn.Close()
-	psc := redis.PubSubConn{Conn: conn}
-	defer psc.Unsubscribe()
-	outK := fmt.Sprintf("out:%s", p.FP)
-	peersK := fmt.Sprintf("peers:%s", p.User)
-	if err := psc.Subscribe(outK, peersK); err != nil {
-		Logger.Errorf("Failed subscribint to our messages: %s", err)
-		return
-	}
-
-	ticker := time.NewTicker(healthCheckPeriod)
-	defer ticker.Stop()
-	// Start a goroutine to receive notifications from the server.
-loop:
-	for {
-		select {
-		case <-ctx.Done():
-			break loop
-		case <-ticker.C:
-			// Send ping to test health of connection and server. If
-			// corresponding pong is not received, then receive on the
-			// connection will timeout and the receive goroutine will exit.
-			if err := psc.Ping(""); err != nil {
-				Logger.Warnf("Redis PubSub Pong timeout: %s", err)
-				break loop
-			}
-		default:
-			switch n := psc.Receive().(type) {
-			case error:
-				Logger.Errorf("Receive error from redis: %v", n)
-				break loop
-			case redis.Message:
-				verified, err := IsVerified(p.FP)
-				if err != nil {
-					Logger.Errorf("Got an error testing if perr verfied: %s", err)
-					return
-				}
-				if verified {
-					Logger.Infof("forwarding %q message: %s", p.FP, n.Data)
-					p.WebRTCPeer.SendMessage(string(n.Data))
-				} else {
-					Logger.Infof("ignoring %q message: %s", p.FP, n.Data)
-				}
-			}
-		}
-	}
 }

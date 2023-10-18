@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
@@ -10,6 +11,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path"
 	"testing"
 	"time"
@@ -17,6 +19,7 @@ import (
 	"github.com/alicebob/miniredis/v2"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
+	"github.com/tuzig/webexec/peers"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -565,4 +568,89 @@ func TestRenameCommandBadTarget(t *testing.T) {
 	result, err := io.ReadAll(f)
 	require.NoError(t, err)
 	require.Equal(t, byte('0'), result[0])
+}
+func TestOfferCommandBadTarget(t *testing.T) {
+	startTest(t)
+	err := db.Connect("127.0.0.1:6379")
+	redisDouble.SetAdd("userset:j", "A")
+	redisDouble.HSet("user:j", "email", "j@example.com")
+	redisDouble.HSet("peer:A", "_p", "A", "user", "j", "name", "foo", "kind", "client", "verified", "1")
+	server := httptest.NewServer(http.HandlerFunc(rcHandler))
+	defer server.Close()
+	_, f, err := RunCommand([]string{"offer", "B", "an offer"}, nil, nil, 0, "A")
+	require.Error(t, err)
+	result, err := ioutil.ReadAll(f)
+	require.NoError(t, err)
+	require.Equal(t, byte('0'), result[0])
+}
+func TestOfferCommand(t *testing.T) {
+	var err error
+	startTest(t)
+	err = db.Connect("127.0.0.1:6379")
+	redisDouble.SetAdd("userset:j", "A", "B")
+	redisDouble.HSet("user:j", "email", "j@example.com")
+	redisDouble.HSet("peer:A", "fp", "A", "user", "j", "name", "foo", "kind", "client", "verified", "1")
+	redisDouble.HSet("peer:B", "fp", "B", "user", "j", "name", "bar", "kind", "server", "verified", "1")
+	server := httptest.NewServer(http.HandlerFunc(rcHandler))
+	defer server.Close()
+	os.Setenv("REVENUECAT_URL", server.URL)
+	wsB, _, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&uid=j")
+	require.Nil(t, err)
+	defer wsB.Close()
+	if err = wsB.SetReadDeadline(time.Now().Add(ReadTimeout)); err != nil {
+		t.Fatalf("SetReadDeadline: %v", err)
+	}
+	var m map[string]interface{}
+	// first message is the peers
+	err = wsB.ReadJSON(&m)
+	require.NoError(t, err)
+	require.Nil(t, err)
+	// second message is a peer_update
+	err = wsB.ReadJSON(&m)
+	require.Nil(t, err)
+	peers.Peers = make(map[string]*peers.Peer)
+	peers.Peers["A"] = &peers.Peer{
+		FP: "A",
+	}
+
+	_, f, err := RunCommand([]string{"offer", "B", "an offer"}, nil, nil, 0, "A")
+	require.NoError(t, err)
+	result, err := ioutil.ReadAll(f)
+	require.NoError(t, err)
+	require.Equal(t, byte('1'), result[0])
+	var o OfferMessage
+	err = wsB.ReadJSON(&o)
+	require.Equal(t, "an offer", o.Offer)
+}
+func TestAnswerMessage(t *testing.T) {
+	var answer AnswerMessage
+	startTest(t)
+	server := httptest.NewServer(http.HandlerFunc(rcNotActiveHandler))
+	defer server.Close()
+	os.Setenv("REVENUECAT_URL", server.URL)
+	err := db.Connect("127.0.0.1:6379")
+	redisDouble.SetAdd("userset:j", "A", "B")
+	redisDouble.HSet("user:j", "email", "j@example.com")
+	redisDouble.HSet("peer:A", "fp", "A", "user", "j", "name", "foo", "kind", "client", "verified", "1")
+	redisDouble.HSet("peer:B", "fp", "B", "user", "j", "name", "bar", "kind", "server", "verified", "1")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sendMessage := func(msg interface{}) error {
+		// if the msg is a string, unmarshal the json
+		s := msg.(string)
+		err := json.Unmarshal([]byte(s), &answer)
+		require.NoError(t, err)
+		return nil
+	}
+	go sender(ctx, "A", sendMessage)
+	wsB, _, err := openWS("ws://127.0.0.1:17777/ws?fp=B&name=bar&kind=lay&uid=j")
+	require.NoError(t, err)
+	defer wsB.Close()
+	err = wsB.SetWriteDeadline(time.Now().Add(WriteTimeout))
+	require.NoError(t, err)
+	err = wsB.WriteJSON(map[string]string{"answer": "B's answer", "target": "A"})
+	require.NoError(t, err)
+	time.Sleep(time.Second / 10)
+	require.Equal(t, "B's answer", answer.Answer)
+	require.Equal(t, "B", answer.SourceFP)
 }
