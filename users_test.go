@@ -7,8 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -304,11 +302,7 @@ func TestRegisterCommand(t *testing.T) {
 	require.NoError(t, err)
 	_, err = GetPeer("A")
 	require.NoError(t, err)
-	_, f, err := RunCommand([]string{"register", "j@example.com", "yossi"}, nil, nil, 0, "A")
-	require.NoError(t, err)
-	require.NotNil(t, f)
-	b, err := ioutil.ReadAll(f)
-	require.NoError(t, err)
+	b, err := register("A", "j@example.com", "yossi")
 	Logger.Infof("Got %d bytes", len(b))
 	var m map[string]string
 	err = json.Unmarshal(b, &m)
@@ -336,14 +330,10 @@ func TestRegisterWExistingUser(t *testing.T) {
 	require.NoError(t, err)
 	_, err = GetPeer("A")
 	require.NoError(t, err)
-	_, f, err := RunCommand([]string{"register", "j@example.com", "yossi"}, nil, nil, 0, "A")
+	body, err := register("A", "j@example.com", "yossi")
 	require.NoError(t, err)
-	require.NotNil(t, f)
-	b, err := ioutil.ReadAll(f)
-	require.NoError(t, err)
-	Logger.Infof("Got %d bytes", len(b))
 	var m map[string]string
-	err = json.Unmarshal(b, &m)
+	err = json.Unmarshal(body, &m)
 	require.NoError(t, err)
 	require.Contains(t, m, "ID")
 	require.Equal(t, "j", m["ID"])
@@ -358,10 +348,8 @@ func TestPingBadOTPCommand(t *testing.T) {
 	redisDouble.HSet("user:j", "email", "j@example.com")
 	redisDouble.HSet("peer:A", "fp", "A", "user", "j", "name", "fucked up", "kind", "client", "verified", "1")
 	redisDouble.HSet("peer:B", "fp", "B", "user", "j", "name", "fucked up", "kind", "server", "verified", "0")
-	_, f, err := RunCommand([]string{"ping", "BADWOLF"}, nil, nil, 0, "A")
-	result, err := ioutil.ReadAll(f)
-	require.NoError(t, err)
-	require.Equal(t, byte('0'), result[0])
+	_, err = ping("A", "BADWOLF")
+	require.Error(t, err)
 }
 func TestEmptyPing(t *testing.T) {
 	var err error
@@ -371,8 +359,7 @@ func TestEmptyPing(t *testing.T) {
 	redisDouble.HSet("peer:A", "fp", "A", "user", "j", "name", "fucked up", "kind", "client", "verified", "1")
 	require.NoError(t, err)
 	err = db.Connect("127.0.0.1:6379")
-	_, f, err := RunCommand([]string{"ping"}, nil, nil, 0, "A")
-	result, err := ioutil.ReadAll(f)
+	result, err := ping("A", "")
 	require.NoError(t, err)
 	require.Equal(t, "j", string(result))
 }
@@ -389,10 +376,9 @@ func TestPingCommand(t *testing.T) {
 	require.NoError(t, err)
 	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
 	require.NoError(t, err)
-	_, f, err := RunCommand([]string{"ping", otp}, nil, nil, 0, "A")
-	result, err := ioutil.ReadAll(f)
+	ret, err := ping("A", otp)
 	require.NoError(t, err)
-	require.Equal(t, byte('1'), result[0])
+	require.Equal(t, "1", string(ret))
 }
 func TestVerfifyCommand(t *testing.T) {
 	var err error
@@ -407,14 +393,8 @@ func TestVerfifyCommand(t *testing.T) {
 	require.NoError(t, err)
 	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
 	require.NoError(t, err)
-	cmd, f, err := RunCommand([]string{"verify", "B", otp}, nil, nil, 0, "A")
+	err = verify("A", "B", otp)
 	require.NoError(t, err)
-	require.Nil(t, cmd)
-	// read the response from f
-	result, err := ioutil.ReadAll(f)
-	require.NoError(t, err)
-	// make sure the response starts with "Authorized"
-	require.Equal(t, "1", string(result[0]))
 	// make sure the peer is marked as verified
 	require.Equal(t, "1", redisDouble.HGet("peer:B", "verified"))
 }
@@ -426,12 +406,8 @@ func TestBadOTPVerfifyCommand(t *testing.T) {
 	redisDouble.SetAdd("userset:j", "A", "B")
 	redisDouble.HSet("peer:A", "fp", "A", "user", "j", "name", "fucked up", "kind", "client", "verified", "1")
 	redisDouble.HSet("peer:B", "fp", "B", "user", "j", "name", "fucked up", "kind", "server", "verified", "0")
-	cmd, f, err := RunCommand([]string{"verify", "B", "1233456"}, nil, nil, 0, "A")
-	require.NoError(t, err)
-	result, err := ioutil.ReadAll(f)
-	require.NoError(t, err)
-	require.Equal(t, "0", string(result[0]))
-	require.Nil(t, cmd)
+	err = verify("A", "B", "1233456")
+	require.Error(t, err)
 	require.Equal(t, "0", redisDouble.HGet("peer:B", "verified"))
 }
 func TestVerifyFreshPeer(t *testing.T) {
@@ -448,16 +424,8 @@ func TestVerifyFreshPeer(t *testing.T) {
 	require.NoError(t, err)
 	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
 	require.NoError(t, err)
-	cmd, f, err := RunCommand([]string{"verify", "B", otp}, nil, nil, 0, "A")
+	err = verify("A", "B", otp)
 	require.NoError(t, err)
-	require.Nil(t, cmd)
-	// read the response from f
-	result, err := ioutil.ReadAll(f)
-	require.NoError(t, err)
-	// make sure the response starts with "Authorized"
-	require.Equal(t, "1", string(result[0]))
-	// make sure the peer is marked as verified
-	require.Equal(t, "1", redisDouble.HGet("peer:B", "verified"))
 }
 func TestRegisterCommandWithExistingUser(t *testing.T) {
 	var err error
@@ -502,14 +470,8 @@ func TestDeleteCommand(t *testing.T) {
 	require.NoError(t, err)
 	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
 	require.NoError(t, err)
-	cmd, f, err := RunCommand([]string{"delete", "B", otp}, nil, nil, 0, "A")
+	err = deletePeer("A", "B", otp)
 	require.NoError(t, err)
-	require.Nil(t, cmd)
-	// read the response from f
-	result, err := ioutil.ReadAll(f)
-	require.NoError(t, err)
-	// make sure the response starts with "Authorized"
-	require.Equal(t, "1", string(result[0]))
 	// make sure the peer is marked as verified
 	require.Equal(t, false, redisDouble.Exists("peer:B"))
 	isMember, err := redisDouble.SIsMember("userset:j", "B")
@@ -526,15 +488,8 @@ func TestDeleteCommandBadOTP(t *testing.T) {
 	redisDouble.HSet("user:j", "email", "j@example.com")
 	redisDouble.HSet("peer:A", "fp", "A", "user", "j", "name", "fucked up", "kind", "client", "verified", "1")
 	redisDouble.HSet("peer:B", "fp", "B", "user", "j", "name", "fucked up", "kind", "server", "verified", "0")
-	cmd, f, err := RunCommand([]string{"delete", "B", "123456"}, nil, nil, 0, "A")
-	require.NoError(t, err)
-	require.Nil(t, cmd)
-	// read the response from f
-	result, err := ioutil.ReadAll(f)
-	require.NoError(t, err)
-	// make sure the response starts with "Authorized"
-	require.Equal(t, "0", string(result[0]))
-	// make sure the peer is marked as verified
+	err = deletePeer("A", "B", "123456")
+	require.Error(t, err)
 	require.True(t, redisDouble.Exists("peer:B"))
 }
 func TestRenameCommand(t *testing.T) {
@@ -547,10 +502,8 @@ func TestRenameCommand(t *testing.T) {
 	redisDouble.HSet("user:j", "email", "j@example.com")
 	redisDouble.HSet("peer:A", "fp", "A", "user", "j", "name", "fucked up", "kind", "client", "verified", "1")
 	redisDouble.HSet("peer:B", "fp", "B", "user", "j", "name", "fucked up", "kind", "server", "verified", "0")
-	_, f, err := RunCommand([]string{"rename", "A", "behind all"}, nil, nil, 0, "A")
-	result, err := ioutil.ReadAll(f)
+	err = rename("A", "A", "behind all")
 	require.NoError(t, err)
-	require.Equal(t, byte('1'), result[0])
 	require.Equal(t, "behind all", redisDouble.HGet(`peer:A`, "name"))
 }
 func TestRenameCommandBadTarget(t *testing.T) {
@@ -563,12 +516,10 @@ func TestRenameCommandBadTarget(t *testing.T) {
 	redisDouble.HSet("user:j", "email", "j@example.com")
 	redisDouble.HSet("peer:A", "fp", "A", "user", "j", "name", "fucked up", "kind", "client", "verified", "1")
 	redisDouble.HSet("peer:B", "fp", "B", "user", "k", "name", "fucked up", "kind", "server", "verified", "0")
-	_, f, err := RunCommand([]string{"rename", "B", "behind all"}, nil, nil, 0, "A")
+	err = rename("A", "B", "behind all")
 	require.Error(t, err)
-	result, err := io.ReadAll(f)
-	require.NoError(t, err)
-	require.Equal(t, byte('0'), result[0])
 }
+
 func TestOfferCommandBadTarget(t *testing.T) {
 	startTest(t)
 	err := db.Connect("127.0.0.1:6379")
@@ -577,11 +528,8 @@ func TestOfferCommandBadTarget(t *testing.T) {
 	redisDouble.HSet("peer:A", "_p", "A", "user", "j", "name", "foo", "kind", "client", "verified", "1")
 	server := httptest.NewServer(http.HandlerFunc(rcHandler))
 	defer server.Close()
-	_, f, err := RunCommand([]string{"offer", "B", "an offer"}, nil, nil, 0, "A")
+	err = forwardSDP("A", "B", "offer", "an offer")
 	require.Error(t, err)
-	result, err := ioutil.ReadAll(f)
-	require.NoError(t, err)
-	require.Equal(t, byte('0'), result[0])
 }
 func TestOfferCommand(t *testing.T) {
 	var err error
@@ -613,15 +561,13 @@ func TestOfferCommand(t *testing.T) {
 		FP: "A",
 	}
 
-	_, f, err := RunCommand([]string{"offer", "B", "an offer"}, nil, nil, 0, "A")
+	err = forwardSDP("A", "B", "offer", "an offer")
 	require.NoError(t, err)
-	result, err := ioutil.ReadAll(f)
-	require.NoError(t, err)
-	require.Equal(t, byte('1'), result[0])
 	var o OfferMessage
 	err = wsB.ReadJSON(&o)
 	require.Equal(t, "an offer", o.Offer)
 }
+
 func TestAnswerMessage(t *testing.T) {
 	var answer AnswerMessage
 	startTest(t)

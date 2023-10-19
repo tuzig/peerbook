@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -92,5 +93,99 @@ loop:
 				}
 			}
 		}
+	}
+}
+func OnPeerMsg(webrtcPeer *peers.Peer, msg webrtc.DataChannelMessage) {
+	// TODO: handle incoming messages
+	var raw json.RawMessage
+	var body []byte
+	fp := webrtcPeer.FP
+	m := peers.CTRLMessage{
+		Args: &raw,
+	}
+	Logger.Infof("Got a CTRLMessage: %q\n", string(msg.Data))
+	err := json.Unmarshal(msg.Data, &m)
+	if err != nil {
+		webrtcPeer.SendNack(m, fmt.Sprintf("Failed to parse incoming control message: %v", err))
+		return
+	}
+	switch m.Type {
+	case "delete":
+		var args struct {
+			Target string `json:"target"`
+			OTP    string `json:"otp"`
+		}
+		err = json.Unmarshal(raw, &args)
+		if err == nil {
+			err = deletePeer(fp, args.Target, args.OTP)
+		}
+	case "register":
+		var args struct {
+			Email    string `json:"email"`
+			PeerName string `json:"peer_name"`
+		}
+		err = json.Unmarshal(raw, &args)
+		if err == nil {
+			body, err = register(fp, args.Email, args.PeerName)
+		}
+	case "rename":
+		var args struct {
+			Target string `json:"target"`
+			Name   string `json:"name"`
+		}
+		err = json.Unmarshal(raw, &args)
+		if err == nil {
+			err = rename(fp, args.Target, args.Name)
+		}
+	case "verify":
+		var args struct {
+			Target string `json:"target"`
+			OTP    string `json:"otp"`
+		}
+		Logger.Debug("verifying peer")
+		err = json.Unmarshal(raw, &args)
+		if err == nil {
+			err = verify(fp, args.Target, args.OTP)
+		}
+	case "ping":
+		// ping can be used to check if the server is alive
+		// if given an argument, it assumes it'n an OTP and will
+		// check it against the user's secret and will echo 0 if it's
+		// valid and 1 if it's not
+		var args struct {
+			OTP string `json:"otp"`
+		}
+		err = json.Unmarshal(raw, &args)
+		if err == nil {
+			body, err = ping(fp, args.OTP)
+		} else {
+			body, err = ping(fp, "")
+		}
+	case "offer":
+		var args struct {
+			Target string `json:"target"`
+			SDP    string `json:"sdp"`
+		}
+		err = json.Unmarshal(raw, &args)
+		if err == nil {
+			err = forwardSDP(fp, args.Target, "offer", args.SDP)
+		}
+	case "candidate":
+		var args struct {
+			Target string `json:"target"`
+			SDP    string `json:"sdp"`
+		}
+		err = json.Unmarshal(raw, &args)
+		if err == nil {
+			err = forwardSDP(fp, args.Target, "candidate", args.SDP)
+		}
+		/* TODO
+		case "answer":
+		*/
+	}
+	if err != nil {
+		webrtcPeer.SendNack(m, fmt.Sprintf("Failed to execute command: %v", err))
+	} else {
+		webrtcPeer.SendAck(m, body)
 	}
 }

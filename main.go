@@ -732,10 +732,6 @@ func generateCertificate() (*webrtc.Certificate, error) {
 	})
 }
 
-func OnPeerMsg(webrtcPeer *peers.Peer, msg webrtc.DataChannelMessage) {
-	// TODO: handle incoming messages
-	Logger.Infof("Got CTRL message: %s", msg.Data)
-}
 func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 	srv := &http.Server{
 		Addr: addr, Handler: cors.Default().Handler(http.DefaultServeMux)}
@@ -753,7 +749,6 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 		FailedTimeout:     3 * time.Second,
 		KeepAliveInterval: 3 * time.Second,
 		GatheringTimeout:  3 * time.Second,
-		RunCommand:        RunCommand,
 		PortMin:           60000,
 		PortMax:           61000,
 		GetICEServers:     GetICEServers,
