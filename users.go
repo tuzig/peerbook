@@ -405,6 +405,7 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 	var err error
 	var f io.ReadWriteCloser
 	var cmd *exec.Cmd
+	Logger.Debugf("Enterning RunCommand with command: %v env: %v, ws: %v, pID: %d, fp: %s", command, env, ws, pID, fp)
 	forwardMsg := func() error {
 		target := command[1]
 		exists, err := db.PeerExists(target)
@@ -471,6 +472,7 @@ func RunCommand(command []string, env map[string]string, ws *pty.Winsize, pID in
 		Logger.Debugf("Got error running command %q: %s", command[0], err)
 		return nil, NewRWC([]byte("0")), err
 	}
+	Logger.Debugf("Exiting RunCommand with cmd: %v, f: %v", cmd, f)
 	return cmd, f, nil
 }
 
