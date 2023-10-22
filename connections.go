@@ -185,8 +185,11 @@ func OnPeerMsg(webrtcPeer *peers.Peer, msg webrtc.DataChannelMessage) {
 	}
 	Logger.Debugf("CTRLMessage handling finished, err: %v", err)
 	if err != nil {
-		webrtcPeer.SendNack(m, fmt.Sprintf("Failed to execute command: %v", err))
+		err = webrtcPeer.SendNack(m, fmt.Sprintf("Failed to execute command: %v", err))
 	} else {
-		webrtcPeer.SendAck(m, body)
+		err = webrtcPeer.SendAck(m, body)
+	}
+	if err != nil {
+		Logger.Errorf("Failed to send ACK/NACK: %v", err)
 	}
 }
