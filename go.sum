@@ -166,6 +166,8 @@ github.com/tuzig/webexec v1.2.2-0.20231022135023-7d5705efbd44 h1:hn8QGn7Oc3gsBOJ
 github.com/tuzig/webexec v1.2.2-0.20231022135023-7d5705efbd44/go.mod h1:jlUDg0aXxKpVQfgqp2KCbMiRkO2CHbLPYZYdEs3x8Yo=
 github.com/tuzig/webexec v1.2.2-0.20231022141327-453c7ac7ad0b h1:qSkprjp457AhEnSzMtDGOnOi4JLNVdJDAhq/TyyBusg=
 github.com/tuzig/webexec v1.2.2-0.20231022141327-453c7ac7ad0b/go.mod h1:jlUDg0aXxKpVQfgqp2KCbMiRkO2CHbLPYZYdEs3x8Yo=
+github.com/tuzig/webexec v1.2.2-0.20231022184144-468b81b392e6 h1:XdZm4PNzuUi7ZBSmj4xfYSc5NawKYY0VTMVU1LLC7+4=
+github.com/tuzig/webexec v1.2.2-0.20231022184144-468b81b392e6/go.mod h1:jlUDg0aXxKpVQfgqp2KCbMiRkO2CHbLPYZYdEs3x8Yo=
 github.com/twilio/twilio-go v1.3.2 h1:bO1kly9vwNT4kMDn58gGm6XB/YB8AUarATR/rGvtkDE=
 github.com/twilio/twilio-go v1.3.2/go.mod h1:tdnfQ5TjbewoAu4lf9bMsGvfuJ/QU9gYuv9yx3TSIXU=
 github.com/urfave/cli/v2 v2.3.0 h1:qph92Y649prgesehzOrQjdWyxFOp/QVM+6imKHad91M=

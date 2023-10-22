@@ -305,7 +305,7 @@ func TestRegisterCommand(t *testing.T) {
 	b, err := register("A", "j@example.com", "yossi")
 	Logger.Infof("Got %d bytes", len(b))
 	var m map[string]string
-	err = json.Unmarshal(b, &m)
+	err = json.Unmarshal([]byte(b), &m)
 	require.NoError(t, err)
 	require.Contains(t, m, "ID")
 	require.Equal(t, 16, len(m["ID"]))
@@ -333,7 +333,7 @@ func TestRegisterWExistingUser(t *testing.T) {
 	body, err := register("A", "j@example.com", "yossi")
 	require.NoError(t, err)
 	var m map[string]string
-	err = json.Unmarshal(body, &m)
+	err = json.Unmarshal([]byte(body), &m)
 	require.NoError(t, err)
 	require.Contains(t, m, "ID")
 	require.Equal(t, "j", m["ID"])

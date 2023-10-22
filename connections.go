@@ -98,7 +98,7 @@ loop:
 func OnPeerMsg(webrtcPeer *peers.Peer, msg webrtc.DataChannelMessage) {
 	// TODO: handle incoming messages
 	var raw json.RawMessage
-	var body []byte
+	var body string
 	fp := webrtcPeer.FP
 	m := peers.CTRLMessage{
 		Args: &raw,

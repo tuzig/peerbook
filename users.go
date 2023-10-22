@@ -202,7 +202,7 @@ func serveAuthorize(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func register(fp string, email string, peerName string) ([]byte, error) {
+func register(fp string, email string, peerName string) (string, error) {
 	Logger.Debugf("Got register cmd: %s %s", email, peerName)
 	uID, err := db.GetUID4FP(fp)
 	Logger.Debugf("got uid %q for %q", uID, fp)
@@ -210,18 +210,18 @@ func register(fp string, email string, peerName string) ([]byte, error) {
 		// create the user and the peer
 		uID, err = GenerateUser(email)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to generate user: %s", err)
+			return "", fmt.Errorf("Failed to generate user: %s", err)
 		}
 		peer := NewPeer(fp, peerName, uID, "terminal7")
 		err = db.AddPeer(peer)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to add peer: %s", err)
+			return "", fmt.Errorf("Failed to add peer: %s", err)
 		}
 	}
 	Logger.Debugf("before generating sixel: %s", uID)
 	sixel, err := GetQRSixel(uID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate QR code - %s", err)
+		return "", fmt.Errorf("failed to generate QR code - %s", err)
 	}
 	resp := map[string]string{
 		// TODO: add the QR code
@@ -231,10 +231,10 @@ func register(fp string, email string, peerName string) ([]byte, error) {
 	// turn into a string
 	msg, err := json.Marshal(resp)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal json - %s", err)
+		return "", fmt.Errorf("failed to marshal json - %s", err)
 	}
 	Logger.Debugf("succesful registration with response: %s", msg)
-	return msg, nil
+	return string(msg), nil
 }
 func verify(fp string, target string, otp string) error {
 	// get the uid of the admin
@@ -326,7 +326,7 @@ func deletePeer(fp string, target string, otp string) error {
 	}
 	return nil
 }
-func ping(fp string, otp string) ([]byte, error) {
+func ping(fp string, otp string) (string, error) {
 	if otp == "" {
 		uID, err := db.GetUID4FP(fp)
 		if err != nil {
@@ -338,36 +338,36 @@ func ping(fp string, otp string) ([]byte, error) {
 			uID = "TBD"
 		}
 		Logger.Debugf("+-> returning %s", uID)
-		return []byte(uID), nil
+		return uID, nil
 	}
 	// check the fingerprint is in the db
 	exists, err := db.PeerExists(fp)
 	if err != nil {
-		return nil, fmt.Errorf("failed to check peer exists - %s", err)
+		return "", fmt.Errorf("failed to check peer exists - %s", err)
 	}
 	if !exists {
-		return nil, fmt.Errorf("peer does not exist")
+		return "", fmt.Errorf("peer does not exist")
 	}
 	peer, err := GetPeer(fp)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get peer - %s", err)
+		return "", fmt.Errorf("failed to get peer - %s", err)
 	}
 	if peer == nil {
-		return nil, fmt.Errorf("failed to get peer")
+		return "", fmt.Errorf("failed to get peer")
 	}
 	// validate the OTP
 	s, err := db.getUserSecret(peer.User)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user secret - %s", err)
+		return "", fmt.Errorf("failed to get user secret - %s", err)
 	}
 	if s == "" {
-		return nil, fmt.Errorf("failed to get user secret")
+		return "", fmt.Errorf("failed to get user secret")
 	}
 	if !totp.Validate(otp, s) {
-		return nil, fmt.Errorf("invalid OTP")
+		return "", fmt.Errorf("invalid OTP")
 	}
 	VerifyPeer(fp, true)
-	return []byte("1"), err
+	return "1", err
 }
 func rename(fp string, target string, name string) error {
 	// check both fp and target belong to the same user
