@@ -331,11 +331,9 @@ func ping(fp string, otp string) ([]byte, error) {
 		uID, err := db.GetUID4FP(fp)
 		if err != nil {
 			Logger.Debugf("+-> failed to get user id - %s", err)
+			return nil, fmt.Errorf("Peer is not registered")
 		} else {
 			Logger.Debugf("+-> got user id %s", uID)
-		}
-		if err != nil || uID == "" {
-			uID = "TBD"
 		}
 		Logger.Debugf("+-> returning %s", uID)
 		return []byte(uID), nil
