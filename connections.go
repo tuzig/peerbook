@@ -12,6 +12,7 @@ import (
 )
 
 type Connection struct {
+	llPeer *peers.Peer
 	cancel context.CancelFunc
 }
 
@@ -19,6 +20,21 @@ type Connection struct {
 type ConnectionList map[string]*Connection
 
 var connections = make(ConnectionList)
+
+func (c *Connection) sendPeerList() {
+	uID, err := db.GetUID4FP(c.llPeer.FP)
+	if err != nil {
+		Logger.Errorf("Failed to get uid - %s", err)
+	}
+	m, err := GetPeersMessage(uID)
+	if err != nil {
+		Logger.Errorf("Failed to get peers message - %s", err)
+	}
+	err = c.llPeer.SendMessage(m)
+	if err != nil {
+		Logger.Errorf("Failed to send peers message - %s", err)
+	}
+}
 
 // ConnectionList.Start starts the sender for the given peer
 // TODO: add a watchdog to ensure connections don't live forever
@@ -28,11 +44,19 @@ func (cl ConnectionList) Start(webrtcPeer *peers.Peer) {
 		cl.Stop(webrtcPeer)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
-	cl[fp] = &Connection{cancel}
+	cl[fp] = &Connection{llPeer: webrtcPeer, cancel: cancel}
 	go func() {
 		sender(ctx, webrtcPeer.FP, webrtcPeer.SendMessage)
 		webrtcPeer.Close()
 	}()
+	verified, err := IsVerified(fp)
+	if err != nil {
+		Logger.Errorf("Failed to check if peer verified - %s", err)
+	}
+	if verified {
+		go cl[fp].sendPeerList()
+	}
+
 }
 
 // Stop stops the sender for the given peer
@@ -156,6 +180,10 @@ func OnPeerMsg(webrtcPeer *peers.Peer, msg webrtc.DataChannelMessage) {
 		err = json.Unmarshal(raw, &args)
 		if err == nil {
 			err = verify(fp, args.Target, args.OTP)
+		}
+		tPeer, ok := connections[args.Target]
+		if ok {
+			go tPeer.sendPeerList()
 		}
 	case "ping":
 		// ping can be used to check if the server is alive
