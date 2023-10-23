@@ -12,7 +12,6 @@ import (
 )
 
 type Connection struct {
-	ctx    context.Context
 	cancel context.CancelFunc
 }
 
@@ -28,9 +27,12 @@ func (cl ConnectionList) Start(webrtcPeer *peers.Peer) {
 	if _, ok := cl[fp]; ok {
 		cl.Stop(webrtcPeer)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	cl[fp] = &Connection{ctx, cancel}
-	go sender(ctx, webrtcPeer.FP, webrtcPeer.SendMessage)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
+	cl[fp] = &Connection{cancel}
+	go func() {
+		sender(ctx, webrtcPeer.FP, webrtcPeer.SendMessage)
+		webrtcPeer.Close()
+	}()
 }
 
 // Stop stops the sender for the given peer
