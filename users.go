@@ -252,7 +252,7 @@ func verify(fp string, target string, otp string) error {
 	}
 	if !totp.Validate(otp, s) {
 		Logger.Debug("Verify cmd got bad otp")
-		return fmt.Errorf("invalid OTP")
+		return fmt.Errorf("Invalid OTP")
 	}
 	// check the fingerprint is in the db
 	exists, err := db.PeerExists(target)
@@ -370,6 +370,7 @@ func ping(fp string, otp string) (string, error) {
 	return "1", err
 }
 func rename(fp string, target string, name string) error {
+	// TODO: optimize this as IsSameUser already gets the peer
 	// check both fp and target belong to the same user
 	sameUser, err := db.IsSameUser(fp, target)
 	if err != nil {
@@ -381,6 +382,15 @@ func rename(fp string, target string, name string) error {
 	err = db.RenamePeer(target, name)
 	if err != nil {
 		return fmt.Errorf("failed to update peer - %s", err)
+	}
+	// send peer_update message
+	// publish the peer update
+	rc := db.pool.Get()
+	defer rc.Close()
+	peer, err := GetPeer(target)
+	err = SendPeerUpdate(rc, peer.User, peer.FP, peer.Verified, peer.Online, peer.Name)
+	if err != nil {
+		return fmt.Errorf("failed to send peer update - %s", err)
 	}
 	return nil
 }
