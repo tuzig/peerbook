@@ -439,7 +439,7 @@ func GenerateUser(email string) (string, error) {
 	return uID, db.AddUser(email, uID)
 }
 
-func GetPeersMessage(user string) ([]byte, error) {
+func GetPeersMessage(user string) (interface{}, error) {
 	ps, err := GetUsersPeers(user)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get peer list: %w", err)
@@ -451,10 +451,5 @@ func GetPeersMessage(user string) ([]byte, error) {
 	} else {
 		msg["peers"] = []string{}
 	}
-	var m []byte
-	m, err = json.Marshal(msg)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to marshal peer list: %w", err)
-	}
-	return m, nil
+	return msg, nil
 }

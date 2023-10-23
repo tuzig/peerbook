@@ -25,10 +25,12 @@ func (c *Connection) sendPeerList() {
 	uID, err := db.GetUID4FP(c.llPeer.FP)
 	if err != nil {
 		Logger.Errorf("Failed to get uid - %s", err)
+		return
 	}
 	m, err := GetPeersMessage(uID)
 	if err != nil {
 		Logger.Errorf("Failed to get peers message - %s", err)
+		return
 	}
 	err = c.llPeer.SendMessage(m)
 	if err != nil {

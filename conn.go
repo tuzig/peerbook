@@ -218,9 +218,14 @@ func SendPeerUpdate(rc redis.Conn, user string, fp string, verified bool, online
 	return nil
 }
 func (c *Conn) SendPeerList() error {
-	m, err := GetPeersMessage(c.User)
+	msg, err := GetPeersMessage(c.User)
 	if err != nil {
 		return err
+	}
+	var m []byte
+	m, err = json.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("Failed to marshal peer list: %w", err)
 	}
 	c.send <- m
 	return nil
