@@ -21,15 +21,21 @@ type ConnectionList map[string]*Connection
 
 var connections = make(ConnectionList)
 
-func (cl ConnectionList) Open(fp string) context.Context {
+// ConnectionList.Start starts the sender for the given peer
+// TODO: add a watchdog to ensure connections don't live forever
+func (cl ConnectionList) Start(webrtcPeer *peers.Peer) {
+	fp := webrtcPeer.FP
 	if _, ok := cl[fp]; ok {
-		cl.Close(fp)
+		cl.Stop(webrtcPeer)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cl[fp] = &Connection{ctx, cancel}
-	return ctx
+	go sender(ctx, webrtcPeer.FP, webrtcPeer.SendMessage)
 }
-func (cl ConnectionList) Close(fp string) {
+
+// Stop stops the sender for the given peer
+func (cl ConnectionList) Stop(webrtcPeer *peers.Peer) {
+	fp := webrtcPeer.FP
 	if cl[fp] == nil {
 		return
 	}
@@ -40,11 +46,10 @@ func OnConnectionStateChange(webrtcPeer *peers.Peer, state webrtc.PeerConnection
 	switch state {
 	case webrtc.PeerConnectionStateConnected:
 		// start the sender
-		ctx := connections.Open(webrtcPeer.FP)
-		go sender(ctx, webrtcPeer.FP, webrtcPeer.SendMessage)
+		connections.Start(webrtcPeer)
 	case webrtc.PeerConnectionStateFailed:
 		// stop the sender
-		connections.Close(webrtcPeer.FP)
+		connections.Stop(webrtcPeer)
 	}
 }
 func sender(ctx context.Context, fp string, sendFunction func(msg interface{}) error) {
