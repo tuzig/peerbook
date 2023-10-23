@@ -30,6 +30,9 @@ func (cl ConnectionList) Open(fp string) context.Context {
 	return ctx
 }
 func (cl ConnectionList) Close(fp string) {
+	if cl[fp] == nil {
+		return
+	}
 	cl[fp].cancel()
 	delete(cl, fp)
 }
