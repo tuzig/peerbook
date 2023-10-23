@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"net/http"
 	"sync"
 	"time"
 
@@ -234,36 +233,8 @@ func VerifyPeer(fp string, verified bool) error {
 	}
 	if verified {
 		rc.Do("HSET", key, "verified", "1")
-		if online {
-			uid, err := db.GetUID4FP(fp)
-			if err != nil {
-				return fmt.Errorf("Failed to get user id - %s", err)
-			}
-			SendMessage(fp, StatusMessage{200, uid})
-			Logger.Infof("Sent a 200 to %q - a newly verified peer", fp)
-			user, err := redis.String(rc.Do("HGET", key, "user"))
-			if err != nil {
-				return fmt.Errorf("Failed to get a peer's user: %w", err)
-			}
-			// send the peers
-			ps, err := GetUsersPeers(user)
-			if err != nil {
-				return err
-			}
-			err = SendMessage(fp, map[string]interface{}{
-				"peers": ps,
-				"uid":   user,
-			})
-			if err != nil {
-				Logger.Warnf("Failed to send peers to %q: %w", fp, err)
-			}
-		}
 	} else {
 		rc.Do("HSET", key, "verified", "0")
-		if online {
-			SendMessage(fp, StatusMessage{http.StatusUnauthorized,
-				"peer's verification was revoked"})
-		}
 	}
 	peer, err := GetPeer(fp)
 	if err != nil {

@@ -436,17 +436,14 @@ func TestHTTPPeerVerification(t *testing.T) {
 	time.Sleep(time.Second / 100)
 	require.Equal(t, "0", redisDouble.HGet("peer:A", "verified"))
 	require.Equal(t, "1", redisDouble.HGet("peer:B", "verified"))
-	var m map[string]interface{}
+	var m map[string]json.RawMessage
 	err = ws.ReadJSON(&m)
-	require.Nil(t, err)
-	require.Contains(t, m, "code", "got msg %v", m)
-	require.Equal(t, float64(200), m["code"], "got msg %v", m)
-	err = ws.ReadJSON(&m)
-	require.Contains(t, m, "peers", "got msg %v", m)
-	require.Contains(t, m, "uid")
-	peers := m["peers"].([]interface{})
-	require.Equal(t, 2, len(peers), "got msg %v", m)
-	require.Nil(t, err)
+	require.NoError(t, err)
+	require.Contains(t, m, "peer_update", "got msg %v", m)
+	var args PeerUpdate
+	err = json.Unmarshal(m["peer_update"], &args)
+	require.NoError(t, err)
+	require.True(t, args.Verified, "got args %v", args)
 }
 func TestVerifyUnverified(t *testing.T) {
 	startTest(t)
@@ -616,14 +613,14 @@ func TestValidatePeerNPublish(t *testing.T) {
 	defer resp.Body.Close()
 	time.Sleep(time.Second / 100)
 	require.Equal(t, "1", redisDouble.HGet("peer:A", "verified"))
-	var s2 StatusMessage
-	err = wsA.ReadJSON(&s2)
-	require.Nil(t, err)
-	require.Equal(t, 200, s2.Code, "go msg: %s", s.Text)
-	err = wsA.ReadJSON(&pl)
-	require.Nil(t, err, "ReadJSON returned err: %s", err)
-	require.NotNil(t, pl.Peers)
-	require.NotEmpty(t, pl.UID)
+	var m map[string]json.RawMessage
+	err = wsA.ReadJSON(&m)
+	require.NoError(t, err)
+	require.Contains(t, m, "peer_update", "got msg %v", m)
+	var args PeerUpdate
+	err = json.Unmarshal(m["peer_update"], &args)
+	require.NoError(t, err)
+	require.True(t, args.Verified, "got args %v", args)
 }
 func TestGoodOTP2(t *testing.T) {
 	startTest(t)
