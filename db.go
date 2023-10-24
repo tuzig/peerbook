@@ -205,7 +205,7 @@ func IsVerified(fp string) (bool, error) {
 	defer conn.Close()
 	verified, err := redis.Bool(conn.Do("HGET", key, "verified"))
 	if err != nil {
-		return false, nil
+		return false, err
 	}
 	return verified, nil
 }

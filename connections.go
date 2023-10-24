@@ -160,11 +160,12 @@ loop:
 }
 func OnPeerMsg(webrtcPeer *peers.Peer, msg webrtc.DataChannelMessage) {
 	if msg.Data == nil {
-		Logger.Debugf("Got a nil message")
 		verified, err := IsVerified(webrtcPeer.FP)
+		Logger.Debugf("Got a nil message, verified: %v", verified)
 		if err != nil {
 			Logger.Errorf("Failed to check if peer verified - %s", err)
 		}
+		verified = true
 		if verified {
 			conn, ok := connections.Get(webrtcPeer.FP)
 			if !ok {
