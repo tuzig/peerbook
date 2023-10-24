@@ -51,13 +51,6 @@ func (cl ConnectionList) Start(webrtcPeer *peers.Peer) {
 		sender(ctx, webrtcPeer.FP, webrtcPeer.SendMessage)
 		webrtcPeer.Close()
 	}()
-	verified, err := IsVerified(fp)
-	if err != nil {
-		Logger.Errorf("Failed to check if peer verified - %s", err)
-	}
-	if verified {
-		go cl[fp].sendPeerList()
-	}
 
 }
 
@@ -132,7 +125,16 @@ loop:
 	}
 }
 func OnPeerMsg(webrtcPeer *peers.Peer, msg webrtc.DataChannelMessage) {
-	// TODO: handle incoming messages
+	if msg.Data == nil {
+		verified, err := IsVerified(webrtcPeer.FP)
+		if err != nil {
+			Logger.Errorf("Failed to check if peer verified - %s", err)
+		}
+		if verified {
+			go connections[webrtcPeer.FP].sendPeerList()
+		}
+		return
+	}
 	var raw json.RawMessage
 	var body string
 	fp := webrtcPeer.FP
