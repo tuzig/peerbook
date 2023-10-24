@@ -63,7 +63,9 @@ func (cl *ConnectionList) Start(webrtcPeer *peers.Peer) {
 	cl.conns[fp] = &Connection{llPeer: webrtcPeer, cancel: cancel}
 	go func() {
 		defer webrtcPeer.Close()
+		Logger.Debugf("Starting sender for %q", fp)
 		sender(ctx, webrtcPeer.FP, webrtcPeer.SendMessage)
+		Logger.Debugf("Sender for %q exited", fp)
 	}()
 
 }
@@ -171,6 +173,7 @@ func OnPeerMsg(webrtcPeer *peers.Peer, msg webrtc.DataChannelMessage) {
 				Logger.Errorf("Failed to get connection for %q", webrtcPeer.FP)
 				return
 			}
+			Logger.Infof("Starting sending peer list for %q", webrtcPeer.FP)
 			go conn.sendPeerList()
 		}
 		return
