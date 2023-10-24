@@ -37,7 +37,12 @@ func (c *Connection) sendPeerList() {
 		Logger.Errorf("Failed to get peers message - %s", err)
 		return
 	}
-	err = c.llPeer.SendMessage(m)
+	msg, err := json.Marshal(m)
+	if err != nil {
+		Logger.Errorf("Failed to marshal peers message - %s", err)
+		return
+	}
+	err = c.llPeer.SendMessage(msg)
 	if err != nil {
 		Logger.Errorf("Failed to send peers message - %s", err)
 	}
@@ -97,7 +102,7 @@ func OnConnectionStateChange(webrtcPeer *peers.Peer, state webrtc.PeerConnection
 		connections.Stop(webrtcPeer)
 	}
 }
-func sender(ctx context.Context, fp string, sendFunction func(msg interface{}) error) {
+func sender(ctx context.Context, fp string, sendFunction func(msg []byte) error) {
 	// A ping is set to the server with this period to test for the health of
 	// the connection and server.
 	const healthCheckPeriod = time.Minute
@@ -150,7 +155,7 @@ loop:
 				}
 				if verified {
 					Logger.Infof("forwarding %q message: %s", fp, n.Data)
-					sendFunction(string(n.Data))
+					sendFunction(n.Data)
 				} else {
 					Logger.Infof("ignoring %q message: %s", fp, n.Data)
 				}

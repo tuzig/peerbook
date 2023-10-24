@@ -581,9 +581,9 @@ func TestAnswerMessage(t *testing.T) {
 	redisDouble.HSet("peer:B", "fp", "B", "user", "j", "name", "bar", "kind", "server", "verified", "1")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	sendMessage := func(msg interface{}) error {
+	sendMessage := func(msg []byte) error {
 		// if the msg is a string, unmarshal the json
-		s := msg.(string)
+		s := string(msg)
 		err := json.Unmarshal([]byte(s), &answer)
 		require.NoError(t, err)
 		return nil
