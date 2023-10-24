@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/gomodule/redigo/redis"
@@ -17,9 +18,12 @@ type Connection struct {
 }
 
 // index is the fingerprint
-type ConnectionList map[string]*Connection
+type ConnectionList struct {
+	sync.Mutex
+	conns map[string]*Connection
+}
 
-var connections = make(ConnectionList)
+var connections ConnectionList = ConnectionList{conns: make(map[string]*Connection)}
 
 func (c *Connection) sendPeerList() {
 	uID, err := db.GetUID4FP(c.llPeer.FP)
@@ -38,30 +42,39 @@ func (c *Connection) sendPeerList() {
 	}
 }
 
+func (cl *ConnectionList) Get(fp string) (*Connection, bool) {
+	cl.Lock()
+	defer cl.Unlock()
+	c, ok := cl.conns[fp]
+	return c, ok
+}
+
 // ConnectionList.Start starts the sender for the given peer
 // TODO: add a watchdog to ensure connections don't live forever
-func (cl ConnectionList) Start(webrtcPeer *peers.Peer) {
+func (cl *ConnectionList) Start(webrtcPeer *peers.Peer) {
+	cl.Lock()
+	defer cl.Unlock()
 	fp := webrtcPeer.FP
-	if _, ok := cl[fp]; ok {
+	if _, ok := cl.conns[fp]; ok {
 		cl.Stop(webrtcPeer)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
-	cl[fp] = &Connection{llPeer: webrtcPeer, cancel: cancel}
+	cl.conns[fp] = &Connection{llPeer: webrtcPeer, cancel: cancel}
 	go func() {
+		defer webrtcPeer.Close()
 		sender(ctx, webrtcPeer.FP, webrtcPeer.SendMessage)
-		webrtcPeer.Close()
 	}()
 
 }
 
 // Stop stops the sender for the given peer
-func (cl ConnectionList) Stop(webrtcPeer *peers.Peer) {
-	fp := webrtcPeer.FP
-	if cl[fp] == nil {
-		return
+func (cl *ConnectionList) Stop(webrtcPeer *peers.Peer) {
+	cl.Lock()
+	defer cl.Unlock()
+	if conn, ok := cl.conns[webrtcPeer.FP]; ok {
+		conn.cancel()
+		delete(cl.conns, webrtcPeer.FP)
 	}
-	cl[fp].cancel()
-	delete(cl, fp)
 }
 func OnConnectionStateChange(webrtcPeer *peers.Peer, state webrtc.PeerConnectionState) {
 	switch state {
@@ -131,7 +144,12 @@ func OnPeerMsg(webrtcPeer *peers.Peer, msg webrtc.DataChannelMessage) {
 			Logger.Errorf("Failed to check if peer verified - %s", err)
 		}
 		if verified {
-			go connections[webrtcPeer.FP].sendPeerList()
+			conn, ok := connections.Get(webrtcPeer.FP)
+			if !ok {
+				Logger.Errorf("Failed to get connection for %q", webrtcPeer.FP)
+				return
+			}
+			go conn.sendPeerList()
 		}
 		return
 	}
@@ -185,7 +203,7 @@ func OnPeerMsg(webrtcPeer *peers.Peer, msg webrtc.DataChannelMessage) {
 		if err == nil {
 			err = verify(fp, args.Target, args.OTP)
 		}
-		tPeer, ok := connections[args.Target]
+		tPeer, ok := connections.Get(args.Target)
 		if ok {
 			go tPeer.sendPeerList()
 		}
