@@ -26,6 +26,7 @@ type ConnectionList struct {
 var connections ConnectionList = ConnectionList{conns: make(map[string]*Connection)}
 
 func (c *Connection) sendPeerList() {
+	Logger.Infof("Sending peer list to %q", c.llPeer.FP)
 	uID, err := db.GetUID4FP(c.llPeer.FP)
 	if err != nil {
 		Logger.Errorf("Failed to get uid - %s", err)
@@ -159,6 +160,7 @@ loop:
 }
 func OnPeerMsg(webrtcPeer *peers.Peer, msg webrtc.DataChannelMessage) {
 	if msg.Data == nil {
+		Logger.Debugf("Got a nil message")
 		verified, err := IsVerified(webrtcPeer.FP)
 		if err != nil {
 			Logger.Errorf("Failed to check if peer verified - %s", err)
