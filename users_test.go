@@ -281,7 +281,7 @@ func TestBackendAuthorizeByBearer(t *testing.T) {
 	defer server.Close()
 	Logger = zaptest.NewLogger(t).Sugar()
 	redisDouble, err = miniredis.Run()
-	redisDouble.HSet("peer:bar", "fp", "foo", "verified", "0")
+	redisDouble.HSet("peer:foo", "fp", "foo", "verified", "0")
 	require.NoError(t, err)
 	err = db.Connect("127.0.0.1:6379")
 	require.NoError(t, err)

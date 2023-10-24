@@ -53,14 +53,12 @@ func (cl *ConnectionList) Get(fp string) (*Connection, bool) {
 // ConnectionList.Start starts the sender for the given peer
 // TODO: add a watchdog to ensure connections don't live forever
 func (cl *ConnectionList) Start(webrtcPeer *peers.Peer) {
-	cl.Lock()
-	defer cl.Unlock()
+	cl.Stop(webrtcPeer)
 	fp := webrtcPeer.FP
-	if _, ok := cl.conns[fp]; ok {
-		cl.Stop(webrtcPeer)
-	}
+	cl.Lock()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
 	cl.conns[fp] = &Connection{llPeer: webrtcPeer, cancel: cancel}
+	cl.Unlock()
 	go func() {
 		defer webrtcPeer.Close()
 		Logger.Debugf("Starting sender for %q", fp)
