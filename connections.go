@@ -165,7 +165,6 @@ func OnPeerMsg(webrtcPeer *peers.Peer, msg webrtc.DataChannelMessage) {
 		if err != nil {
 			Logger.Errorf("Failed to check if peer verified - %s", err)
 		}
-		verified = true
 		if verified {
 			conn, ok := connections.Get(webrtcPeer.FP)
 			if !ok {
