@@ -211,7 +211,7 @@ func SendPeerUpdate(rc redis.Conn, user string, fp string, verified bool, online
 		"source_fp":   fp,
 		"peer_update": PeerUpdate{Verified: verified, Online: online, Name: name},
 	})
-	key := fmt.Sprintf("peers:%s", user)
+	key := fmt.Sprintf("usercast:%s", user)
 	if _, err = rc.Do("PUBLISH", key, m); err != nil {
 		return err
 	}
@@ -241,7 +241,7 @@ func (c *Conn) subscribe(ctx context.Context) {
 	psc := redis.PubSubConn{Conn: conn}
 	defer psc.Unsubscribe()
 	outK := fmt.Sprintf("out:%s", c.FP)
-	peersK := fmt.Sprintf("peers:%s", c.User)
+	peersK := fmt.Sprintf("usercast:%s", c.User)
 	if err := psc.Subscribe(outK, peersK); err != nil {
 		Logger.Errorf("Failed subscribint to our messages: %s", err)
 		return

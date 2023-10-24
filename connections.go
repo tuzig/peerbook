@@ -76,6 +76,16 @@ func (cl *ConnectionList) Stop(webrtcPeer *peers.Peer) {
 		delete(cl.conns, webrtcPeer.FP)
 	}
 }
+
+// Stop stops the sender for the given peer
+func (cl *ConnectionList) StopAll() {
+	cl.Lock()
+	defer cl.Unlock()
+	for _, conn := range cl.conns {
+		conn.cancel()
+	}
+	cl.conns = make(map[string]*Connection)
+}
 func OnConnectionStateChange(webrtcPeer *peers.Peer, state webrtc.PeerConnectionState) {
 	switch state {
 	case webrtc.PeerConnectionStateConnected:
@@ -94,9 +104,18 @@ func sender(ctx context.Context, fp string, sendFunction func(msg interface{}) e
 	defer conn.Close()
 	psc := redis.PubSubConn{Conn: conn}
 	defer psc.Unsubscribe()
-	outK := fmt.Sprintf("out:%s", fp)
-	if err := psc.Subscribe(outK); err != nil {
-		Logger.Errorf("Failed subscribint to our messages: %s", err)
+	keys := []string{fmt.Sprintf("out:%s", fp)}
+	uid, err := db.GetUID4FP(fp)
+	if err != nil {
+		Logger.Errorf("Failed to get uid for %q: %s", fp, err)
+	} else {
+		if uid != "" && uid != "TBD" {
+			keys = append(keys, fmt.Sprintf("usercast:%s", uid))
+		}
+	}
+	if err := psc.Subscribe(redis.Args{}.AddFlat(keys)...); err != nil {
+		// if err := psc.Subscribe(outK); err != nil {
+		Logger.Errorf("Failed to subscribe to redis messages: %s", err)
 		return
 	}
 
@@ -112,10 +131,11 @@ loop:
 			// Send ping to test health of connection and server. If
 			// corresponding pong is not received, then receive on the
 			// connection will timeout and the receive goroutine will exit.
-			if err := psc.Ping(""); err != nil {
-				Logger.Warnf("Redis PubSub Pong timeout: %s", err)
-				break loop
-			}
+			go func() {
+				if err := psc.Ping(""); err != nil {
+					Logger.Warnf("Redis PubSub Pong timeout: %s", err)
+				}
+			}()
 		default:
 			switch n := psc.Receive().(type) {
 			case error:

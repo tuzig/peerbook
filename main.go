@@ -1000,6 +1000,7 @@ func main() {
 	stop = make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
 	<-stop
+	connections.StopAll()
 	if err = srv.Shutdown(context.Background()); err != nil {
 		Logger.Error("failure/timeout shutting down the http server gracefully")
 	}
