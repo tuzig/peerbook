@@ -140,6 +140,9 @@ func (c *Conn) sendStatus(code int, e error) error {
 func SendMessage(tfp string, msg interface{}) error {
 	Logger.Infof("publishing message to %q: %v", tfp, msg)
 	m, err := json.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("Failed to encode a clients msg: %s", err)
+	}
 	rc := db.pool.Get()
 	defer rc.Close()
 	key := fmt.Sprintf("out:%s", tfp)
