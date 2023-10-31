@@ -528,7 +528,7 @@ func TestOfferCommandBadTarget(t *testing.T) {
 	redisDouble.HSet("peer:A", "_p", "A", "user", "j", "name", "foo", "kind", "client", "verified", "1")
 	server := httptest.NewServer(http.HandlerFunc(rcHandler))
 	defer server.Close()
-	err = forwardSDP("A", "B", "offer", "an offer")
+	err = forwardSDP("A", "B", "offer", json.RawMessage{})
 	require.Error(t, err)
 }
 func TestOfferCommand(t *testing.T) {
@@ -561,7 +561,7 @@ func TestOfferCommand(t *testing.T) {
 		FP: "A",
 	}
 
-	err = forwardSDP("A", "B", "offer", "an offer")
+	err = forwardSDP("A", "B", "offer", json.RawMessage(`"an offer"`))
 	require.NoError(t, err)
 	var o OfferMessage
 	err = wsB.ReadJSON(&o)

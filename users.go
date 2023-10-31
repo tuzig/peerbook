@@ -395,7 +395,7 @@ func rename(fp string, target string, name string) error {
 	return nil
 }
 
-func forwardSDP(fp string, target string, typ string, sdp string) error {
+func forwardSDP(fp string, target string, typ string, sdp json.RawMessage) error {
 	exists, err := db.PeerExists(fp)
 	if err != nil {
 		return fmt.Errorf("failed to check peer exists - %s", err)

@@ -251,8 +251,8 @@ func OnPeerMsg(webrtcPeer *peers.Peer, msg webrtc.DataChannelMessage) {
 		}
 	case "offer":
 		var args struct {
-			Target string `json:"target"`
-			SDP    string `json:"sdp"`
+			Target string          `json:"target"`
+			SDP    json.RawMessage `json:"sdp"`
 		}
 		err = json.Unmarshal(raw, &args)
 		if err == nil {
@@ -260,8 +260,8 @@ func OnPeerMsg(webrtcPeer *peers.Peer, msg webrtc.DataChannelMessage) {
 		}
 	case "candidate":
 		var args struct {
-			Target string `json:"target"`
-			SDP    string `json:"sdp"`
+			Target string          `json:"target"`
+			SDP    json.RawMessage `json:"sdp"`
 		}
 		err = json.Unmarshal(raw, &args)
 		if err == nil {
