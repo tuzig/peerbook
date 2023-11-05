@@ -58,7 +58,7 @@ require (
 	github.com/soniakeys/quant v1.0.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.9 // indirect
 	github.com/tklauser/numcpus v0.3.0 // indirect
-	github.com/tuzig/webexec v1.2.2-0.20231024140024-72f4cb653900 // indirect
+	github.com/tuzig/webexec v1.2.2-0.20231105123928-e5ecbee14ca8 // indirect
 	github.com/urfave/cli/v2 v2.3.0 // indirect
 	github.com/yuin/gopher-lua v0.0.0-20220504180219-658193537a64 // indirect
 	go.uber.org/atomic v1.7.0 // indirect

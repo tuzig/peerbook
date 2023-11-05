@@ -770,6 +770,8 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 	http.HandleFunc("/qr/", serveQR)
 	http.HandleFunc("/rcwh", serveRCWH)
 	http.HandleFunc("/we", webexecHandler.HandleConnect)
+	http.HandleFunc("/offer", webexecHandler.HandleOffer)
+	http.HandleFunc("/candidate/", webexecHandler.HandleCandidate)
 	http.HandleFunc("/login", serveLogin)
 
 	go func() {
