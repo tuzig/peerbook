@@ -742,6 +742,14 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 		Logger.Fatalf("Failed to generate certificate: %s", err)
 		return nil
 	}
+	webrtcSetting := &webrtc.SettingEngine{}
+	publicIP := os.Getenv("WEBRTC_IP_ADDRESS")
+	if publicIP != "" {
+		webrtcSetting.SetNAT1To1IPs([]string{publicIP}, webrtc.ICECandidateTypeHost)
+	} else {
+		Logger.Warn("WEBRTC_IP_ADDRESS is not set, WebRTC connections could fail")
+	}
+
 	peerConf := &peers.Conf{
 		Certificate:       certificate,
 		Logger:            Logger,
@@ -755,6 +763,7 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 		// TODO: make the next two functions methods of connection
 		OnCTRLMsg:     OnPeerMsg,
 		OnStateChange: OnConnectionStateChange,
+		WebrtcSetting: webrtcSetting,
 	}
 	webexecHandler := httpserver.NewConnectHandler(auth, peerConf, Logger)
 	http.HandleFunc("/", serveHome)
