@@ -31,7 +31,6 @@ import (
 	"github.com/pion/webrtc/v3"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
-	"github.com/rs/cors"
 	"github.com/tuzig/webexec/httpserver"
 	"github.com/tuzig/webexec/peers"
 	"go.uber.org/zap"
@@ -733,8 +732,6 @@ func generateCertificate() (*webrtc.Certificate, error) {
 }
 
 func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
-	srv := &http.Server{
-		Addr: addr, Handler: cors.Default().Handler(http.DefaultServeMux)}
 
 	auth := NewUsersAuth()
 	certificate, err := generateCertificate()
@@ -766,6 +763,11 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 		WebrtcSetting: webrtcSetting,
 	}
 	webexecHandler := httpserver.NewConnectHandler(auth, peerConf, Logger)
+
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: webexecHandler.GetHandler(),
+	}
 	http.HandleFunc("/", serveHome)
 	http.HandleFunc("/pb/", serveAuthPage)
 	http.HandleFunc("/verify", serveVerify)
