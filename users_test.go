@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path"
+	"sync"
 	"testing"
 	"time"
 
@@ -569,6 +570,7 @@ func TestOfferCommand(t *testing.T) {
 }
 
 func TestAnswerMessage(t *testing.T) {
+	var m sync.Mutex
 	var answer AnswerMessage
 	startTest(t)
 	server := httptest.NewServer(http.HandlerFunc(rcNotActiveHandler))
@@ -584,7 +586,9 @@ func TestAnswerMessage(t *testing.T) {
 	sendMessage := func(msg []byte) error {
 		// if the msg is a string, unmarshal the json
 		s := string(msg)
+		m.Lock()
 		err := json.Unmarshal([]byte(s), &answer)
+		m.Unlock()
 		require.NoError(t, err)
 		return nil
 	}
@@ -597,6 +601,8 @@ func TestAnswerMessage(t *testing.T) {
 	err = wsB.WriteJSON(map[string]string{"answer": "B's answer", "target": "A"})
 	require.NoError(t, err)
 	time.Sleep(time.Second / 10)
+	m.Lock()
 	require.Equal(t, "B's answer", answer.Answer)
 	require.Equal(t, "B", answer.SourceFP)
+	m.Unlock()
 }

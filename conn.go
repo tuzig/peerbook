@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/gomodule/redigo/redis"
@@ -25,6 +26,7 @@ const (
 )
 
 type Conn struct {
+	sync.Mutex
 	WS         *websocket.Conn
 	FP         string
 	Verified   bool
@@ -94,7 +96,10 @@ loop:
 				Logger.Errorf("Got a bad message to send")
 				continue
 			}
+			c.Lock()
 			c.WS.SetWriteDeadline(time.Now().Add(writeWait))
+			c.Unlock()
+
 			err := c.WS.WriteMessage(websocket.TextMessage, message)
 			if err != nil {
 				if websocket.IsUnexpectedCloseError(err,
@@ -119,7 +124,6 @@ loop:
 				return
 			}
 		case <-ctx.Done():
-			Logger.Infof("Exiting sender for %q", c.FP)
 			break loop
 		}
 	}
@@ -279,7 +283,9 @@ loop:
 				}
 				if verified {
 					Logger.Infof("forwarding %q message: %s", c.FP, n.Data)
+					c.Lock()
 					c.WS.SetWriteDeadline(time.Now().Add(writeWait))
+					c.Unlock()
 					c.send <- n.Data
 				} else {
 					Logger.Infof("ignoring %q message: %s", c.FP, n.Data)

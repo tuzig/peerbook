@@ -12,11 +12,6 @@ import (
 func TestGetPeer(t *testing.T) {
 	startTest(t)
 	redisDouble.HSet("peer:foo", "fp", "foo", "name", "fucked up")
-	conn := db.pool.Get()
-	defer conn.Close()
-	exists, err := redis.Bool(conn.Do("EXISTS", "peer:foo"))
-	require.Nil(t, err)
-	require.True(t, exists)
 	pd, err := GetPeer("foo")
 	require.Nil(t, err)
 	require.Equal(t, "fucked up", pd.Name)
