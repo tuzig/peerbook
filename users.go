@@ -257,7 +257,7 @@ func verify(fp string, target string, otp string) error {
 		peer.Verified = true
 		err = db.AddPeer(peer)
 		if err != nil {
-			return fmt.Errorf("peer does not exist")
+			return fmt.Errorf("failed to add peer - %s", err)
 		}
 	} else {
 		peer, err := GetPeer(target)
@@ -289,33 +289,33 @@ func verify(fp string, target string, otp string) error {
 func deletePeer(fp string, target string, otp string) error {
 	sameUser, err := db.IsSameUser(fp, target)
 	if err != nil {
-		return fmt.Errorf("failed to check if same user - %s", err)
+		return fmt.Errorf("failed to check if user with fingerprint %s and target %s are same - %s", fp, target, err)
 	}
 	if !sameUser {
-		return fmt.Errorf("target does not belong to the user")
+		return fmt.Errorf("target %s does not belong to the user with fingerprint %s", target, fp)
 	}
 	peer, err := GetPeer(target)
 	if err != nil {
-		return fmt.Errorf("failed to get peer - %s", err)
+		return fmt.Errorf("failed to get peer for target %s - %s", target, err)
 	}
 	if peer == nil {
-		return fmt.Errorf("failed to get peer")
+		return fmt.Errorf("failed to get peer for target %s", target)
 	}
 	// validate the OTP
 	s, err := db.getUserSecret(peer.User)
 	if err != nil {
-		return fmt.Errorf("failed to get user secret - %s", err)
+		return fmt.Errorf("failed to get user secret for user %s - %s", peer.User, err)
 	}
 	if s == "" {
-		return fmt.Errorf("failed to get user secret")
+		return fmt.Errorf("failed to get user secret for user %s", peer.User)
 	}
 	if totp.Validate(otp, s) {
 		err := db.DeletePeer(target)
 		if err != nil {
-			return fmt.Errorf("failed to delete peer - %s", err)
+			return fmt.Errorf("failed to delete peer target %s - %s", target, err)
 		}
 	} else {
-		return fmt.Errorf("invalid OTP")
+		return fmt.Errorf("invalid OTP for user %s", peer.User)
 	}
 	return nil
 }
@@ -359,7 +359,7 @@ func ping(fp string, otp string) (string, error) {
 	if !totp.Validate(otp, s) {
 		return "", fmt.Errorf("invalid OTP")
 	}
-	VerifyPeer(fp, true)
+	err = VerifyPeer(fp, true)
 	return "1", err
 }
 func rename(fp string, target string, name string) error {
