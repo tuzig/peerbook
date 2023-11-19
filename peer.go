@@ -35,8 +35,6 @@ type Peer struct {
 }
 type PeerList []*Peer
 
-var connectedPeers = make(map[string]*Peer)
-
 // StatusMessage is used to update the peer to a change of state,
 // like 200 after the peer has been authorized
 type StatusMessage struct {
