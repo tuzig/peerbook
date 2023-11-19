@@ -4,14 +4,13 @@ go 1.18
 
 require (
 	github.com/alicebob/miniredis/v2 v2.30.0
-	github.com/creack/pty v1.1.11
 	github.com/gomodule/redigo v1.8.6
 	github.com/gorilla/websocket v1.4.2
 	github.com/mattn/go-sixel v0.0.5
 	github.com/pion/webrtc/v3 v3.1.49
 	github.com/pquerna/otp v1.3.0
-	github.com/rs/cors v1.7.0
 	github.com/stretchr/testify v1.8.0
+	github.com/tuzig/webexec v1.2.3-0.20231109112513-43774ed915f9
 	github.com/twilio/twilio-go v1.3.2
 	go.uber.org/zap v1.23.0
 	golang.org/x/net v0.17.0
@@ -25,6 +24,7 @@ require (
 	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.0-20190314233015-f79a8a8ca69d // indirect
+	github.com/creack/pty v1.1.11 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dchest/uniuri v0.0.0-20200228104902-7aecb25e1fe5 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
@@ -53,12 +53,12 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/riywo/loginshell v0.0.0-20200815045211-7d26008be1ab // indirect
+	github.com/rs/cors v1.7.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/shirou/gopsutil/v3 v3.21.10 // indirect
 	github.com/soniakeys/quant v1.0.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.9 // indirect
 	github.com/tklauser/numcpus v0.3.0 // indirect
-	github.com/tuzig/webexec v1.2.3-0.20231109112541-ed133eb31ce6 // indirect
 	github.com/urfave/cli/v2 v2.3.0 // indirect
 	github.com/yuin/gopher-lua v0.0.0-20220504180219-658193537a64 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
