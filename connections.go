@@ -148,12 +148,7 @@ loop:
 				Logger.Errorf("Receive error from redis: %v", n)
 				break loop
 			case redis.Message:
-				verified, err := IsVerified(fp)
-				if err != nil {
-					Logger.Errorf("Got an error testing if perr verfied: %s", err)
-					return
-				}
-				if verified {
+				if IsVerified(fp) {
 					Logger.Infof("forwarding %q message: %s", fp, n.Data)
 					sendFunction(n.Data)
 				} else {
@@ -165,11 +160,8 @@ loop:
 }
 func OnPeerMsg(webrtcPeer *peers.Peer, msg webrtc.DataChannelMessage) {
 	if msg.Data == nil {
-		verified, err := IsVerified(webrtcPeer.FP)
+		verified := IsVerified(webrtcPeer.FP)
 		Logger.Debugf("Got a nil message, verified: %v", verified)
-		if err != nil {
-			Logger.Errorf("Failed to check if peer verified - %s", err)
-		}
 		if verified {
 			conn, ok := connections.Get(webrtcPeer.FP)
 			if !ok {

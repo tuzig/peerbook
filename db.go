@@ -199,15 +199,15 @@ func (d *DBType) AddPeer(peer *Peer) error {
 }
 
 // IsVerfied tests the db to see if a peer is verfied
-func IsVerified(fp string) (bool, error) {
+func IsVerified(fp string) bool {
 	key := fmt.Sprintf("peer:%s", fp)
 	conn := db.pool.Get()
 	defer conn.Close()
 	verified, err := redis.Bool(conn.Do("HGET", key, "verified"))
 	if err != nil {
-		return false, err
+		return false
 	}
-	return verified, nil
+	return verified
 }
 
 // GetPeer gets a peer, using the hub as cache for connected peers

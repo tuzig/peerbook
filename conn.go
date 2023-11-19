@@ -68,10 +68,7 @@ func (c *Conn) readPump() {
 			Logger.Info("Exiting read pump for %q on error: %s", c.FP, err)
 			break
 		}
-		verified, err := IsVerified(c.FP)
-		if err != nil {
-			Logger.Warnf("Failed to test if peer verified: %s", err)
-		}
+		verified := IsVerified(c.FP)
 		if !verified && c.Verified {
 			e := &UnauthorizedPeer{c.FP}
 			Logger.Warn(e)
@@ -276,11 +273,7 @@ loop:
 				Logger.Errorf("Receive error from redis: %v", n)
 				break loop
 			case redis.Message:
-				verified, err := IsVerified(c.FP)
-				if err != nil {
-					Logger.Errorf("Got an error testing if perr verfied: %s", err)
-					return
-				}
+				verified := IsVerified(c.FP)
 				if verified {
 					Logger.Infof("forwarding %q message: %s", c.FP, n.Data)
 					c.Lock()

@@ -289,8 +289,7 @@ func TestBackendAuthorizeByBearer(t *testing.T) {
 	b := NewUsersAuth()
 	b.rcURL = server.URL
 	require.True(t, b.IsAuthorized("bar", "foo"))
-	verified, err := IsVerified("foo")
-	require.NoError(t, err)
+	verified := IsVerified("foo")
 	require.False(t, verified)
 }
 func TestRegisterCommand(t *testing.T) {
