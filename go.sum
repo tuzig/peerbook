@@ -158,6 +158,10 @@ github.com/tklauser/go-sysconf v0.3.9 h1:JeUVdAOWhhxVcU6Eqr/ATFHgXk/mmiItdKeJPev
 github.com/tklauser/go-sysconf v0.3.9/go.mod h1:11DU/5sG7UexIrp/O6g35hrWzu0JxlwQ3LSFUzyeuhs=
 github.com/tklauser/numcpus v0.3.0 h1:ILuRUQBtssgnxw0XXIjKUC56fgnOrFoQQ/4+DeU2biQ=
 github.com/tklauser/numcpus v0.3.0/go.mod h1:yFGUr7TUHQRAhyqBcEg0Ge34zDBAsIvJJcyE6boqnA8=
+github.com/tuzig/webexec v1.2.2 h1:VGGpuqw8/Wmi6BK47hLbYqqu0wDpyWYuoA+eyn6Hy+Y=
+github.com/tuzig/webexec v1.2.2/go.mod h1:jlUDg0aXxKpVQfgqp2KCbMiRkO2CHbLPYZYdEs3x8Yo=
+github.com/tuzig/webexec v1.2.3-0.20231109112513-43774ed915f9 h1:ekhgiJmXBG913sDff0f7cai5NLxy55hfiyTG4NapFyY=
+github.com/tuzig/webexec v1.2.3-0.20231109112513-43774ed915f9/go.mod h1:g0hqTCe5u9YJndz4WBe1j5XWhaeJSw3XAOicar8w3h0=
 github.com/tuzig/webexec v1.2.3-0.20231109112541-ed133eb31ce6 h1:LXYdz2kxcos/c/W4bwQTV0+GnecbSkr/2VMMPn41lH8=
 github.com/tuzig/webexec v1.2.3-0.20231109112541-ed133eb31ce6/go.mod h1:7Y4tBGc1+i2b0SXDdmXCkvJqUqCq2K2K6dEZs4fMHX0=
 github.com/tuzig/webexec v1.2.3-0.20231119124249-586ca5c4b1d6 h1:lGnR/zCBIr0gX4u8QBMrNiiUk362bzLH7y80zEacUTs=
@@ -214,6 +218,7 @@ golang.org/x/net v0.0.0-20220531201128-c960675eff93/go.mod h1:XRhObCWvk6IyKnWLug
 golang.org/x/net v0.0.0-20220722155237-a158d28d115b/go.mod h1:XRhObCWvk6IyKnWLug+ECip1KBveYUHfp+8e9klMJ9c=
 golang.org/x/net v0.1.0/go.mod h1:Cx3nUiGt4eDBEyega/BKRp+/AlGL8hYe7U9odMt2Cco=
 golang.org/x/net v0.6.0/go.mod h1:2Tu9+aMcznHK/AK1HMvgo6xiTLG5rD5rZLDS+rp2Bjs=
+golang.org/x/net v0.7.0/go.mod h1:2Tu9+aMcznHK/AK1HMvgo6xiTLG5rD5rZLDS+rp2Bjs=
 golang.org/x/net v0.10.0/go.mod h1:0qNGK6F8kojg2nk9dLZ2mShWaEBan6FAoqfSigmmuDg=
 golang.org/x/net v0.17.0 h1:pVaXccu2ozPjCXewfr1S7xza/zcXTity9cCdXQYSjIM=
 golang.org/x/net v0.17.0/go.mod h1:NxSsAGuq816PNPmqtQdLE42eU2Fs7NoRIZrHJAlaCOE=

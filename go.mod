@@ -10,7 +10,7 @@ require (
 	github.com/pion/webrtc/v3 v3.1.49
 	github.com/pquerna/otp v1.3.0
 	github.com/stretchr/testify v1.8.0
-	github.com/tuzig/webexec v1.2.3-0.20231119124249-586ca5c4b1d6
+	github.com/tuzig/webexec v1.2.3-0.20231109112513-43774ed915f9
 	github.com/twilio/twilio-go v1.3.2
 	go.uber.org/zap v1.23.0
 	golang.org/x/net v0.17.0
