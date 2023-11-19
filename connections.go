@@ -56,7 +56,6 @@ func (cl *ConnectionList) Get(fp string) (*Connection, bool) {
 }
 
 // ConnectionList.Start starts the sender for the given peer
-// TODO: add a watchdog to ensure connections don't live forever
 func (cl *ConnectionList) Start(webrtcPeer *peers.Peer) {
 	cl.Stop(webrtcPeer)
 	fp := webrtcPeer.FP
@@ -202,7 +201,13 @@ func OnPeerMsg(webrtcPeer *peers.Peer, msg webrtc.DataChannelMessage) {
 		}
 		err = json.Unmarshal(raw, &args)
 		if err == nil {
-			body, err = register(fp, args.Email, args.PeerName)
+			reply, err := register(fp, args.Email, args.PeerName)
+			// marshal the message to send it back
+			if err == nil {
+				var resp []byte
+				resp, err = json.Marshal(reply)
+				body = string(resp)
+			}
 		}
 	case "rename":
 		var args struct {

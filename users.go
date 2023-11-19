@@ -202,39 +202,32 @@ func serveAuthorize(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func register(fp string, email string, peerName string) (string, error) {
+func register(fp string, email string, peerName string) (map[string]string, error) {
 	Logger.Debugf("Got register cmd: %s %s", email, peerName)
 	uID, err := db.GetUID4FP(fp)
 	Logger.Debugf("got uid %q for %q", uID, fp)
+	ret := map[string]string{}
 	if uID == "" {
 		// create the user and the peer
 		uID, err = GenerateUser(email)
 		if err != nil {
-			return "", fmt.Errorf("Failed to generate user: %s", err)
+			return ret, fmt.Errorf("Failed to generate user: %s", err)
 		}
 		peer := NewPeer(fp, peerName, uID, "terminal7")
 		err = db.AddPeer(peer)
 		if err != nil {
-			return "", fmt.Errorf("Failed to add peer: %s", err)
+			return ret, fmt.Errorf("Failed to add peer: %s", err)
 		}
 	}
 	Logger.Debugf("before generating sixel: %s", uID)
 	sixel, err := GetQRSixel(uID)
 	if err != nil {
-		return "", fmt.Errorf("failed to generate QR code - %s", err)
+		return ret, fmt.Errorf("failed to generate QR code - %s", err)
 	}
-	resp := map[string]string{
-		// TODO: add the QR code
-		"QR": sixel,
-		"ID": uID,
-	}
+	ret["QR"] = sixel
+	ret["ID"] = uID
 	// turn into a string
-	msg, err := json.Marshal(resp)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal json - %s", err)
-	}
-	Logger.Debugf("succesful registration with response: %s", msg)
-	return string(msg), nil
+	return ret, nil
 }
 func verify(fp string, target string, otp string) error {
 	// get the uid of the admin
