@@ -20,7 +20,7 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin:     func(r *http.Request) bool { return true },
 }
 
-// Peer is a middleman between the websocket connection and the hub.
+// Peer is the struct that represents a peer in the DB
 type Peer struct {
 	FP          string `redis:"fp" json:"fp"`
 	Name        string `redis:"name" json:"name,omitempty"`

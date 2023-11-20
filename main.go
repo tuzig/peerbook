@@ -31,7 +31,6 @@ import (
 	"github.com/pion/webrtc/v3"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
-	"github.com/rs/cors"
 	"github.com/tuzig/webexec/httpserver"
 	"github.com/tuzig/webexec/peers"
 	"go.uber.org/zap"
@@ -42,8 +41,8 @@ const (
 	// SendChanSize is the size of the send channel in messages
 	SendChanSize = 4
 
-	// TODO: remove the api
-	DefaultHomeURL = "https://peerbook.io"
+	DefaultHomeURL       = "https://peerbook.io"
+	DefaultRevenueCatURL = "https://api.revenuecat.com"
 )
 
 // Logger is our global logger
@@ -733,8 +732,6 @@ func generateCertificate() (*webrtc.Certificate, error) {
 }
 
 func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
-	srv := &http.Server{
-		Addr: addr, Handler: cors.Default().Handler(http.DefaultServeMux)}
 
 	auth := NewUsersAuth()
 	certificate, err := generateCertificate()
@@ -742,6 +739,14 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 		Logger.Fatalf("Failed to generate certificate: %s", err)
 		return nil
 	}
+	webrtcSetting := &webrtc.SettingEngine{}
+	publicIP := os.Getenv("WEBRTC_IP_ADDRESS")
+	if publicIP != "" {
+		webrtcSetting.SetNAT1To1IPs([]string{publicIP}, webrtc.ICECandidateTypeHost)
+	} else {
+		Logger.Warn("WEBRTC_IP_ADDRESS is not set, WebRTC connections could fail")
+	}
+
 	peerConf := &peers.Conf{
 		Certificate:       certificate,
 		Logger:            Logger,
@@ -749,12 +754,20 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 		FailedTimeout:     3 * time.Second,
 		KeepAliveInterval: 3 * time.Second,
 		GatheringTimeout:  3 * time.Second,
-		RunCommand:        RunCommand,
 		PortMin:           60000,
 		PortMax:           61000,
 		GetICEServers:     GetICEServers,
+		// TODO: make the next two functions methods of connection
+		OnCTRLMsg:     OnPeerMsg,
+		OnStateChange: OnConnectionStateChange,
+		WebrtcSetting: webrtcSetting,
 	}
 	webexecHandler := httpserver.NewConnectHandler(auth, peerConf, Logger)
+
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: webexecHandler.GetHandler(),
+	}
 	http.HandleFunc("/", serveHome)
 	http.HandleFunc("/pb/", serveAuthPage)
 	http.HandleFunc("/verify", serveVerify)
@@ -768,6 +781,8 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 	http.HandleFunc("/qr/", serveQR)
 	http.HandleFunc("/rcwh", serveRCWH)
 	http.HandleFunc("/we", webexecHandler.HandleConnect)
+	http.HandleFunc("/offer", webexecHandler.HandleOffer)
+	http.HandleFunc("/candidates/", webexecHandler.HandleCandidate)
 	http.HandleFunc("/login", serveLogin)
 
 	go func() {
@@ -998,6 +1013,7 @@ func main() {
 	stop = make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
 	<-stop
+	connections.StopAll()
 	if err = srv.Shutdown(context.Background()); err != nil {
 		Logger.Error("failure/timeout shutting down the http server gracefully")
 	}

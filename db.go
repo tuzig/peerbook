@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"net/http"
 	"sync"
 	"time"
 
@@ -200,15 +199,15 @@ func (d *DBType) AddPeer(peer *Peer) error {
 }
 
 // IsVerfied tests the db to see if a peer is verfied
-func IsVerified(fp string) (bool, error) {
+func IsVerified(fp string) bool {
 	key := fmt.Sprintf("peer:%s", fp)
 	conn := db.pool.Get()
 	defer conn.Close()
 	verified, err := redis.Bool(conn.Do("HGET", key, "verified"))
 	if err != nil {
-		return false, nil
+		return false
 	}
-	return verified, nil
+	return verified
 }
 
 // GetPeer gets a peer, using the hub as cache for connected peers
@@ -233,37 +232,12 @@ func VerifyPeer(fp string, verified bool) error {
 		online = false
 	}
 	if verified {
-		rc.Do("HSET", key, "verified", "1")
-		if online {
-			uid, err := db.GetUID4FP(fp)
-			if err != nil {
-				return fmt.Errorf("Failed to get user id - %s", err)
-			}
-			SendMessage(fp, StatusMessage{200, uid})
-			Logger.Infof("Sent a 200 to %q - a newly verified peer", fp)
-			user, err := redis.String(rc.Do("HGET", key, "user"))
-			if err != nil {
-				return fmt.Errorf("Failed to get a peer's user: %w", err)
-			}
-			// send the peers
-			ps, err := GetUsersPeers(user)
-			if err != nil {
-				return err
-			}
-			err = SendMessage(fp, map[string]interface{}{
-				"peers": ps,
-				"uid":   user,
-			})
-			if err != nil {
-				Logger.Warnf("Failed to send peers to %q: %w", fp, err)
-			}
-		}
+		_, err = rc.Do("HSET", key, "verified", "1")
 	} else {
-		rc.Do("HSET", key, "verified", "0")
-		if online {
-			SendMessage(fp, StatusMessage{http.StatusUnauthorized,
-				"peer's verification was revoked"})
-		}
+		_, err = rc.Do("HSET", key, "verified", "0")
+	}
+	if err != nil {
+		return fmt.Errorf("Failed to set peer verification %s: %w", fp, err)
 	}
 	peer, err := GetPeer(fp)
 	if err != nil {

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/gomodule/redigo/redis"
@@ -25,6 +26,7 @@ const (
 )
 
 type Conn struct {
+	sync.Mutex
 	WS         *websocket.Conn
 	FP         string
 	Verified   bool
@@ -66,10 +68,7 @@ func (c *Conn) readPump() {
 			Logger.Info("Exiting read pump for %q on error: %s", c.FP, err)
 			break
 		}
-		verified, err := IsVerified(c.FP)
-		if err != nil {
-			Logger.Warnf("Failed to test if peer verified: %s", err)
-		}
+		verified := IsVerified(c.FP)
 		if !verified && c.Verified {
 			e := &UnauthorizedPeer{c.FP}
 			Logger.Warn(e)
@@ -85,6 +84,10 @@ func (c *Conn) readPump() {
 // sender sends messages and pings
 func (c *Conn) sender(ctx context.Context) {
 	ticker := time.NewTicker(pingPeriod)
+	defer func() {
+		ticker.Stop()
+		hub.unregister <- c
+	}()
 loop:
 	for {
 		select {
@@ -94,7 +97,10 @@ loop:
 				Logger.Errorf("Got a bad message to send")
 				continue
 			}
+			c.Lock()
 			c.WS.SetWriteDeadline(time.Now().Add(writeWait))
+			c.Unlock()
+
 			err := c.WS.WriteMessage(websocket.TextMessage, message)
 			if err != nil {
 				if websocket.IsUnexpectedCloseError(err,
@@ -119,12 +125,9 @@ loop:
 				return
 			}
 		case <-ctx.Done():
-			Logger.Infof("Exiting sender for %q", c.FP)
 			break loop
 		}
 	}
-	ticker.Stop()
-	hub.unregister <- c
 }
 func (c *Conn) sendStatus(code int, e error) error {
 	Logger.Infof("Sending status %d %s", code, e)
@@ -140,6 +143,9 @@ func (c *Conn) sendStatus(code int, e error) error {
 func SendMessage(tfp string, msg interface{}) error {
 	Logger.Infof("publishing message to %q: %v", tfp, msg)
 	m, err := json.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("Failed to encode a clients msg: %s", err)
+	}
 	rc := db.pool.Get()
 	defer rc.Close()
 	key := fmt.Sprintf("out:%s", tfp)
@@ -155,7 +161,7 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 	Logger.Infof("Got a new peer request: %v", q)
 	rcURL := os.Getenv("REVENUECAT_URL")
 	if rcURL == "" {
-		rcURL = "https://api.revenuecat.com"
+		rcURL = DefaultRevenueCatURL
 	}
 	conn, err := ConnFromQ(q, rcURL)
 	if err != nil {
@@ -211,16 +217,21 @@ func SendPeerUpdate(rc redis.Conn, user string, fp string, verified bool, online
 		"source_fp":   fp,
 		"peer_update": PeerUpdate{Verified: verified, Online: online, Name: name},
 	})
-	key := fmt.Sprintf("peers:%s", user)
+	key := fmt.Sprintf("usercast:%s", user)
 	if _, err = rc.Do("PUBLISH", key, m); err != nil {
 		return err
 	}
 	return nil
 }
 func (c *Conn) SendPeerList() error {
-	m, err := GetPeersMessage(c.User)
+	msg, err := GetPeersMessage(c.User)
 	if err != nil {
 		return err
+	}
+	var m []byte
+	m, err = json.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("Failed to marshal peer list: %w", err)
 	}
 	c.send <- m
 	return nil
@@ -236,7 +247,7 @@ func (c *Conn) subscribe(ctx context.Context) {
 	psc := redis.PubSubConn{Conn: conn}
 	defer psc.Unsubscribe()
 	outK := fmt.Sprintf("out:%s", c.FP)
-	peersK := fmt.Sprintf("peers:%s", c.User)
+	peersK := fmt.Sprintf("usercast:%s", c.User)
 	if err := psc.Subscribe(outK, peersK); err != nil {
 		Logger.Errorf("Failed subscribint to our messages: %s", err)
 		return
@@ -264,14 +275,12 @@ loop:
 				Logger.Errorf("Receive error from redis: %v", n)
 				break loop
 			case redis.Message:
-				verified, err := IsVerified(c.FP)
-				if err != nil {
-					Logger.Errorf("Got an error testing if perr verfied: %s", err)
-					return
-				}
+				verified := IsVerified(c.FP)
 				if verified {
 					Logger.Infof("forwarding %q message: %s", c.FP, n.Data)
+					c.Lock()
 					c.WS.SetWriteDeadline(time.Now().Add(writeWait))
+					c.Unlock()
 					c.send <- n.Data
 				} else {
 					Logger.Infof("ignoring %q message: %s", c.FP, n.Data)
