@@ -310,7 +310,7 @@ func deletePeer(fp string, target string, otp string) error {
 		return fmt.Errorf("failed to get user secret for user %s", peer.User)
 	}
 	if totp.Validate(otp, s) {
-		err := db.DeletePeer(target)
+		err = db.DeletePeer(target)
 		if err != nil {
 			return fmt.Errorf("failed to delete peer target %s - %s", target, err)
 		}

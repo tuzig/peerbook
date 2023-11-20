@@ -84,6 +84,10 @@ func (c *Conn) readPump() {
 // sender sends messages and pings
 func (c *Conn) sender(ctx context.Context) {
 	ticker := time.NewTicker(pingPeriod)
+	defer func() {
+		ticker.Stop()
+		hub.unregister <- c
+	}()
 loop:
 	for {
 		select {
@@ -124,8 +128,6 @@ loop:
 			break loop
 		}
 	}
-	ticker.Stop()
-	hub.unregister <- c
 }
 func (c *Conn) sendStatus(code int, e error) error {
 	Logger.Infof("Sending status %d %s", code, e)

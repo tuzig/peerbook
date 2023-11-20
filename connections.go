@@ -57,7 +57,6 @@ func (cl *ConnectionList) Get(fp string) (*Connection, bool) {
 
 // ConnectionList.Start starts the sender for the given peer
 func (cl *ConnectionList) Start(webrtcPeer *peers.Peer) {
-	cl.Stop(webrtcPeer)
 	fp := webrtcPeer.FP
 	cl.Lock()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
@@ -105,10 +104,9 @@ func sender(ctx context.Context, fp string, sendFunction func(msg []byte) error)
 	// A ping is set to the server with this period to test for the health of
 	// the connection and server.
 	const healthCheckPeriod = time.Minute
+	var psc redis.PubSubConn
 	conn := db.pool.Get()
 	defer conn.Close()
-	psc := redis.PubSubConn{Conn: conn}
-	defer psc.Unsubscribe()
 	keys := []string{fmt.Sprintf("out:%s", fp)}
 	uid, err := db.GetUID4FP(fp)
 	if err != nil {
@@ -118,14 +116,17 @@ func sender(ctx context.Context, fp string, sendFunction func(msg []byte) error)
 			keys = append(keys, fmt.Sprintf("usercast:%s", uid))
 		}
 	}
+	ticker := time.NewTicker(healthCheckPeriod)
+	defer ticker.Stop()
+sub:
+	psc = redis.PubSubConn{Conn: conn}
+	defer psc.Unsubscribe()
 	if err := psc.Subscribe(redis.Args{}.AddFlat(keys)...); err != nil {
 		// if err := psc.Subscribe(outK); err != nil {
 		Logger.Errorf("Failed to subscribe to redis messages: %s", err)
 		return
 	}
 
-	ticker := time.NewTicker(healthCheckPeriod)
-	defer ticker.Stop()
 	// Start a goroutine to receive notifications from the server.
 loop:
 	for {
@@ -144,8 +145,9 @@ loop:
 		default:
 			switch n := psc.Receive().(type) {
 			case error:
-				Logger.Errorf("Receive error from redis: %v", n)
-				break loop
+				Logger.Errorf("Receive error from redis: %v, retrying", n)
+				psc.Unsubscribe()
+				goto sub
 			case redis.Message:
 				if IsVerified(fp) {
 					Logger.Infof("forwarding %q message: %s", fp, n.Data)

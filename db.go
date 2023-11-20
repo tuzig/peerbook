@@ -232,9 +232,12 @@ func VerifyPeer(fp string, verified bool) error {
 		online = false
 	}
 	if verified {
-		rc.Do("HSET", key, "verified", "1")
+		_, err = rc.Do("HSET", key, "verified", "1")
 	} else {
-		rc.Do("HSET", key, "verified", "0")
+		_, err = rc.Do("HSET", key, "verified", "0")
+	}
+	if err != nil {
+		return fmt.Errorf("Failed to set peer verification %s: %w", fp, err)
 	}
 	peer, err := GetPeer(fp)
 	if err != nil {
