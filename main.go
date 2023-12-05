@@ -106,18 +106,22 @@ func FormatDateInt(i int64) string {
 }
 
 // getStrFromEncodedPath It works assuming a valid token is the second
-// url part
+// part of the url path
 func getStrFromEncodedPath(r *http.Request) (string, error) {
-	i := strings.IndexRune(r.URL.Path[1:], '/')
-	t := r.URL.Path[i+2:]
+	path := r.URL.Path
+	i := strings.IndexRune(path[1:], '/')
+	t := path[i+2:]
 	token, err := url.PathUnescape(t)
 	if err != nil {
-		return " ", fmt.Errorf("Failed to unescape token: err: %w", err)
+		return "", fmt.Errorf("Failed to unescape token: err: %w", err)
+	}
+	if token == "" {
+		return "", nil
 	}
 
 	user, err := db.GetToken(token)
 	if err != nil || user == "" {
-		return " ", fmt.Errorf("Failed to get token: err: %w", err)
+		return "", fmt.Errorf("Failed to get token: err: %w", err)
 	}
 	return user, nil
 }
@@ -441,6 +445,67 @@ render:
 		Logger.Warnf("Failed to execute the main template: %s", err)
 	}
 }
+func serveRemove(w http.ResponseWriter, r *http.Request) {
+
+	var data struct {
+		Message string
+		User    string
+	}
+	data.User, err = getStrFromEncodedPath(r)
+	if err != nil {
+		goHome(w, r, "Stale link, please try again")
+		Logger.Warnf("Failed to get user from req: %s", err)
+		return
+	}
+	if (r.Method != "POST") && (r.Method != "GET") {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	// by copilot
+	if r.Method == "POST" {
+		err := r.ParseForm()
+		if err != nil {
+			msg := fmt.Sprintf("Got an error parsing form: %s", err)
+			Logger.Warnf(msg)
+			http.Error(w, msg, http.StatusBadRequest)
+			return
+		}
+		otp := r.Form.Get("otp")
+		// validate otp based on user's secret
+		s, err := db.getUserSecret(data.User)
+		if err != nil {
+			msg := fmt.Sprintf("Failed to get user's OTP secret: %s", err)
+			http.Error(w, msg, http.StatusBadRequest)
+			Logger.Errorf(msg)
+			return
+		}
+		if s == "" {
+			http.Error(w, `{"m": "User has no OTP configured"}`, http.StatusUnauthorized)
+			return
+		}
+		if !totp.Validate(otp, s) {
+			data.Message = "Wrong One Time Password, please try again"
+
+			goto render
+		}
+		// ....
+	}
+
+render:
+	tmpl, err := template.ParseFS(tFS, "templates/remove.tmpl", "templates/base.tmpl")
+	if err != nil {
+		msg := fmt.Sprintf("Failed to parse the template: %s", err)
+		http.Error(w, msg, http.StatusInternalServerError)
+		return
+	}
+	err = tmpl.Execute(w, data)
+	if err != nil {
+		msg := fmt.Sprintf("Failed to execute the main template: %s", err)
+		Logger.Error(msg)
+		http.Error(w, msg, http.StatusInternalServerError)
+	}
+}
+
 func serveHitMe(w http.ResponseWriter, r *http.Request) {
 	var data struct {
 		Message string
@@ -773,6 +838,7 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 	http.HandleFunc("/verify", serveVerify)
 	http.HandleFunc("/verify/", serveVerifyPeer)
 	http.HandleFunc("/hitme", serveHitMe)
+	http.HandleFunc("/remove/", serveRemove)
 	http.HandleFunc("/authorize/", serveAuthorize)
 	http.HandleFunc("/ws", serveWs)
 	// `/turn` is deprecated
