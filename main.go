@@ -458,7 +458,6 @@ render:
 		Logger.Warnf("Failed to execute the main template: %s", err)
 	}
 }
-
 func handleUpdate(r *http.Request, user string, peers *PeerList) ListContext {
 	// fill the context with all the peers
 	var ret ListContext
