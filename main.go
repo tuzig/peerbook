@@ -451,12 +451,13 @@ func serveRemove(w http.ResponseWriter, r *http.Request) {
 		Message string
 		User    string
 	}
-	data.User, err = getStrFromEncodedPath(r)
+	user, err := getStrFromEncodedPath(r)
 	if err != nil {
 		goHome(w, r, "Stale link, please try again")
 		Logger.Warnf("Failed to get user from req: %s", err)
 		return
 	}
+	data.User = user
 	if (r.Method != "POST") && (r.Method != "GET") {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
