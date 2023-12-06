@@ -144,3 +144,22 @@ func TestSubscribed(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, subscribed)
 }
+func TestRemoveUser(t *testing.T) {
+	startTest(t)
+	err := db.AddUser("j", "123")
+	require.NoError(t, err)
+	peer := &Peer{FP: "publickey", Name: "Yosi", User: "J",
+		CreatedOn: time.Now().Unix()}
+	err = db.AddPeer(peer)
+	require.NoError(t, err)
+	err = db.RemoveUser("j", PeerList{peer})
+	require.NoError(t, err)
+	exists := redisDouble.Exists("user:123")
+	require.False(t, exists)
+	exists = redisDouble.Exists("peer:bar")
+	require.False(t, exists)
+	exists = redisDouble.Exists("uid:j")
+	require.False(t, exists)
+	exists = redisDouble.Exists("userset:123")
+	require.False(t, exists)
+}

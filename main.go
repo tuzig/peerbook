@@ -379,6 +379,20 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 				data.Message = "Your peers were removed"
 				goto render
 			}
+			_, removeUser := r.Form["rmuser"]
+			if removeUser {
+				Logger.Infof("Removing user %s", user)
+				err := db.RemoveUser(user, *peers)
+				if err != nil {
+					msg := fmt.Sprintf("Failed to remove user: %s", err)
+					Logger.Errorf(msg)
+					data.Message = msg
+					goto render
+				}
+				data.Peers = nil
+				data.Message = "Your data was removed"
+				goto render
+			}
 			verified := make(map[string]bool)
 			for k, _ := range r.Form {
 				if k == "otp" || k == "rmrf" {
