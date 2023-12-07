@@ -95,6 +95,13 @@ func (p *PeerNotFound) Error() string {
 // PeerChanged is an error
 type PeerChanged struct{}
 
+type ListContext struct {
+	Message string
+	User    string
+	Peers   *PeerList
+	Clean   bool
+}
+
 func (p *PeerChanged) Error() string {
 	return "Peer exists with different properties"
 }
@@ -310,11 +317,7 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 	if peers == nil {
 		peers = &PeerList{}
 	}
-	var data struct {
-		Message string
-		User    string
-		Peers   *PeerList
-	}
+	var data ListContext
 	if peers == nil {
 		data.Peers = &PeerList{}
 	} else {
@@ -342,6 +345,7 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == "POST" {
+		var otp string
 		err := r.ParseForm()
 		if err != nil {
 			msg := fmt.Sprintf("Got an error parsing form: %s", err)
@@ -349,7 +353,13 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, msg, http.StatusBadRequest)
 			return
 		}
-		otp := r.Form.Get("otp")
+		btn := r.FormValue("btn")
+		if btn == "update" {
+			otp = r.FormValue("otp")
+		} else {
+			otp = r.FormValue("deleteOTP")
+		}
+		Logger.Debugf("Got button %v %s otp %s", r.Form["btn"], btn, otp)
 		// validate otp based on user's secret
 		s, err := db.getUserSecret(user)
 		if err != nil {
@@ -365,81 +375,15 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 		if !totp.Validate(otp, s) {
 			data.Message = "Wrong One Time Password, please try again"
 		} else {
-			_, rmrf := r.Form["rmrf"]
-			if rmrf {
-				Logger.Infof("Removing user %s and his peers", user)
-				conn := db.pool.Get()
-				for _, p := range *peers {
-					conn.Do("DEL", p.Key())
-				}
-				key := fmt.Sprintf("userset:%s", user)
-				conn.Do("DEL", key)
-				conn.Close()
-				data.Peers = nil
-				data.Message = "Your peers were removed"
+			switch btn {
+			case "update":
+				data = handleUpdate(r, user, peers)
+			case "delete":
+				data = handleDelete(r.FormValue("deleteOption"), user, peers)
 				goto render
+			default:
+				data.Message = "Bad button"
 			}
-			_, removeUser := r.Form["rmuser"]
-			if removeUser {
-				Logger.Infof("Removing user %s", user)
-				err := db.RemoveUser(user, *peers)
-				if err != nil {
-					msg := fmt.Sprintf("Failed to remove user: %s", err)
-					Logger.Errorf(msg)
-					data.Message = msg
-					goto render
-				}
-				data.Peers = nil
-				data.Message = "Your data was removed"
-				goto render
-			}
-			verified := make(map[string]bool)
-			for k, _ := range r.Form {
-				if k == "otp" || k == "rmrf" {
-					continue
-				}
-				Logger.Infof("Got key %s", k)
-				// if key start with "del-" remove the peer
-				if strings.HasPrefix(k, "del-") {
-					fp := k[4:]
-					Logger.Infof("Deleting peer %s\n", fp)
-					err := db.DeletePeer(fp)
-					if err != nil {
-						msg := fmt.Sprintf("Failed to delete peer: %s", err)
-						Logger.Errorf(msg)
-						http.Error(w, msg, http.StatusInternalServerError)
-						return
-					}
-					// remove the peer from the list
-					for i, p := range *peers {
-						if p.FP == fp {
-							*peers = append((*peers)[:i], (*peers)[i+1:]...)
-							break
-						}
-					}
-					continue
-				}
-				verified[k] = true
-			}
-			for _, p := range *peers {
-				var err error
-				_, toBeV := verified[p.FP]
-				if p.Verified && !toBeV {
-					p.Verified = false
-					err = VerifyPeer(p.FP, false)
-				}
-				if !p.Verified && toBeV {
-					p.Verified = true
-					err = VerifyPeer(p.FP, true)
-				}
-				if err != nil {
-					msg := fmt.Sprintf("Failed to verify peer: %s", err)
-					Logger.Errorf(msg)
-					http.Error(w, msg, http.StatusInternalServerError)
-					return
-				}
-			}
-			data.Message = "Your PeerBook was updated"
 		}
 	} else if r.Method == "GET" {
 		data.Message = r.URL.Query().Get("m")
@@ -448,18 +392,104 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 render:
-	tmpl, err := template.ParseFS(tFS, "templates/pb.tmpl", "templates/base.tmpl")
-	if err != nil {
-		msg := fmt.Sprintf("Failed to parse the template: %s", err)
-		http.Error(w, msg, http.StatusInternalServerError)
+	if !data.Clean {
+		tmpl, err := template.ParseFS(tFS, "templates/pb.tmpl", "templates/base.tmpl")
+		if err != nil {
+			msg := fmt.Sprintf("Failed to parse the template: %s", err)
+			http.Error(w, msg, http.StatusInternalServerError)
+			return
+		}
+		err = tmpl.Execute(w, data)
+		if err != nil {
+			Logger.Warnf("Failed to execute the main template: %s", err)
+		}
 		return
 	}
-	err = tmpl.Execute(w, data)
-	if err != nil {
-		Logger.Warnf("Failed to execute the main template: %s", err)
-	}
+	goHome(w, r, data.Message)
 }
 
+func handleUpdate(r *http.Request, user string, peers *PeerList) ListContext {
+	// fill the context with all the peers
+	var ret ListContext
+	verified := make(map[string]bool)
+	for k, _ := range r.Form {
+		if k == "otp" || k == "rmrf" {
+			continue
+		}
+		Logger.Infof("Got key %s", k)
+		// if key start with "del-" remove the peer
+		if strings.HasPrefix(k, "del-") {
+			fp := k[4:]
+			Logger.Infof("Deleting peer %s\n", fp)
+			err := db.DeletePeer(fp)
+			if err != nil {
+				msg := fmt.Sprintf("Failed to delete peer: %s", err)
+				ret.Message = msg
+				return ret
+			}
+			// remove the peer from the list
+			for i, p := range *peers {
+				if p.FP == fp {
+					*peers = append((*peers)[:i], (*peers)[i+1:]...)
+					break
+				}
+			}
+			continue
+		}
+		verified[k] = true
+	}
+	for _, p := range *peers {
+		var err error
+		_, toBeV := verified[p.FP]
+		if p.Verified && !toBeV {
+			p.Verified = false
+			err = VerifyPeer(p.FP, false)
+		}
+		if !p.Verified && toBeV {
+			p.Verified = true
+			err = VerifyPeer(p.FP, true)
+		}
+		if err != nil {
+			msg := fmt.Sprintf("Failed to verify peer: %s", err)
+			Logger.Errorf(msg)
+			ret.Message = msg
+			return ret
+		}
+	}
+	ret.Message = "Your PeerBook was updated"
+	ret.Peers = peers
+	return ret
+}
+
+func handleDelete(option string, user string, peers *PeerList) ListContext {
+	ret := ListContext{Peers: &PeerList{}}
+	switch option {
+	case "rmPeers":
+		Logger.Infof("Removing user %s and his peers", user)
+		conn := db.pool.Get()
+		for _, p := range *peers {
+			conn.Do("DEL", p.Key())
+		}
+		key := fmt.Sprintf("userset:%s", user)
+		conn.Do("DEL", key)
+		conn.Close()
+		ret.Message = "Your peers were removed"
+	case "rmUser":
+		Logger.Infof("Removing user %s", user)
+		err := db.RemoveUser(user, *peers)
+		if err != nil {
+			msg := fmt.Sprintf("Failed to remove user: %s", err)
+			Logger.Errorf(msg)
+			ret.Message = msg
+		} else {
+			ret.Message = "All your data was removed"
+			ret.Clean = true
+		}
+	default:
+		ret.Message = "Bad delete option: " + option
+	}
+	return ret
+}
 func serveHitMe(w http.ResponseWriter, r *http.Request) {
 	var data struct {
 		Message string

@@ -6,7 +6,7 @@
 </head>
 <body>
     <form id="form" method="post">
-    <div id="container"></div>
+    <div id="list"></div>
     <br/><br/>
     <input name="rmrf" value="checked" type="checkbox" id="rmrf">
     <label for="rmrf">Delete all peers</label>
@@ -20,7 +20,7 @@
         var path = window.location.pathname,
             i = path.substr(1).indexOf("/"),
             token = path.substr(i+2),
-            con = document.getElementById("container")
+            con = document.getElementById("list")
         fetch(`/list/${token}`).then(response =>  response.json())
             .then(peers => {
                         console.log(peers)

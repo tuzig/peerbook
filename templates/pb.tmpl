@@ -116,24 +116,30 @@
             {{end}}
             </tbody>
         </table>
-        <div id="buttons">
-            <div style="display:flex;">
-                <input name="rmrf" value="checked" type="checkbox" id="rmrf">
-                <label for="rmrf">&nbsp;Delete all peers</label>
+        <center>
+            <input name="otp" type="text" pattern="\d*" class="otp"
+                title="Six digits please" minlength="6" maxlength="6" placeholder="OTP" />
+            <button name="btn" class="button" value="update" type="submit">
+                Update
+            </Button>
+        </center>
+        <div id="danger">
+            <p>⚠️  Danger Zone ⚠️ </p>
+            <div>
+                <input name="deleteOption" value="rmPeers" type="radio">
+                <label for="rmPeers">&nbsp;Delete all peers</label>
             </div>
-            <!-- TODO: add a checkbox to remove user as in
-            <div style="display:flex;">
-                <input name="rmuser" value="checked" type="checkbox" id="rmrf">
-                <label for="rmuser">&nbsp;Delete all user's data</label>
+            <div>
+                <input name="deleteOption" value="rmUser" type="radio">
+                <label for="rmUsersData">&nbsp;Delete all user's data</label>
             </div>
-            -->
-            <div id="submit">
-                <input name="otp" type="text" pattern="\d*" 
-                    title="Six digits please" minlength="6" maxlength="6" placeholder="OTP" >
-                <button class="button" type="submit">
-                    Update
-                    </Button>
-            </div>
+            <center>
+                <input name="deleteOTP" type="text" pattern="\d*" class="otp"
+                    title="Six digits please" minlength="6" maxlength="6" placeholder="OTP" />
+                <button name="btn" class="button" value="delete" type="submit">
+                Delete
+                </Button>
+            </center>
         </div>
     </form>
 {{end}}

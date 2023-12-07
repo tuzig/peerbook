@@ -498,14 +498,14 @@ func (d *DBType) getUserSecret(user string) (string, error) {
 }
 
 // RemoveUser removes a user and all his peers from the database
-func (d *DBType) RemoveUser(email string, peers PeerList) error {
+func (d *DBType) RemoveUser(uid string, peers PeerList) error {
 	conn := d.pool.Get()
 	defer conn.Close()
-	key := fmt.Sprintf("uid:%s", email)
-	uid, err := redis.String(conn.Do("GET", key))
+	email, err := db.GetEmail(uid)
 	if err != nil {
-		return fmt.Errorf("Failed to get %s: %w", key, err)
+		return fmt.Errorf("Failed to get email for user %q: %s", uid, err)
 	}
+	key := fmt.Sprintf("uid:%s", email)
 	_, err = conn.Do("DEL", key)
 	if err != nil {
 		return fmt.Errorf("Failed to delete %s: %w", key, err)

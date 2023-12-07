@@ -430,6 +430,7 @@ func TestHTTPPeerVerification(t *testing.T) {
 	resp, err := http.PostForm("http://127.0.0.1:17777/pb/avalidtoken",
 		url.Values{"B": {"checked"},
 			"otp": {otp},
+			"btn": {"update"},
 		})
 	require.Nil(t, err)
 	require.Equal(t, 200, resp.StatusCode)
@@ -606,7 +607,7 @@ func TestValidatePeerNPublish(t *testing.T) {
 	require.Equal(t, 2, len(*pl.Peers))
 	// authenticate both A & B
 	resp, err := http.PostForm("http://127.0.0.1:17777/pb/avalidtoken",
-		url.Values{"A": {"checked"}, "B": {"checked"}, "otp": {otp}})
+		url.Values{"A": {"checked"}, "B": {"checked"}, "otp": {otp}, "btn": {"update"}})
 	require.Nil(t, err)
 	// test if A was authenticated - both in redis and a message sent over ws
 	require.Equal(t, 200, resp.StatusCode)
@@ -642,7 +643,7 @@ func TestGoodOTP2(t *testing.T) {
 	require.Nil(t, err)
 	redisDouble.HSet("user:j", "secret", ok.Secret(), "QRVerified", "1", "email", "j@h.com")
 	resp, err := http.PostForm("http://127.0.0.1:17777/pb/avalidtoken",
-		url.Values{"rmrf": {"checked"}, "otp": {otp}})
+		url.Values{"deleteOption": {"rmPeers"}, "otp": {otp}, "btn": {"delete"}})
 	require.Nil(t, err)
 	defer resp.Body.Close()
 	bb, err := io.ReadAll(resp.Body)
@@ -676,8 +677,10 @@ func TestRemoveAll(t *testing.T) {
 	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
 	require.Nil(t, err)
 	resp, err := http.PostForm("http://127.0.0.1:17777/pb/avalidtoken",
-		url.Values{"rmrf": {"checked"},
-			"otp": {otp}})
+		url.Values{"deleteOption": {"rmPeers"},
+			"otp": {otp},
+			"btn": {"delete"},
+		})
 	require.Nil(t, err)
 	defer resp.Body.Close()
 	bb, err := io.ReadAll(resp.Body)
@@ -813,7 +816,7 @@ func TestDeletePeerFromWeb(t *testing.T) {
 	otp, err := totp.GenerateCode(ok.Secret(), time.Now())
 	require.Nil(t, err)
 	resp, err := http.PostForm("http://127.0.0.1:17777/pb/avalidtoken",
-		url.Values{"del-A": {"checked"}, "otp": {otp}})
+		url.Values{"del-A": {"checked"}, "otp": {otp}, "btn": {"update"}})
 	// validate 200 response
 	require.NoError(t, err)
 	require.Equal(t, 200, resp.StatusCode)

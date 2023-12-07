@@ -152,7 +152,7 @@ func TestRemoveUser(t *testing.T) {
 		CreatedOn: time.Now().Unix()}
 	err = db.AddPeer(peer)
 	require.NoError(t, err)
-	err = db.RemoveUser("j", PeerList{peer})
+	err = db.RemoveUser("123", PeerList{peer})
 	require.NoError(t, err)
 	exists := redisDouble.Exists("user:123")
 	require.False(t, exists)
