@@ -643,7 +643,7 @@ func TestGoodOTP2(t *testing.T) {
 	require.Nil(t, err)
 	redisDouble.HSet("user:j", "secret", ok.Secret(), "QRVerified", "1", "email", "j@h.com")
 	resp, err := http.PostForm("http://127.0.0.1:17777/pb/avalidtoken",
-		url.Values{"deleteOption": {"rmPeers"}, "otp": {otp}, "btn": {"delete"}})
+		url.Values{"deleteOption": {"rmPeers"}, "deleteOTP": {otp}, "btn": {"delete"}})
 	require.Nil(t, err)
 	defer resp.Body.Close()
 	bb, err := io.ReadAll(resp.Body)
@@ -678,8 +678,8 @@ func TestRemoveAll(t *testing.T) {
 	require.Nil(t, err)
 	resp, err := http.PostForm("http://127.0.0.1:17777/pb/avalidtoken",
 		url.Values{"deleteOption": {"rmPeers"},
-			"otp": {otp},
-			"btn": {"delete"},
+			"deleteOTP": {otp},
+			"btn":       {"delete"},
 		})
 	require.Nil(t, err)
 	defer resp.Body.Close()

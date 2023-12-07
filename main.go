@@ -382,7 +382,7 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 				data = handleDelete(r.FormValue("deleteOption"), user, peers)
 				goto render
 			default:
-				data.Message = "Bad button"
+				data.Message = "Bad button, please try again"
 			}
 		}
 	} else if r.Method == "GET" {
@@ -392,20 +392,21 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 render:
-	if !data.Clean {
-		tmpl, err := template.ParseFS(tFS, "templates/pb.tmpl", "templates/base.tmpl")
-		if err != nil {
-			msg := fmt.Sprintf("Failed to parse the template: %s", err)
-			http.Error(w, msg, http.StatusInternalServerError)
-			return
-		}
-		err = tmpl.Execute(w, data)
-		if err != nil {
-			Logger.Warnf("Failed to execute the main template: %s", err)
-		}
+	if data.Clean {
+		goHome(w, r, data.Message)
 		return
 	}
-	goHome(w, r, data.Message)
+
+	tmpl, err := template.ParseFS(tFS, "templates/pb.tmpl", "templates/base.tmpl")
+	if err != nil {
+		msg := fmt.Sprintf("Failed to parse the template: %s", err)
+		http.Error(w, msg, http.StatusInternalServerError)
+		return
+	}
+	err = tmpl.Execute(w, data)
+	if err != nil {
+		Logger.Warnf("Failed to execute the main template: %s", err)
+	}
 }
 
 func handleUpdate(r *http.Request, user string, peers *PeerList) ListContext {
