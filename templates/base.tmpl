@@ -153,7 +153,7 @@ input[type=checkbox]:checked::after{
 label{
     cursor: pointer;
 }
-input[name=otp] { width: 4em; }
+.otp { width: 4em; }
 footer p { text-align: right; }
 #message {
     border: 1px solid #F952F9;
@@ -193,6 +193,16 @@ footer p { text-align: right; }
 .qr-image { margin: 1em auto; text-align:center; }
 .entire-row a { text-decoration: underline; }
 .entire-row { text-align: center; border-right: 1px solid #F952F9; }
+#danger {
+    border: 1px dashed #F952F9;
+    padding: 0.5em;
+    border-radius: 0.5em;
+    margin: 3em auto 0;
+    max-width: 30em;
+    text-align: center;
+}
+#danger >* { margin: 0.7em 0; }
+#danger >div { display: flex; }
 
 @media 
     only screen and (max-width: 1024px) {
