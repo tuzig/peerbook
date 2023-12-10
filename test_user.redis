@@ -1,0 +1,6 @@
+HSET user:123 email j@random.sh active 1 verified 1
+SET uid:j@random.sh 123
+SADD userset:123 dummy1 dummy2
+HSET peer:dummy1 fp dummy1 name dummy.1 user 123 kind terminal7 verified 1
+HSET peer:dummy2 fp dummy2 name dummy.2 user 123 kind terminal7 verified 1
+SET token:testuser 123
