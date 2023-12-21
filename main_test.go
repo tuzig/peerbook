@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -824,6 +825,24 @@ func TestDeletePeerFromWeb(t *testing.T) {
 	// validate the peer is gone
 	require.False(t, redisDouble.Exists("peer:A"))
 	require.True(t, redisDouble.Exists("peer:B"))
+}
+func TestSupportEndpointNoBody(t *testing.T) {
+	startTest(t)
+	req, err := http.NewRequest("POST", "http://localhost:7777/support", nil)
+	w := httptest.NewRecorder()
+	serveSupport(w, req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusBadRequest, w.Code)
+}
+func TestSupportEndpoint(t *testing.T) {
+	startTest(t)
+	body := strings.NewReader(`{"email": "j@random.pizza", "log": "hello"}`)
+
+	req, err := http.NewRequest("POST", "http://localhost:7777/support", body)
+	w := httptest.NewRecorder()
+	serveSupport(w, req)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 func TestWebexec(t *testing.T) {
 	startTest(t)

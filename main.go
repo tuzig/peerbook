@@ -133,6 +133,51 @@ func getStrFromEncodedPath(r *http.Request) (string, error) {
 	return user, nil
 }
 
+func serveSupport(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Email string `json:"email"`
+		Log   string `json:"log"`
+	}
+	// get the json from the request body
+	// check if the body is empty
+	if r.Body == nil {
+		http.Error(w, "Please send a request body", http.StatusBadRequest)
+		return
+	}
+	dec := json.NewDecoder(r.Body)
+	err := dec.Decode(&req)
+	if err != nil {
+		http.Error(w, "Bad JSON", http.StatusBadRequest)
+		return
+	}
+	if req.Email == "" || req.Log == "" {
+		http.Error(w, "Missing email or log", http.StatusBadRequest)
+		return
+	}
+	Logger.Infof("Got support request from %s", req.Email)
+	m := gomail.NewMessage()
+	// TODO: Add support ticket number
+	m.SetHeaders(map[string][]string{
+		"From":               {m.FormatAddress("support@terminal7.dev", "Terminal7 Support")},
+		"To":                 {req.Email},
+		"Subject":            {"Terminal7 Support Request"},
+		"X-SES-MESSAGE-TAGS": {"genre=support_email"},
+	})
+	m.SetBody("text/plain", req.Log, gomail.SetPartEncoding(gomail.Unencoded))
+	err = sendEmail(m)
+	Logger.Infof("sendEmailr returned %s", err)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to send email: %s", err), http.StatusInternalServerError)
+		return
+	}
+	// retrun a status code of 201
+	http.Error(w, fmt.Sprintf("Email sent to %s", req.Email), http.StatusCreated)
+
+}
 func serveLogin(w http.ResponseWriter, r *http.Request) {
 	// esnure it's a post request
 	if r.Method != "POST" {
@@ -266,7 +311,7 @@ func sendVerifyEmail(email string, fp string) error {
 	m.AddAlternative("text/html", h.String(), gomail.SetPartEncoding(gomail.Unencoded))
 
 	m.SetHeaders(map[string][]string{
-		"From":               {m.FormatAddress("support@tuzig.com", "PeerBook Support")},
+		"From":               {m.FormatAddress("support@terminal7.dev", "PeerBook Support")},
 		"To":                 {email},
 		"Subject":            {"A peer is waiting your approval"},
 		"X-SES-MESSAGE-TAGS": {"genre=auth_email"},
@@ -295,7 +340,7 @@ func sendEmail(m *gomail.Message) error {
 	// Display an error message if something goes wrong; otherwise,
 	// display a message confirming that the message was sent.
 	if err := d.DialAndSend(m); err != nil {
-		Logger.Errorf("Failed to send email: %s", err)
+		return fmt.Errorf("Failed to send email: %s", err)
 	}
 	return nil
 }
@@ -834,6 +879,7 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 	http.HandleFunc("/offer", webexecHandler.HandleOffer)
 	http.HandleFunc("/candidates/", webexecHandler.HandleCandidate)
 	http.HandleFunc("/login", serveLogin)
+	http.HandleFunc("/support", serveSupport)
 
 	go func() {
 		defer wg.Done() // let main know we are done cleaning up
