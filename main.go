@@ -139,8 +139,9 @@ func serveSupport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Email string `json:"email"`
-		Log   string `json:"log"`
+		Email       string `json:"email"`
+		Log         string `json:"log"`
+		Description string `json:"description"`
 	}
 	// get the json from the request body
 	// check if the body is empty
@@ -167,7 +168,8 @@ func serveSupport(w http.ResponseWriter, r *http.Request) {
 		"Subject":            {"Terminal7 Support Request"},
 		"X-SES-MESSAGE-TAGS": {"genre=support_email"},
 	})
-	m.SetBody("text/plain", req.Log, gomail.SetPartEncoding(gomail.Unencoded))
+	body := fmt.Sprintf("Support request from %s\n\nDescription:\n%s\n\nLog:\n%s", req.Email, req.Description, req.Log)
+	m.SetBody("text/plain", body, gomail.SetPartEncoding(gomail.Unencoded))
 	err = sendEmail(m)
 	Logger.Infof("sendEmailr returned %s", err)
 	if err != nil {
