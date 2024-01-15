@@ -833,13 +833,13 @@ func TestSupportEndpointNoBody(t *testing.T) {
 }
 func TestSupportEndpoint(t *testing.T) {
 	startTest(t)
-	body := strings.NewReader(`{"email": "j@random.pizza", "log": "hello"}`)
+	body := strings.NewReader(`{"email": "j@random.pizza", "log": "hello", "description": "world"}`)
 
 	req, err := http.NewRequest("POST", "http://localhost:7777/support", body)
 	w := httptest.NewRecorder()
 	serveSupport(w, req)
 	require.NoError(t, err)
-	require.Equal(t, http.StatusInternalServerError, w.Code)
+	require.Equal(t, http.StatusCreated, w.Code)
 }
 func TestWebexec(t *testing.T) {
 	startTest(t)
