@@ -8,6 +8,11 @@ his file's format is define in
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and the release workflow reads it to set github's release notes.
 
+## Unreleased
+
+### Added
+
+- the support endpoint to send logs and description to support
 
 ## [1.6.0] - 2023-12-05
 
