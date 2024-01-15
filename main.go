@@ -28,6 +28,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-chi/httprate"
 	"github.com/pion/webrtc/v3"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
@@ -831,7 +832,7 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 	http.HandleFunc("/offer", webexecHandler.HandleOffer)
 	http.HandleFunc("/candidates/", webexecHandler.HandleCandidate)
 	http.HandleFunc("/login", serveLogin)
-	http.HandleFunc("/support", serveSupport)
+	http.HandleFunc("/support", onceAMinute(serveSupport))
 
 	go func() {
 		defer wg.Done() // let main know we are done cleaning up
@@ -846,6 +847,14 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 
 	// returning reference so caller can call Shutdown()
 	return srv
+}
+
+func onceAMinute(h http.HandlerFunc) http.HandlerFunc {
+	rateLimitedHandler := httprate.LimitByIP(1, time.Minute)(h)
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		rateLimitedHandler.ServeHTTP(w, r)
+	}
 }
 
 func createTempURL(uid string, prefix string, rel bool) (string, error) {
