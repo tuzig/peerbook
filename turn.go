@@ -108,7 +108,7 @@ func GetICEServers() ([]webrtc.ICEServer, error) {
 			})
 		}
 	} else {
-		Logger.Warn("TWILIO_AUTH_TOKEN not set, using local TURN server")
+		Logger.Warn("TWILIO_AUTH_TOKEN not set, using local TURN servers: %v", servers)
 	}
 	return iceservers, nil
 }

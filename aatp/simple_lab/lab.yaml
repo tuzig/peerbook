@@ -1,0 +1,52 @@
+version: "3.9"
+services:
+  runner:
+    build: 
+      context: .
+      dockerfile: ./aatp/infra/runner/Dockerfile
+    volumes:
+      - ./aatp/simple_lab:/runner
+      - ./aatp/common:/common
+      - ./aatp/result:/result
+    depends_on:
+      - peerbook
+    environment:
+      PWARGS: ${PWARGS--x -j 1}
+  peerbook:
+    build:
+      context: .
+      dockerfile: ./aatp/infra/peerbook/Dockerfile
+      args:
+        REF: ${PEERBOOK_REF-master}
+    expose:
+      - 17777
+    volumes:
+      - .:/peerbook
+    depends_on:
+      - valkey
+      - revenuecat
+    environment:
+      REDIS_HOST: valkey:6379
+      REVENUECAT_URL: http://revenuecat:1080
+      PB_SMTP_HOST: smtp
+      PB_SMTP_PORT: 1025
+      PB_HOME_URL: http://peerbook:17777
+      WEBEXEC_SERVER_URL: http://peerbook:17777
+  valkey:
+    image: valkey/valkey:7.2.5-alpine
+    expose:
+      - 6379
+  revenuecat:
+    image: "mockserver/mockserver"
+    environment:
+      MOCKSERVER_INITIALIZATION_JSON_PATH: /config/revenuecat_double.json
+      MOCKSERVER_LOG_LEVEL: WARN
+    expose:
+      - 1080
+    volumes:
+      - ./aatp/simple_lab:/config
+  smtp:
+    image: jcalonso/mailhog
+    expose:
+      - 1025
+      - 8025

@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"html/template"
 	"math/big"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -53,7 +54,8 @@ var (
 	db     DBType
 	hub    Hub
 	//go:embed templates
-	tFS embed.FS
+	tFS            embed.FS
+	ICETCPListener net.Listener
 )
 
 // PeerIsForeign is an error for the time when a peer asks to connect to a peer
@@ -1078,6 +1080,31 @@ render:
 	}
 }
 
+func setupICETCP() error {
+	var err error
+	var settingEngine webrtc.SettingEngine
+
+	// Enable support only for TCP ICE candidates.
+	settingEngine.SetNetworkTypes([]webrtc.NetworkType{
+		webrtc.NetworkTypeTCP4,
+		webrtc.NetworkTypeTCP6,
+	})
+
+	ICETCPListener, err = net.ListenTCP("tcp", &net.TCPAddr{
+		IP:   net.IP{0, 0, 0, 0},
+		Port: 8443,
+	})
+	if err != nil {
+		return err
+	}
+
+	tcpMux := webrtc.NewICETCPMux(nil, ICETCPListener, 8)
+	settingEngine.SetICETCPMux(tcpMux)
+
+	peers.WebRTCAPI = webrtc.NewAPI(webrtc.WithSettingEngine(settingEngine))
+	return nil
+}
+
 func main() {
 	addr := flag.String(
 		"addr", "0.0.0.0:17777", "address to listen for http requests")
@@ -1112,7 +1139,7 @@ func main() {
 	}
 	Logger.Infof("Starting peerbook")
 	go hub.run()
-
+	setupICETCP()
 	httpServerExitDone := &sync.WaitGroup{}
 	httpServerExitDone.Add(1)
 	srv := startHTTPServer(*addr, httpServerExitDone)
@@ -1126,4 +1153,5 @@ func main() {
 	}
 	// wait for goroutine started in startHTTPServer() to stop
 	httpServerExitDone.Wait()
+	ICETCPListener.Close()
 }

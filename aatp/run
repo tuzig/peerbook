@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+BUILD=1
+build_n_run() {
+    if [ $BUILD -eq 1 ]
+    then
+        echo ">>> Building a lab based on $1"
+        docker compose -f $1  --project-directory . build $BUILD_OPTIONS
+        if [ $? -ne 0 ]
+        then
+            exit "docker compose build failed"
+        fi
+    fi
+    echo ">>> Running a lab based on $1"
+    docker compose -f $1  --project-directory . up $UPFLAGS | sed 's/\.\.\//aatp\//g'
+    return ${PIPESTATUS[0]}
+}
+usage() {
+   cat <<EOS
+This script builds & runs the acceptance test procedures.
+When no path is given it fnds all the testing suites under `./aatp`
+setup their lab and runs them.
+
+Syntax: $0 [-h|z|n|d] <test_path>
+options:
+
+h     Print this usage
+z     Build the docker images from scratch before running
+n     Don't build the images
+l     keep containers running after the tests are done
+
+EOS
+}
+
+UPFLAGS="--exit-code-from runner"
+exit_error() {
+    usage
+    exit 1
+}
+while getopts ":lhnz" option; do
+    echo "option " $option
+   case $option in
+      h) # display usage
+         usage
+         exit;;
+      n) # No Build
+         BUILD=0
+         ;;
+      z) # No Cache
+         BUILD_OPTIONS="--no-cache"
+         ;;
+      l) # run as daemon and don't exit when done
+         UPFLAGS=
+         ;;
+      \?) # Invalid option
+         echo "Error: Invalid option"
+         exit_error;;
+   esac
+done
+shift $((OPTIND-1))
+if [ $# -eq 0 ]
+then
+    for compose in `find aatp -name "lab.yaml"`
+    do
+        build_n_run $compose
+        if [ $? -ne 0 ]
+        then
+            echo ">>> $(dirname $compose) tests FAILED"
+            exit 4
+        fi
+    done
+    echo ">>> All tests PASSED"
+else
+    for arg in $@
+    do
+        if [ ! -f $arg/lab.yaml ]
+        then
+            echo ">>> $arg is not a valid test suite"
+            exit 4
+        fi
+        build_n_run $arg/lab.yaml
+        if [ $? -ne 0 ]
+        then
+             echo ">>> $arg FAILED"
+             exit 5
+        fi
+        echo ">>> $arg tests PASSED"
+    done
+fi
