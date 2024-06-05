@@ -16,8 +16,6 @@ services:
     build:
       context: .
       dockerfile: ./aatp/infra/peerbook/Dockerfile
-      args:
-        REF: ${PEERBOOK_REF-master}
     expose:
       - 17777
     volumes:
