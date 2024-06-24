@@ -840,11 +840,11 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 	}
 	webrtcSetting := &webrtc.SettingEngine{}
 	publicIP := os.Getenv("WEBRTC_IP_ADDRESS")
-	if publicIP != "" {
-		webrtcSetting.SetNAT1To1IPs([]string{publicIP}, webrtc.ICECandidateTypeHost)
-	} else {
-		Logger.Warn("WEBRTC_IP_ADDRESS is not set, WebRTC connections could fail")
+	if publicIP == "" {
+		publicIP = "localhost"
+		Logger.Warn("WEBRTC_IP_ADDRESS is not set, using localhbost")
 	}
+	webrtcSetting.SetNAT1To1IPs([]string{publicIP}, webrtc.ICECandidateTypeHost)
 
 	peerConf := &peers.Conf{
 		Certificate:       certificate,

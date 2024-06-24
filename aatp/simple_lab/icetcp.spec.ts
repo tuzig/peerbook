@@ -4,7 +4,7 @@ import waitPort from 'wait-port'
 import * as redis from 'redis'
 import { reloadPage, getTWRBuffer } from '../common/utils'
 
-test.describe('ice tcp connection', ()  => {
+test.describe('peerbook webrtc connection', ()  => {
 
     const sleep = (ms) => { return new Promise(r => setTimeout(r, ms)) }
     let redisClient: redis.Redis,
@@ -13,9 +13,6 @@ test.describe('ice tcp connection', ()  => {
 
     test.afterAll(async () => {
         // delete the user and peer from redis
-        redisClient = redis.createClient({url: 'redis://valkey'})
-        redisClient.on('error', err => console.log('Redis client error', err))
-        await redisClient.connect()
         await redisClient.quit()
         await context.close()
     })
@@ -30,35 +27,60 @@ test.describe('ice tcp connection', ()  => {
         redisClient = redis.createClient({url: 'redis://valkey'})
         redisClient.on('error', err => console.log('Redis client error', err))
         await redisClient.connect()
-        await redisClient.set("tempid:$ValidBearer", "1")
+        await redisClient.flushAll()
+        // await redisClient.set("tempid:$ValidBearer", "1")
     })
 
     test('connect to peerbook', async () => {
-        await page.evaluate(() => {
-            window.done = false
-            let pc = new RTCPeerConnection()
+
+        const fp = await page.evaluate(async () => {
+            window.cert = await RTCPeerConnection.generateCertificate({
+              name: "ECDSA",
+                // @ts-ignore
+              namedCurve: "P-256",
+              expires: 31536000000
+            })
+            const fp = window.cert.getFingerprints()[0].value
+            // remove the colons and make it upper case
+            return fp.replace(/:/g, '').toUpperCase()
+        })
+        console.log('fp:', fp)
+        await redisClient.hSet("u:123456", {email: "j@example.com"})
+        await redisClient.hSet(`peer:${fp}`, {
+            name: "test",
+            kind: "test",
+            user: "123456",
+            verified: "1",
+            fp: fp,
+        })
+        await redisClient.sAdd("user:123456", fp)
+        await page.evaluate(async () => {
+            window.welcomeMessages = 0
+            let pc = new RTCPeerConnection({ certificates: [window.cert] })
             let state: string
             let dc = pc.createDataChannel('%')
+            window.cdc = dc
             var sessionURL = null
 
             dc.onopen = () => {
                 console.log('datachannel open')
-                window.done = true
             }
-            dc.onmessage = event => {
-                console.log('got message:', event.data)
+            dc.onmessage = m => {
+                const d = new TextDecoder("utf-8"),
+                      msg = JSON.parse(d.decode(m.data))
+                if ("peers" in msg) {
+                    window.welcomeMessages++
+                    console.log('peers:', msg.peers)
+                } else if ("ice_servers" in msg) {
+                    window.welcomeMessages++
+                    console.log('ice servers:', data.ice_servers)
+                }
             }
-
             pc.oniceconnectionstatechange = () => console.log('iceConnectionState:', pc.iceConnectionState)
-
             pc.createOffer().then(offer => {
                 pc.setLocalDescription(offer)
                 fetch(`http://peerbook:17777/offer`, {
                       method: 'post',
-                      headers: {
-                        'Content-Type': 'application/sdp',
-                        'Authorization': 'Bearer $ValidBearer',
-                      },
                       body: offer.sdp
                  }).then(response => {
                      console.log('response:', response.status)
@@ -78,12 +100,41 @@ test.describe('ice tcp connection', ()  => {
                 }).catch(error => console.log(`FAILED: POST to https://peerbook:17777/offer`, error))
             })
             pc.onconnectionstatechange = () => {
-                console.log('signalingState:', state)
+                console.log('signalingState:', pc.connectionState)
             }
         })
         let done = false
         while (!done) {
-            done = await page.evaluate(() => window.done)
+            done = await page.evaluate(() => window.welcomeMessages == 2)
+            sleep(100)
+        }
+    })
+    test("ice_servers request", async () => {
+        // set the ice servers
+        await redisClient.hSet("iceserver:1", {
+            url: "stun:stun.l.google.com:19302",
+            active: "1",
+            username: "123456",
+            credential: "7890",
+        })
+        await page.evaluate(async () => {
+            window.iceServers = null
+            window.cdc.onmessage = m => {
+                const d = new TextDecoder("utf-8"),
+                      msg = JSON.parse(d.decode(m.data))
+                if ((msg.type == "ack") &&
+                    (msg.args.ref = 123456)) {
+                    window.iceServers = msg.args.ref
+                    console.log('ice servers:', window.iceServers)
+                }
+            }
+            window.cdc.send(JSON.stringify({type: "ice_servers",
+                                            message_id: 123456,
+                                            time: Date.now()}))
+        })
+        let done = false
+        while (!done) {
+            done = await page.evaluate(() => window.iceServers != null)
             sleep(100)
         }
     })

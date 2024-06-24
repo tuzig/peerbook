@@ -41,6 +41,7 @@ func genCredential(username string) (string, string) {
 	return compuser, base64.StdEncoding.EncodeToString(h.Sum(nil))
 }
 
+// deprecated - use the webrtc connection instead
 func serveICEServers(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "Only the POST method is supported", http.StatusBadRequest)
@@ -99,16 +100,16 @@ func GetICEServers() ([]webrtc.ICEServer, error) {
 		} else {
 			servers = append(servers, twilioServers...)
 		}
-		for _, s := range servers {
-			iceservers = append(iceservers, webrtc.ICEServer{
-				URLs:           []string{s.Urls},
-				Username:       s.Username,
-				Credential:     s.Credential,
-				CredentialType: webrtc.ICECredentialTypePassword,
-			})
-		}
 	} else {
 		Logger.Warn("TWILIO_AUTH_TOKEN not set, using local TURN servers: %v", servers)
+	}
+	for _, s := range servers {
+		iceservers = append(iceservers, webrtc.ICEServer{
+			URLs:           []string{s.Urls},
+			Username:       s.Username,
+			Credential:     s.Credential,
+			CredentialType: webrtc.ICECredentialTypePassword,
+		})
 	}
 	return iceservers, nil
 }

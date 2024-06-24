@@ -183,7 +183,10 @@ func serveWs(w http.ResponseWriter, r *http.Request) {
 
 func (c *Conn) Welcome() {
 	if c.Verified && c.UserActive {
-		c.SendPeerList()
+		err := c.SendPeerList()
+		if err != nil {
+			Logger.Errorf("Failed to send peer list: %s", err)
+		}
 	} else {
 		msg := fmt.Errorf(
 			"Unverified peer, please use Terminal7 to verify or at https://peerbook.io")

@@ -47,6 +47,21 @@ func (c *Connection) sendPeerList() {
 		Logger.Errorf("Failed to send peers message - %s", err)
 	}
 }
+func (c *Connection) sendIceServers() {
+	servers, err := GetICEServers()
+	// return the JSON representation of the servers
+	if err != nil {
+		Logger.Errorf("Failed to get ice servers: %s", err)
+		return
+	}
+	msg := map[string]interface{}{"ice_servers": servers}
+	b, err := json.Marshal(msg)
+	if err != nil {
+		Logger.Errorf("Failed to marshal ice servers: %s", err)
+
+	}
+	c.llPeer.SendMessage(b)
+}
 
 func (cl *ConnectionList) Get(fp string) (*Connection, bool) {
 	cl.Lock()
@@ -170,7 +185,11 @@ func OnPeerMsg(webrtcPeer *peers.Peer, msg webrtc.DataChannelMessage) {
 				return
 			}
 			Logger.Infof("Starting sending peer list for %q", webrtcPeer.FP)
-			go conn.sendPeerList()
+			go func() {
+				conn.sendPeerList()
+				conn.sendIceServers()
+			}()
+
 		}
 		return
 	}
@@ -269,6 +288,18 @@ func OnPeerMsg(webrtcPeer *peers.Peer, msg webrtc.DataChannelMessage) {
 		/* TODO
 		case "answer":
 		*/
+	case "ice_servers":
+		servers, err := GetICEServers()
+		if err != nil {
+			Logger.Errorf("Failed to get ice servers: %s", err)
+			return
+		}
+		Logger.Infof("Sending ice servers: %v", servers)
+		resp, err := json.Marshal(servers)
+		if err != nil {
+			Logger.Errorf("Failed to marshal ice servers: %s", err)
+		}
+		body = string(resp)
 	}
 	if err != nil {
 		Logger.Infof("Sending NACK: %v", body)
