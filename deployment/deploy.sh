@@ -27,7 +27,7 @@ if [ "${ENVIRONMENT}" = "staging" ]; then
     aws ssm send-command \
         --instance-ids "${INSTANCE_ID}" \
         --document-name "AWS-RunShellScript" \
-        --parameters commands="${RUN_COMMANDS}" workingDirectory="/tmp" \
+        --parameters commands="${RUN_COMMANDS}",workingDirectory="/tmp" \
         --comment "Peerbook deployment via SSM on staging" \
         --output json
 
