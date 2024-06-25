@@ -5,7 +5,7 @@ LAYER_NAME="${ENVIRONMENT}-peerbook"
 CLUSTER_NAME="${ENVIRONMENT}-peerbook"
 
 echo "Preparing docker compose"
-sed -e "s/\${AWS_REGION}/${AWS_REGION}/g; s/\${AWS_ACCOUNT_ID}/${AWS_ACCOUNT_ID}/g; s/\${HASH}/${HASH}/g; s/\${LAYER_NAME}/${LAYER_NAME}/g" docker-compose.${ENVIRONMENT}.template.yml >docker-compose.yml
+sed -e "s/\${AWS_REGION}/${AWS_REGION}/g; s/\${AWS_ACCOUNT_ID}/${AWS_ACCOUNT_ID}/g; s/\${HASH}/${HASH}/g; s/\${LAYER_NAME}/${LAYER_NAME}/g;  s/\${ENVIRONMENT}/${ENVIRONMENT}/g" docker-compose.${ENVIRONMENT}.template.yml >docker-compose.yml
 
 if [ "${ENVIRONMENT}" = "staging" ]; then
     # If in the staging environment, deploy directly to an EC2 instance using AWS CLI via SSM

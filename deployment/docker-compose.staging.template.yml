@@ -5,9 +5,7 @@ services:
     image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ENVIRONMENT}/peerbook/server:${HASH}
     ports:
       - "80:17777"
-      - target: 60000-61000
-        published: 60000-61000
-        protocol: udp
+      - "60000-61000:60000-61000/udp"
     environment:
       AWS_REGION: ${AWS_REGION}
       LAYER_NAME: ${LAYER_NAME}
