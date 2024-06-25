@@ -13,7 +13,7 @@ if [ "${ENVIRONMENT}" = "staging" ]; then
     INSTANCE_ID="i-0c951da757bd3d175"
     PUBLIC_IP=$(aws ec2 describe-instances --instance-ids "${INSTANCE_ID}" --query "Reservations[*].Instances[*].PublicIpAddress" --output text)
 
-    sed -e "s/\${PUBLIC_IP}/${PUBLIC_IP}/g" docker-compose.yml >docker-compose.yml
+    sed -i -e "s/\${PUBLIC_IP}/${PUBLIC_IP}/g" docker-compose.yml
     # Upload docker-compose.yml to an S3 bucket
     BUCKET_NAME="peerbook-staging"
     aws s3 cp docker-compose.yml s3://${BUCKET_NAME}/docker-compose.yml
