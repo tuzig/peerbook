@@ -19,7 +19,8 @@ if [ "${ENVIRONMENT}" = "staging" ]; then
     aws s3 cp docker-compose.yml s3://${BUCKET_NAME}/docker-compose.yml
 
     # Command to execute on the EC2 instance
-    RUN_COMMANDS="aws s3 cp s3://${BUCKET_NAME}/docker-compose.yml .; \
+    RUN_COMMANDS="cd /tmp; \
+                  aws s3 cp s3://${BUCKET_NAME}/docker-compose.yml .; \
                   docker compose down; \
                   docker compose up -d"
 
@@ -27,7 +28,7 @@ if [ "${ENVIRONMENT}" = "staging" ]; then
     aws ssm send-command \
         --instance-ids "${INSTANCE_ID}" \
         --document-name "AWS-RunShellScript" \
-        --parameters commands="${RUN_COMMANDS}",workingDirectory="/tmp" \
+        --parameters commands="${RUN_COMMANDS}" \
         --comment "Peerbook deployment via SSM on staging" \
         --output json
 
