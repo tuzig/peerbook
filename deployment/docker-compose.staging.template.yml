@@ -13,12 +13,12 @@ services:
       PB_HOME_URL: http://${PUBLIC_IP}
       WEBEXEC_SERVER_URL: http://${PUBLIC_IP}
       WEBRTC_IP_ADDRESS: ${PUBLIC_IP}
-    logging:
-      driver: awslogs
-      options:      
-        awslogs-group: ${LAYER_NAME}-api
-        awslogs-region: ${AWS_REGION}
-        awslogs-stream-prefix: api
+        # logging:
+        # driver: awslogs
+        # options:      
+        # awslogs-group: ${LAYER_NAME}-api
+        # awslogs-region: ${AWS_REGION}
+        # awslogs-stream-prefix: api
   valkey:
     image: valkey/valkey:7.2.5-alpine
     expose:
