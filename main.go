@@ -27,6 +27,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/go-chi/httprate"
@@ -1150,7 +1151,7 @@ func main() {
 	srv := startHTTPServer(*addr, httpServerExitDone)
 	// Setting up signal capturing
 	stop = make(chan os.Signal, 1)
-	signal.Notify(stop, os.Interrupt)
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
 	<-stop
 	connections.StopAll()
 	if err = srv.Shutdown(context.Background()); err != nil {
