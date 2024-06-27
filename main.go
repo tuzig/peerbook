@@ -1089,8 +1089,14 @@ func setupICETCP() error {
 		webrtc.NetworkTypeTCP6,
 	})
 
+	ip := os.Getenv("WEBRTC_IP_ADDRESS")
+	if ip == "" {
+		ip = "0.0.0.0"
+		Logger.Warn("WEBRTC_IP_ADDRESS is not set, using 0.0.0.0")
+	}
+
 	ICETCPListener, err = net.ListenTCP("tcp", &net.TCPAddr{
-		IP:   net.IP{0, 0, 0, 0},
+		IP:   net.ParseIP(ip),
 		Port: 8443,
 	})
 	if err != nil {
