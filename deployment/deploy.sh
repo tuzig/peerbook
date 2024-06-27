@@ -20,7 +20,8 @@ if [ "${ENVIRONMENT}" = "staging" ]; then
     aws s3 cp nginx.conf s3://${BUCKET_NAME}/nginx.conf
 
     # Command to execute on the EC2 instance
-    RUN_COMMANDS="aws s3 cp s3://${BUCKET_NAME}/nginx.conf .; \
+    RUN_COMMANDS="cd /root ; \
+                  aws s3 cp s3://${BUCKET_NAME}/nginx.conf .; \
                   aws s3 cp s3://${BUCKET_NAME}/docker-compose.yml .; \
                   aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.eu-central-1.amazonaws.com; \
                   docker compose down; \

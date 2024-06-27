@@ -1,5 +1,4 @@
 # Docker compose file to define single host peerbook service
-version: '3'
 services:
   peerbook:
     image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ENVIRONMENT}/peerbook/server:${HASH}
