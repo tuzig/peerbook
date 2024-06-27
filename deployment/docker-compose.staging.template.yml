@@ -21,6 +21,8 @@ services:
     image: valkey/valkey:7.2.5-alpine
     expose:
       - 6379
+    volumes:
+      - data:/data
   nginx:
     image: nginx:latest
     depends_on:
@@ -31,3 +33,5 @@ services:
       - "80:80"
     networks:
       - default
+volumes:
+  data: 
