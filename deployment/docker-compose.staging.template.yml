@@ -4,7 +4,6 @@ services:
   peerbook:
     image: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ENVIRONMENT}/peerbook/server:${HASH}
     ports:
-      - "80:17777"
       - "60000-61000:60000-61000/udp"
     environment:
       AWS_REGION: ${AWS_REGION}
@@ -23,3 +22,13 @@ services:
     image: valkey/valkey:7.2.5-alpine
     expose:
       - 6379
+  nginx:
+    image: nginx:latest
+    depends_on:
+      - peerbook
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+    networks:
+      - default
