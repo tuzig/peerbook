@@ -1096,9 +1096,19 @@ func setupICETCP() error {
 		Logger.Warn("WEBRTC_IP_ADDRESS is not set, using 0.0.0.0")
 	}
 
+	portS := os.Getenv("PB_ICETCP_PORT")
+	if portS == "" {
+		portS = "0"
+		Logger.Warn("PB_ICETCP_PORT is not set, using dynamic port")
+	}
+	port, err := strconv.Atoi(portS)
+	if err != nil {
+		port = 0
+		Logger.Warnf("PB_ICETCP_PORT is not a number, using dynamic port", portS)
+	}
 	ICETCPListener, err = net.ListenTCP("tcp", &net.TCPAddr{
 		IP:   net.ParseIP(ip),
-		Port: 8443,
+		Port: port,
 	})
 	if err != nil {
 		return err
