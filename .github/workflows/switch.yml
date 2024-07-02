@@ -1,0 +1,29 @@
+name: switch
+
+on:
+  workflow_dispatch:
+
+jobs:
+  switch-envs:
+    name: Switch live & next envs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws_region: ${{ secrets.AWS_REGION }}
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # must set to 0 to get tags
+          sparse-checkout: deployment/switch.sh
+      - name: copy switch script
+        run: |
+          aws s3 cp deployment/switch.sh s3://peerbook-staging/switch.sh
+      - name: run the stage script
+        run: |
+          aws ssm send-command \
+            --document-name "AWS-RunRemoteScript" \
+            --parameters '{"source":["s3://peerbook-staging/switch.sh"]}' \
+            --instance-ids ${{ secrets.INSTANCE_ID }}
