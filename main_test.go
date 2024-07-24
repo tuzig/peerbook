@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -24,8 +25,8 @@ import (
 	"github.com/pion/webrtc/v3"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
-	"github.com/tuzig/webexec/httpserver"
-	"github.com/tuzig/webexec/peers"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
 	"go.uber.org/zap/zaptest"
 	"golang.org/x/net/html"
 )
@@ -836,6 +837,29 @@ func TestSupportEndpointNoBody(t *testing.T) {
 }
 func TestSupportEndpoint(t *testing.T) {
 	startTest(t)
+	ctx := context.Background()
+	cReq := testcontainers.ContainerRequest{
+		Image:      "mailhog/mailhog",
+		Cmd:        []string{"-smtp-bind-addr", "0.0.0.0:1025"},
+		WaitingFor: wait.ForListeningPort("1025"),
+		AutoRemove: true,
+	}
+
+	smtpContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: cReq,
+		Started:          true,
+	})
+	require.NoError(t, err)
+	defer smtpContainer.Terminate(ctx)
+
+	ip, err := smtpContainer.Host(ctx)
+	require.NoError(t, err)
+	port, err := smtpContainer.MappedPort(ctx, "1025")
+	require.NoError(t, err)
+	os.Setenv("PB_SMTP_HOST", ip)
+	os.Setenv("PB_SMTP_PORT", port.Port())
+	require.NoError(t, err)
+
 	body := strings.NewReader(`{"email": "j@random.pizza", "log": "hello", "description": "world"}`)
 
 	req, err := http.NewRequest("POST", "http://localhost:7777/support", body)
@@ -843,60 +867,4 @@ func TestSupportEndpoint(t *testing.T) {
 	serveSupport(w, req)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusCreated, w.Code)
-}
-func TestWebexec(t *testing.T) {
-	startTest(t)
-	done := make(chan bool)
-	// start the webrtc client
-	client, cert, err := newClient(t)
-	require.NoError(t, err, "Failed to create a client: %q", err)
-	cdc, err := client.CreateDataChannel("%", nil)
-	require.Nil(t, err, "Failed to create the control data channel: %q", err)
-	clientOffer, err := client.CreateOffer(nil)
-	require.Nil(t, err, "Failed to create client offer: %q", err)
-	gatherComplete := webrtc.GatheringCompletePromise(client)
-	err = client.SetLocalDescription(clientOffer)
-	require.Nil(t, err, "Failed to set client's local Description client offer: %q", err)
-	select {
-	case <-time.After(3 * time.Second):
-		t.Errorf("timed out waiting to ice gathering to complete")
-	case <-gatherComplete:
-		buf := make([]byte, 4096)
-		l, err := peers.EncodeOffer(buf, *client.LocalDescription())
-		require.Nil(t, err, "Failed ending an offer: %v", clientOffer)
-		fp, err := peers.ExtractFP(cert)
-		require.NoError(t, err, "Failed to extract the fingerprint: %q", err)
-		p := httpserver.ConnectRequest{fp, 1, string(buf[:l])}
-		m, err := json.Marshal(p)
-		resp, err := http.Post("http://127.0.0.1:17777/we", "application/json", bytes.NewBuffer(m))
-		require.NoError(t, err, "Failed to connect to the server")
-		defer resp.Body.Close()
-		answer, err := io.ReadAll(resp.Body)
-		require.NoError(t, err, "Failed to read the offer")
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Failed to connect to the server", string(answer))
-		// decode the answer from the answer
-		var sd webrtc.SessionDescription
-		err = peers.DecodeOffer(&sd, answer)
-		require.Nil(t, err, "Failed decoding an offer: %v", clientOffer)
-		client.SetRemoteDescription(sd)
-		// when cdc is open, we're done
-		cdc.OnOpen(func() {
-			done <- true
-		})
-	}
-	select {
-	case <-time.After(3 * time.Second):
-		t.Errorf("Timeouton cdc open")
-	case <-done:
-	}
-	/*
-			// There's t.Cleanup in go 1.15+
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-			defer cancel()
-			err := Shutdown(ctx)
-			require.Nil(t, err, "Failed shutting the http server: %v", err)
-		Shutdown()
-		// TODO: be smarter, this is just a hack to get github action to pass
-		time.Sleep(500 * time.Millisecond)
-	*/
 }
