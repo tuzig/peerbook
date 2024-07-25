@@ -2,7 +2,6 @@ import { test, expect, Page, BrowserContext } from '@playwright/test'
 import { authenticator } from 'otplib'
 import waitPort from 'wait-port'
 import * as redis from 'redis'
-import { reloadPage, getTWRBuffer } from '../common/utils'
 
 test.describe('peerbook webrtc connection', ()  => {
 
