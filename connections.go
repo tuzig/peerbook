@@ -25,42 +25,39 @@ type ConnectionList struct {
 
 var connections ConnectionList = ConnectionList{conns: make(map[string]*Connection)}
 
-func (c *Connection) sendPeerList() {
+func (c *Connection) sendPeerList() error {
 	Logger.Infof("Sending peer list to %q", c.llPeer.FP)
 	uID, err := db.GetUID4FP(c.llPeer.FP)
 	if err != nil {
-		Logger.Errorf("Failed to get uid - %s", err)
-		return
+		return fmt.Errorf("Failed to get uid - %s", err)
 	}
 	m, err := GetPeersMessage(uID)
 	if err != nil {
-		Logger.Errorf("Failed to get peers message - %s", err)
-		return
+		return fmt.Errorf("Failed to get peers message - %s", err)
 	}
 	msg, err := json.Marshal(m)
 	if err != nil {
-		Logger.Errorf("Failed to marshal peers message - %s", err)
-		return
+		return fmt.Errorf("Failed to marshal peers message - %s", err)
 	}
 	err = c.llPeer.SendMessage(msg)
 	if err != nil {
 		Logger.Errorf("Failed to send peers message - %s", err)
 	}
+	return nil
 }
-func (c *Connection) sendIceServers() {
+func (c *Connection) sendIceServers() error {
 	servers, err := GetICEServers()
 	// return the JSON representation of the servers
 	if err != nil {
-		Logger.Errorf("Failed to get ice servers: %s", err)
-		return
+		return fmt.Errorf("Failed to get ice servers: %s", err)
 	}
 	msg := map[string]interface{}{"ice_servers": servers}
 	b, err := json.Marshal(msg)
 	if err != nil {
-		Logger.Errorf("Failed to marshal ice servers: %s", err)
-
+		return fmt.Errorf("Failed to marshal ice servers: %s", err)
 	}
 	c.llPeer.SendMessage(b)
+	return nil
 }
 
 func (cl *ConnectionList) Get(fp string) (*Connection, bool) {
@@ -186,8 +183,14 @@ func OnPeerMsg(webrtcPeer *peers.Peer, msg webrtc.DataChannelMessage) {
 			}
 			Logger.Infof("Starting sending peer list for %q", webrtcPeer.FP)
 			go func() {
-				conn.sendPeerList()
-				conn.sendIceServers()
+				err := conn.sendPeerList()
+				if err != nil {
+					Logger.Errorf("Failed to send peer list: %s", err)
+				}
+				err = conn.sendIceServers()
+				if err != nil {
+					Logger.Errorf("Failed to send ice servers: %s", err)
+				}
 			}()
 
 		}
