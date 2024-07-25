@@ -60,6 +60,19 @@ func (c *Connection) sendIceServers() error {
 	return nil
 }
 
+// Welcome sends a welcome message over the connection
+func (c *Connection) Welcome() {
+	Logger.Debugf("Welcoming peer %q", c.llPeer.FP)
+	err := c.sendPeerList()
+	if err != nil {
+		Logger.Errorf("Failed to send peer list: %s", err)
+	}
+	err = c.sendIceServers()
+	if err != nil {
+		Logger.Errorf("Failed to send ice servers: %s", err)
+	}
+}
+
 func (cl *ConnectionList) Get(fp string) (*Connection, bool) {
 	cl.Lock()
 	defer cl.Unlock()
@@ -181,18 +194,7 @@ func OnPeerMsg(webrtcPeer *peers.Peer, msg webrtc.DataChannelMessage) {
 				Logger.Errorf("Failed to get connection for %q", webrtcPeer.FP)
 				return
 			}
-			Logger.Infof("Starting sending peer list for %q", webrtcPeer.FP)
-			go func() {
-				err := conn.sendPeerList()
-				if err != nil {
-					Logger.Errorf("Failed to send peer list: %s", err)
-				}
-				err = conn.sendIceServers()
-				if err != nil {
-					Logger.Errorf("Failed to send ice servers: %s", err)
-				}
-			}()
-
+			go conn.Welcome()
 		}
 		return
 	}
