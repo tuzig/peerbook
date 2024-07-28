@@ -6,4 +6,4 @@ RUN addgroup -S peerbook && adduser -S peerbook -G peerbook
 ENV PB_STATIC_ROOT=/home/peerbook/src/peerbook/html
 EXPOSE 17777
 WORKDIR /peerbook
-CMD go run .
+CMD go run . -addr peerbook:17777
