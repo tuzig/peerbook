@@ -93,7 +93,6 @@ func (cl *ConnectionList) Start(webrtcPeer *peers.Peer) {
 		sender(ctx, webrtcPeer.FP, webrtcPeer.SendMessage)
 		Logger.Debugf("Sender for %q exited", fp)
 	}()
-
 }
 
 // Stop stops the sender for the given peer
@@ -184,12 +183,15 @@ loop:
 		}
 	}
 }
-func OnPeerMsg(webrtcPeer *peers.Peer, msg webrtc.DataChannelMessage) {
-	if msg.Data == nil {
-		verified := IsVerified(webrtcPeer.FP)
+func OnPeerMsg(webrtcPeer *peers.Peer, msg *peers.CTRLMessage, raw json.RawMessage) {
+	var body string
+	var err error
+	fp := webrtcPeer.FP
+	if msg == nil {
+		verified := IsVerified(fp)
 		Logger.Debugf("Got a nil message, verified: %v", verified)
 		if verified {
-			conn, ok := connections.Get(webrtcPeer.FP)
+			conn, ok := connections.Get(fp)
 			if !ok {
 				Logger.Errorf("Failed to get connection for %q", webrtcPeer.FP)
 				return
@@ -198,19 +200,7 @@ func OnPeerMsg(webrtcPeer *peers.Peer, msg webrtc.DataChannelMessage) {
 		}
 		return
 	}
-	var raw json.RawMessage
-	var body string
-	fp := webrtcPeer.FP
-	m := peers.CTRLMessage{
-		Args: &raw,
-	}
-	Logger.Infof("Got a CTRLMessage: %q\n", string(msg.Data))
-	err := json.Unmarshal(msg.Data, &m)
-	if err != nil {
-		webrtcPeer.SendNack(m, fmt.Sprintf("Failed to parse incoming control message: %v", err))
-		return
-	}
-	switch m.Type {
+	switch msg.Type {
 	case "delete":
 		var args struct {
 			Target string `json:"target"`
@@ -308,10 +298,10 @@ func OnPeerMsg(webrtcPeer *peers.Peer, msg webrtc.DataChannelMessage) {
 	}
 	if err != nil {
 		Logger.Infof("Sending NACK: %v", body)
-		err = webrtcPeer.SendNack(m, err.Error())
+		err = webrtcPeer.SendNack(*msg, err.Error())
 	} else {
 		Logger.Infof("Sending ACK: %v", body)
-		err = webrtcPeer.SendAck(m, body)
+		err = webrtcPeer.SendAck(*msg, body)
 	}
 	if err != nil {
 		Logger.Errorf("Failed to send ACK/NACK: %v", err)

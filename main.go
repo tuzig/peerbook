@@ -37,6 +37,7 @@ import (
 	"github.com/tuzig/webexec/httpserver"
 	"github.com/tuzig/webexec/peers"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"gopkg.in/gomail.v2" //go get gopkg.in/gomail.v2
 )
 
@@ -772,11 +773,12 @@ func initLogger() {
 		  "level": "debug",
 		  "encoding": "console",
 		  "outputPaths": ["stdout"],
-		  "errorOutputPaths": ["stderr"],
+		  "errorOutputPaths": ["sterr"],
 		  "encoderConfig": {
 		    "messageKey": "message",
 		    "levelKey": "level",
-		    "levelEncoder": "lowercase"
+		    "levelEncoder": "lowercase",
+		    "timeKey": "time"
 		  }
 		}`)
 
@@ -784,7 +786,11 @@ func initLogger() {
 	if err := json.Unmarshal(zapConf, &cfg); err != nil {
 		panic(err)
 	}
+	cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	l, err := cfg.Build()
+	if err != nil {
+		panic(err)
+	}
 	Logger = l.Sugar()
 	if err != nil {
 		panic(err)
@@ -838,7 +844,12 @@ func startHTTPServer(addr *net.TCPAddr, wg *sync.WaitGroup) (*http.Server, error
 		return nil, fmt.Errorf("Failed to generate certificate: %w", err)
 	}
 	webrtcSetting := &webrtc.SettingEngine{}
-	webrtcSetting.SetNAT1To1IPs([]string{addr.String()}, webrtc.ICECandidateTypeHost)
+	publicIP := os.Getenv("PUBLIC_IP")
+	if publicIP == "" {
+		publicIP = "localhost"
+		Logger.Warn("PUBLIC_IP is not set, using localhbost")
+	}
+	webrtcSetting.SetNAT1To1IPs([]string{publicIP}, webrtc.ICECandidateTypeHost)
 
 	peerConf := &peers.Conf{
 		Certificate:       certificate,
@@ -1109,23 +1120,24 @@ func startICETCPServer(addr *net.TCPAddr) (*net.TCPListener, error) {
 }
 
 func main() {
+	if Logger == nil {
+		initLogger()
+	}
 	straddr := flag.String(
-		"addr", "0.0.0.0:17777", "address to listen for http requests")
-	// translate string address to net.TCPAddr
+		"addr", "127.0.0.1:17777", "address to listen for http requests")
+	flag.Parse()
 	addr, err := net.ResolveTCPAddr("tcp", *straddr)
 	if err != nil {
 		Logger.Fatalf("Failed to resolve TCP address: %s", err)
 		os.Exit(1)
 	}
+	Logger.Infof("Starting PeerBook HTTP server at %v", addr)
 
 	redisH := os.Getenv("REDIS_HOST")
 	if redisH == "" {
 		redisH = "127.0.0.1:6379"
 	}
 	flag.Parse()
-	if Logger == nil {
-		initLogger()
-	}
 	err = db.Connect(redisH)
 	if err != nil {
 		Logger.Errorf("Failed to connect to redis: %s", err)
@@ -1147,7 +1159,6 @@ func main() {
 		unregister: make(chan *Conn),
 		requests:   make(chan map[string]interface{}, 16),
 	}
-	Logger.Infof("Starting peerbook")
 	go hub.run()
 	ICETCPListner, err := startICETCPServer(addr)
 	if err != nil {
