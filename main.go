@@ -55,8 +55,7 @@ var (
 	db     DBType
 	hub    Hub
 	//go:embed templates
-	tFS            embed.FS
-	ICETCPListener net.Listener
+	tFS embed.FS
 )
 
 // PeerIsForeign is an error for the time when a peer asks to connect to a peer
@@ -831,21 +830,15 @@ func generateCertificate() (*webrtc.Certificate, error) {
 	})
 }
 
-func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
+func startHTTPServer(addr *net.TCPAddr, wg *sync.WaitGroup) (*http.Server, error) {
 
 	auth := NewUsersAuth()
 	certificate, err := generateCertificate()
 	if err != nil {
-		Logger.Fatalf("Failed to generate certificate: %s", err)
-		return nil
+		return nil, fmt.Errorf("Failed to generate certificate: %w", err)
 	}
 	webrtcSetting := &webrtc.SettingEngine{}
-	publicIP := os.Getenv("WEBRTC_IP_ADDRESS")
-	if publicIP == "" {
-		publicIP = "localhost"
-		Logger.Warn("WEBRTC_IP_ADDRESS is not set, using localhbost")
-	}
-	webrtcSetting.SetNAT1To1IPs([]string{publicIP}, webrtc.ICECandidateTypeHost)
+	webrtcSetting.SetNAT1To1IPs([]string{addr.String()}, webrtc.ICECandidateTypeHost)
 
 	peerConf := &peers.Conf{
 		Certificate:       certificate,
@@ -865,7 +858,7 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 	webexecHandler := httpserver.NewConnectHandler(auth, peerConf, Logger)
 
 	srv := &http.Server{
-		Addr:    addr,
+		Addr:    addr.String(),
 		Handler: webexecHandler.GetHandler(),
 	}
 	http.HandleFunc("/", serveHome)
@@ -898,7 +891,7 @@ func startHTTPServer(addr string, wg *sync.WaitGroup) *http.Server {
 	}()
 
 	// returning reference so caller can call Shutdown()
-	return srv
+	return srv, nil
 }
 
 func onceAMinute(h http.HandlerFunc) http.HandlerFunc {
@@ -1080,7 +1073,7 @@ render:
 	}
 }
 
-func setupICETCP() error {
+func startICETCPServer(addr *net.TCPAddr) (*net.TCPListener, error) {
 	var err error
 	var settingEngine webrtc.SettingEngine
 
@@ -1089,12 +1082,6 @@ func setupICETCP() error {
 		webrtc.NetworkTypeTCP4,
 		webrtc.NetworkTypeTCP6,
 	})
-
-	ip := os.Getenv("WEBRTC_IP_ADDRESS")
-	if ip == "" {
-		ip = "0.0.0.0"
-		Logger.Warn("WEBRTC_IP_ADDRESS is not set, using 0.0.0.0")
-	}
 
 	portS := os.Getenv("PB_ICETCP_PORT")
 	if portS == "" {
@@ -1106,24 +1093,31 @@ func setupICETCP() error {
 		port = 0
 		Logger.Warnf("PB_ICETCP_PORT is not a number, using dynamic port", portS)
 	}
-	ICETCPListener, err = net.ListenTCP("tcp", &net.TCPAddr{
-		IP:   net.ParseIP(ip),
+	listner, err := net.ListenTCP("tcp", &net.TCPAddr{
+		IP:   addr.IP,
 		Port: port,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	tcpMux := webrtc.NewICETCPMux(nil, ICETCPListener, 8)
+	tcpMux := webrtc.NewICETCPMux(nil, listner, 8)
 	settingEngine.SetICETCPMux(tcpMux)
 
 	peers.WebRTCAPI = webrtc.NewAPI(webrtc.WithSettingEngine(settingEngine))
-	return nil
+	return listner, nil
 }
 
 func main() {
-	addr := flag.String(
+	straddr := flag.String(
 		"addr", "0.0.0.0:17777", "address to listen for http requests")
+	// translate string address to net.TCPAddr
+	addr, err := net.ResolveTCPAddr("tcp", *straddr)
+	if err != nil {
+		Logger.Fatalf("Failed to resolve TCP address: %s", err)
+		os.Exit(1)
+	}
+
 	redisH := os.Getenv("REDIS_HOST")
 	if redisH == "" {
 		redisH = "127.0.0.1:6379"
@@ -1132,7 +1126,7 @@ func main() {
 	if Logger == nil {
 		initLogger()
 	}
-	err := db.Connect(redisH)
+	err = db.Connect(redisH)
 	if err != nil {
 		Logger.Errorf("Failed to connect to redis: %s", err)
 		os.Exit(1)
@@ -1155,10 +1149,19 @@ func main() {
 	}
 	Logger.Infof("Starting peerbook")
 	go hub.run()
-	setupICETCP()
+	ICETCPListner, err := startICETCPServer(addr)
+	if err != nil {
+		Logger.Fatalf("Failed to start ICE TCP server: %s", err)
+		os.Exit(1)
+	}
+	defer ICETCPListner.Close()
 	httpServerExitDone := &sync.WaitGroup{}
 	httpServerExitDone.Add(1)
-	srv := startHTTPServer(*addr, httpServerExitDone)
+	srv, err := startHTTPServer(addr, httpServerExitDone)
+	if err != nil {
+		Logger.Fatalf("Failed to start HTTP server: %s", err)
+		os.Exit(1)
+	}
 	// Setting up signal capturing
 	stop = make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM, syscall.SIGQUIT)
@@ -1169,5 +1172,4 @@ func main() {
 	}
 	// wait for goroutine started in startHTTPServer() to stop
 	httpServerExitDone.Wait()
-	ICETCPListener.Close()
 }
