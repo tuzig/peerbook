@@ -255,8 +255,14 @@ func serveLogin(w http.ResponseWriter, r *http.Request) {
 		peer := NewPeer(req.FP, req.Name, user, "terminal7")
 		err = db.AddPeer(peer)
 		if err != nil {
-			http.Error(w, "Failed to add peer", http.StatusInternalServerError)
-			Logger.Errorf("Failed to add peer: %s", err)
+			if err == ErrTooManyPeers {
+				Logger.Info("User %s has too many peers", user)
+				http.Error(w, "User has too many peers", http.StatusForbidden)
+				return
+			}
+			s := fmt.Sprintf("Failed to add peer: %s", err)
+			http.Error(w, s, http.StatusInternalServerError)
+			Logger.Warn(s)
 			return
 		}
 	} else {
@@ -836,19 +842,18 @@ func generateCertificate() (*webrtc.Certificate, error) {
 	})
 }
 
-func startHTTPServer(addr *net.TCPAddr, wg *sync.WaitGroup) (*http.Server, error) {
+func startHTTPServer(addr *net.TCPAddr, webrtcSetting *webrtc.SettingEngine, wg *sync.WaitGroup) (*http.Server, error) {
 
 	auth := NewUsersAuth()
 	certificate, err := generateCertificate()
 	if err != nil {
 		return nil, fmt.Errorf("Failed to generate certificate: %w", err)
 	}
-	webrtcSetting := &webrtc.SettingEngine{}
 	publicIP := os.Getenv("PUBLIC_IP")
 	if publicIP == "" {
-		publicIP = "localhost"
-		Logger.Warn("PUBLIC_IP is not set, using localhbost")
+		publicIP = GetLocalIP()
 	}
+	Logger.Infof("Using public IP %s", publicIP)
 	webrtcSetting.SetNAT1To1IPs([]string{publicIP}, webrtc.ICECandidateTypeHost)
 
 	peerConf := &peers.Conf{
@@ -1084,7 +1089,7 @@ render:
 	}
 }
 
-func startICETCPServer(addr *net.TCPAddr) (*net.TCPListener, error) {
+func startICETCPServer(addr *net.TCPAddr) (*net.TCPListener, *webrtc.SettingEngine, error) {
 	var err error
 	var settingEngine webrtc.SettingEngine
 
@@ -1109,14 +1114,13 @@ func startICETCPServer(addr *net.TCPAddr) (*net.TCPListener, error) {
 		Port: port,
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	tcpMux := webrtc.NewICETCPMux(nil, listner, 8)
 	settingEngine.SetICETCPMux(tcpMux)
 
-	peers.WebRTCAPI = webrtc.NewAPI(webrtc.WithSettingEngine(settingEngine))
-	return listner, nil
+	return listner, &settingEngine, nil
 }
 
 func main() {
@@ -1160,7 +1164,7 @@ func main() {
 		requests:   make(chan map[string]interface{}, 16),
 	}
 	go hub.run()
-	ICETCPListner, err := startICETCPServer(addr)
+	ICETCPListner, se, err := startICETCPServer(addr)
 	if err != nil {
 		Logger.Fatalf("Failed to start ICE TCP server: %s", err)
 		os.Exit(1)
@@ -1168,7 +1172,7 @@ func main() {
 	defer ICETCPListner.Close()
 	httpServerExitDone := &sync.WaitGroup{}
 	httpServerExitDone.Add(1)
-	srv, err := startHTTPServer(addr, httpServerExitDone)
+	srv, err := startHTTPServer(addr, se, httpServerExitDone)
 	if err != nil {
 		Logger.Fatalf("Failed to start HTTP server: %s", err)
 		os.Exit(1)
@@ -1183,4 +1187,20 @@ func main() {
 	}
 	// wait for goroutine started in startHTTPServer() to stop
 	httpServerExitDone.Wait()
+}
+
+// GetLocalIP returns the local IP address of the machine
+func GetLocalIP() string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return "127.0.0.1"
+	}
+	for _, address := range addrs {
+		if ipnet, ok := address.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+			if ipnet.IP.To4() != nil {
+				return ipnet.IP.String()
+			}
+		}
+	}
+	return "127.0.0.1"
 }

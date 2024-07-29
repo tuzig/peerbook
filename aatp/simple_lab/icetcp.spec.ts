@@ -72,7 +72,7 @@ test.describe('peerbook webrtc connection', ()  => {
                     console.log('peers:', msg.peers)
                 } else if ("ice_servers" in msg) {
                     window.welcomeMessages++
-                    console.log('ice servers:', data.ice_servers)
+                    console.log('ice servers:', msg.ice_servers)
                 }
             }
             pc.oniceconnectionstatechange = () => console.log('iceConnectionState:', pc.iceConnectionState)
@@ -88,6 +88,7 @@ test.describe('peerbook webrtc connection', ()  => {
                         return response.text()
                     } else {
                         console.log(`failed to post offer: ${response.status}`)
+                        response.text().then(text => window.postError = text)
                         return null
                     }
                 }).then(data => {
@@ -96,7 +97,7 @@ test.describe('peerbook webrtc connection', ()  => {
                         return
                     pc.setRemoteDescription({type: "answer", sdp: data})
                       .catch (e => console.log('failed to set remote description', e))
-                }).catch(error => console.log(`FAILED: POST to https://peerbook:17777/offer`, error))
+                }).catch(error => { window.postError = error })
             })
             pc.onconnectionstatechange = () => {
                 console.log('signalingState:', pc.connectionState)
@@ -104,9 +105,13 @@ test.describe('peerbook webrtc connection', ()  => {
         })
         let done = false
         while (!done) {
-            done = await page.evaluate(() => window.welcomeMessages == 2)
+            done = await page.evaluate(() => 
+                        window.welcomeMessages == 2 ||
+                        window.postError !==  undefined)
             sleep(100)
         }
+        const postError = await page.evaluate(() => window.postError)
+        expect(postError).toBeUndefined()
     })
     test("ice_servers request", async () => {
         // set the ice servers

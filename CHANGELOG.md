@@ -2,17 +2,19 @@
 
 All notable changes to this project will be documented in this fil, 
 
-webexec adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+peerbook adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 his file's format is define in 
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and the release workflow reads it to set github's release notes.
 
-## Unreleased
+## [1.7.0] - 2023-12-12
 
 ### Added
 
 - the support endpoint to send logs and description to support
+- ICETCP server
+- webexec status command to check the ICE server used
 
 ## [1.6.0] - 2023-12-05
 

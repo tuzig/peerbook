@@ -9,7 +9,7 @@ import (
 
 func TestTooManyPeers(t *testing.T) {
 	startTest(t)
-	for i := 0; i < 10; i++ {
+	for i := 0; i < MaxPeersPerUser; i++ {
 		p := Peer{
 			FP:   fmt.Sprintf("%2d", i+1),
 			User: "j",
@@ -20,7 +20,7 @@ func TestTooManyPeers(t *testing.T) {
 		require.Nil(t, err)
 	}
 	p := Peer{
-		FP:   "11",
+		FP:   "9999",
 		User: "j",
 		Kind: "foo"}
 	err := db.AddPeer(&p)

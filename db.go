@@ -16,8 +16,11 @@ const TokenLen = 30          // in Bytes, four times that in base64 and urls
 const TokenTTL = 300         // in Seconds
 const SubscriberTTL = 3 * 60 // in Seconds
 const EmailInterval = 60     // in Seconds
-const MaxPeersPerUser = 10
+const MaxPeersPerUser = 20
 const UserIDLength = 10
+
+// errTooManyPeers is an error that is returned when a user has too many peers
+var ErrTooManyPeers = fmt.Errorf("User has too many peers")
 
 // DBType is the type that holds our db
 type DBType struct {
@@ -168,7 +171,7 @@ func (d *DBType) AddPeer(peer *Peer) error {
 			return fmt.Errorf("Failed to read user %q list: %w", peer.User, err)
 		}
 		if len(values) == MaxPeersPerUser {
-			return fmt.Errorf("User has too many peers")
+			return ErrTooManyPeers
 		}
 		for _, v := range values {
 			// check if the peer's name already exists
