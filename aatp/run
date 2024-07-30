@@ -57,6 +57,9 @@ while getopts ":lhnz" option; do
    esac
 done
 shift $((OPTIND-1))
+echo ">>> Building the peerbook for all labs to enjoy"
+mkdir -p build
+GOOS=linux go build -o build/peerbook
 if [ $# -eq 0 ]
 then
     for compose in `find aatp -name "lab.yaml"`

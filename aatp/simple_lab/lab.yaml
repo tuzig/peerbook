@@ -13,13 +13,11 @@ services:
     environment:
       PWARGS: ${PWARGS--x -j 1}
   peerbook:
-    build:
-      context: .
-      dockerfile: ./aatp/infra/peerbook/Dockerfile
+    image: alpine:3.20.2
     expose:
       - 17777
     volumes:
-      - .:/peerbook
+      - ./build:/build
     depends_on:
       - valkey
       - revenuecat
@@ -28,7 +26,7 @@ services:
       REVENUECAT_URL: http://revenuecat:1080
       PB_SMTP_HOST: smtp
       PB_SMTP_PORT: 1025
-      PB_HOME_URL: http://peerbook:17777
+    command: /build/peerbook -addr peerbook:17777
   valkey:
     image: valkey/valkey:7.2.5-alpine
     expose:

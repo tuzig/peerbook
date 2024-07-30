@@ -43,9 +43,8 @@ import (
 
 const (
 	// SendChanSize is the size of the send channel in messages
-	SendChanSize = 4
-
-	DefaultHomeURL       = "https://peerbook.io"
+	SendChanSize         = 4
+	DefaultScheme        = "http"
 	DefaultRevenueCatURL = "https://api.revenuecat.com"
 )
 
@@ -277,7 +276,7 @@ func serveLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	err = sendVerifyEmail(email, req.FP)
+	err = sendVerifyEmail(email, req.FP, r)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to send email: %s", err), http.StatusInternalServerError)
 		return
@@ -287,13 +286,18 @@ func serveLogin(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, fmt.Sprintf("Email sent to %s", email), http.StatusCreated)
 
 }
-func sendVerifyEmail(email string, fp string) error {
+func sendVerifyEmail(email string, fp string, r *http.Request) error {
 	if !db.canSendEmail(email) {
 		return fmt.Errorf("Throttling prevented sending email to %q", email)
 	}
 	Logger.Infof("Sending verification email to: %s for %s", email, fp)
 	m := gomail.NewMessage()
-	clickL, err := createTempURL(fp, "verify", false)
+	scheme := r.Header.Get("X-Forwarded-Proto")
+	if scheme == "" {
+		scheme = DefaultScheme // Assume http if header is missing.
+	}
+	urlPrefix := fmt.Sprintf("%s://%s/%s", scheme, r.Host, "verify")
+	clickL, err := createTempURL(fp, urlPrefix)
 	if err != nil {
 		return fmt.Errorf("Failed to create temp URL: %s", err)
 	}
@@ -308,7 +312,7 @@ func sendVerifyEmail(email string, fp string) error {
 	context := struct {
 		URL     string
 		HomeURL string
-	}{URL: clickL, HomeURL: os.Getenv("PB_HOME_URL")}
+	}{URL: clickL, HomeURL: urlPrefix}
 	var p bytes.Buffer
 	err = plainT.Execute(&p, context)
 	if err != nil {
@@ -391,7 +395,7 @@ func serveAuthPage(w http.ResponseWriter, r *http.Request) {
 	verified := db.IsQRVerified(user)
 	if !verified {
 		// show the QR code
-		a, err := createTempURL(user, "qr", true)
+		a, err := createTempURL(user, "/qr")
 		if err != nil {
 			msg := fmt.Sprintf("Got an error creating temp url: %s", err)
 			Logger.Warnf(msg)
@@ -572,7 +576,7 @@ func serveHitMe(w http.ResponseWriter, r *http.Request) {
 			data.Message = fmt.Sprintf("Failed to get user ID: %s", err)
 			goto render
 		}
-		err = sendAuthEmail(email, uid)
+		err = sendAuthEmail(email, uid, r)
 		if err != nil {
 			data.Message = fmt.Sprintf("Failed to send email: %s", err)
 			goto render
@@ -660,7 +664,12 @@ func serveVerifyPeer(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, msg, http.StatusInternalServerError)
 		return
 	}
-	a, err := createTempURL(user, "pb", true)
+	scheme := r.Header.Get("X-Forwarded-Proto")
+	if scheme == "" {
+		scheme = DefaultScheme // Assume http if header is missing.
+	}
+	urlPrefix := fmt.Sprintf("%s://%s/%s", scheme, r.Host, "verify")
+	a, err := createTempURL(user, urlPrefix)
 	if err != nil {
 		msg := fmt.Sprintf("Failed to create temp url: %s", err)
 		Logger.Errorf(msg)
@@ -918,32 +927,33 @@ func onceAMinute(h http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func createTempURL(uid string, prefix string, rel bool) (string, error) {
-	var s string
+func createTempURL(uid string, prefix string) (string, error) {
 	token, err := db.CreateToken(uid)
 	if err != nil {
 		return "", fmt.Errorf("Failed to create token: %w", err)
 	}
-	if !rel {
-		s = os.Getenv("PB_HOME_URL")
-		if s == "" {
-			s = DefaultHomeURL
-		}
+	ret, err := url.JoinPath(prefix, token)
+	if err != nil {
+		return "", fmt.Errorf("Failed to join path: %w", err)
 	}
-	parts := []string{s, prefix, url.PathEscape(token)}
-	return strings.Join(parts, "/"), nil
+	return ret, nil
 }
 
 // sendAuthEmail creates a short lived token and emails a message with a link
 // to `/auth/<token>` so the javascript at /auth can read the list of peers and
 // use checkboxes to enable/disable
-func sendAuthEmail(email string, uid string) error {
+func sendAuthEmail(email string, uid string, r *http.Request) error {
 	if !db.canSendEmail(email) {
 		return fmt.Errorf("Throttling prevented sending email to %q", email)
 	}
 	Logger.Infof("Sending email to: %s, %s", email, uid)
 	m := gomail.NewMessage()
-	clickL, err := createTempURL(uid, "pb", false)
+	scheme := r.Header.Get("X-Forwarded-Proto")
+	if scheme == "" {
+		scheme = DefaultScheme
+	}
+	urlPrefix := fmt.Sprintf("%s://%s/%s", scheme, r.Host, "pb")
+	clickL, err := createTempURL(uid, urlPrefix)
 	if err != nil {
 		return fmt.Errorf("Failed to create temp URL: %s", err)
 	}
@@ -1031,7 +1041,7 @@ If you lost your device please use the account-recovery channel on our discord s
 			msg = "One Time Password validation failed, please try again"
 			goto render
 		}
-		a, err := createTempURL(user, "pb", true)
+		a, err := createTempURL(user, "pb")
 		if err != nil {
 			msg = fmt.Sprintf("Failed to create temp url: %s", err)
 			goto render
