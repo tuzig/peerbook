@@ -1,6 +1,8 @@
 from fabric import task
 ARC="amd64"
 OS="linux"
+PB_PATH = '/opt/peerbook'
+
 
 @task
 def deploy_pb(c):
@@ -40,9 +42,11 @@ def deploy_host(c):
 @task
 def switch(c):
     '''Switches the live service and the next'''
-    # get the target of the next symbolic link
-    next = c.run('basename $(readlink /opt/peerbook/next)')
-    live = c.run('basename $(readlink /opt/peerbook/live)')
-    c.run(f'ln -sfn {next} /opt/peerbook/live')
-    c.run(f'ln -sfn {live} /opt/peerbook/next')
-    c.sudo("nginx -s reload")
+    nr = c.run(f'basename $(readlink {PB_PATH}/next)')
+    lr = c.run(f'basename $(readlink {PB_PATH}/live)')
+    next = nr.stdout.strip()
+    live = lr.stdout.strip()
+    print(f"Switching {live} with {next}")
+    c.run(f'ln -sfn {PB_PATH}/{next} {PB_PATH}/live')
+    c.run(f'ln -sfn {PB_PATH}/{live} {PB_PATH}/next')
+    c.run("nginx -s reload")
